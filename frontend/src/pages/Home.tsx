@@ -1,0 +1,14 @@
+import { Link } from "react-router-dom";
+import { useAuth } from "../auth";
+
+export default function Home() {
+  const { user, logout } = useAuth();
+  return (
+    <div className="card">
+      <h1>ClippingVideos</h1>
+      <p>Sesión: {user?.email} ({user?.role})</p>
+      <p><Link to="/projects">Proyectos</Link> · <Link to="/jobs">Jobs</Link></p>
+      <button onClick={logout}>Salir</button>
+    </div>
+  );
+}

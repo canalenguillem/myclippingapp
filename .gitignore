@@ -1,0 +1,8 @@
+.env
+media/
+node_modules/
+dist/
+__pycache__/
+*.pyc
+.venv/
+fx_worker/out/
