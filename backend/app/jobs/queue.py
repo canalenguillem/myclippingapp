@@ -119,3 +119,9 @@ def cancel(db: Session, job: Job) -> bool:
 def is_cancelled(db: Session, job_id: int) -> bool:
     db.expire_all()
     return db.scalar(select(Job.status).where(Job.id == job_id)) == "cancelled"
+
+
+def active_job(db: Session, user_id: int, project_id: int) -> Job | None:
+    """Job en cola o en marcha de este proyecto (de cualquier tipo), o None."""
+    jobs = db.scalars(select(Job).where(Job.user_id == user_id, Job.status.in_(("queued", "running")))).all()
+    return next((j for j in jobs if (j.payload or {}).get("project_id") == project_id), None)

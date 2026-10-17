@@ -1,15 +1,11 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
-
-export type Project = {
-  id: number; source_url: string; title: string; duration: number | null;
-  status: string; error: string | null; created_at: string | null;
-};
+import type { Project } from "../types";
 
 const BUSY = new Set(["downloading", "transcribing"]);
 export const STATUS_LABEL: Record<string, string> = {
-  downloading: "Descargando", transcribing: "Transcribiendo", transcribed: "Transcrito",
+  downloading: "Descargando", transcribing: "Transcribiendo",
   detecting: "Detectando clips", ready: "Listo", failed: "Falló",
 };
 

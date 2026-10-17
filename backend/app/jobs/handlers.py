@@ -53,7 +53,9 @@ def demo(ctx: JobContext, payload: dict) -> None:
 
 def ingest(ctx: JobContext, payload: dict) -> None:
     """Descarga el vídeo, extrae el audio y lo transcribe una sola vez, por palabra."""
-    from app.db.models import Project, User
+    from app.db.models import Project, ProjectStatus, User
+    from app.services import speakers as speakers_service
+    from app.services import silences as silences_service
     from app.services import storage, transcription, video_download
 
     project = ctx.db.get(Project, int(payload["project_id"]))
@@ -62,12 +64,53 @@ def ingest(ctx: JobContext, payload: dict) -> None:
     user = ctx.db.get(User, ctx.user_id)
 
     def fail(message: str) -> None:
-        project.status, project.error = "failed", message[:2000]
+        # Un re-transcribir fallido no invalida lo que ya había: se vuelve al estado anterior con el error a la vista.
+        project.status = previous_status if transcribe_only else ProjectStatus.FAILED
+        project.error = message[:2000]
         ctx.db.commit()
+
+    transcribe_only = bool(payload.get("transcribe_only"))
+    previous_status = project.status
+
+    def measure_silences(folder) -> None:
+        ctx.log("Midiendo silencios…")
+        found = silences_service.detect_silences(folder / "audio.mp3")
+        silences_file = folder / "silences.json"
+        silences_service.save_silences(found, silences_file)
+        project.silences_path = storage.rel(silences_file)
+        ctx.db.commit()
+        ctx.log(f"{len(found)} silencios")
+
+    def transcribe(folder) -> None:
+        ctx.log("Transcribiendo con AssemblyAI y diarización (puede tardar unos minutos)…")
+        ctx.progress(55)
+        data = transcription.transcribe_words(
+            folder / "audio.mp3", payload.get("language", "auto"), payload.get("speakers_expected")
+        )
+        words_file = folder / "words.json"
+        transcription.save_words(data, words_file)
+        labels = transcription.speaker_labels(data)
+        project.speakers = speakers_service.merge_speakers(project.speakers, labels)
+        project.words_path = storage.rel(words_file)
+        ctx.db.commit()
+        ctx.log(f"{len(data['words'])} palabras · idioma {data['language']} · speakers {', '.join(labels)}")
 
     try:
         folder = storage.project_dir(project.user_id, project.id)
-        project.status, project.error = "downloading", None
+        if transcribe_only:
+            if not project.video_path:
+                raise RuntimeError("El proyecto no tiene vídeo descargado: no se puede re-transcribir")
+            if not (folder / "audio.mp3").exists():
+                video_download.extract_audio(storage.absolute(project.video_path), folder / "audio.mp3")
+            project.status, project.error = ProjectStatus.TRANSCRIBING, None
+            ctx.db.commit()
+            if not project.silences_path:  # proyectos importados antes de F4
+                measure_silences(folder)
+            transcribe(folder)
+            project.status = previous_status if previous_status in (ProjectStatus.READY, ProjectStatus.DETECTING) else ProjectStatus.DETECTING
+            ctx.db.commit()
+            return
+        project.status, project.error = ProjectStatus.DOWNLOADING, None
         ctx.db.commit()
 
         ctx.log(f"Leyendo metadatos: {project.source_url}")
@@ -100,17 +143,63 @@ def ingest(ctx: JobContext, payload: dict) -> None:
 
         audio = video_download.extract_audio(video, folder / "audio.mp3")
         ctx.check_cancelled()
-        project.status = "transcribing"
+        measure_silences(folder)
+        project.status = ProjectStatus.TRANSCRIBING
         ctx.db.commit()
-        ctx.log("Transcribiendo con AssemblyAI (puede tardar unos minutos)…")
-        ctx.progress(55)
-        data = transcription.transcribe_words(audio, payload.get("language", "auto"))
-        words_file = folder / "words.json"
-        transcription.save_words(data, words_file)
-        ctx.log(f"{len(data['words'])} palabras · idioma {data['language']}")
+        transcribe(folder)
+        project.status = ProjectStatus.DETECTING
+        ctx.db.commit()
+        queue.enqueue(ctx.db, ctx.user_id, "detect", {"project_id": project.id})
+        ctx.log("Detección de clips encolada")
+    except Cancelled:
+        fail("Cancelado")
+        raise
+    except Exception as exc:  # noqa: BLE001
+        fail(f"{type(exc).__name__}: {exc}")
+        raise
 
-        project.words_path = storage.rel(words_file)
-        project.status = "transcribed"
+
+def detect(ctx: JobContext, payload: dict) -> None:
+    """Pide al LLM los mejores momentos, ajusta los cortes a silencios y guarda los clips."""
+    from app.db.models import Project, ProjectStatus
+    from app.services import clip_detector, clips as clips_service, silences as silences_service
+    from app.services import storage, transcription
+
+    project = ctx.db.get(Project, int(payload["project_id"]))
+    if project is None or project.user_id != ctx.user_id:
+        raise RuntimeError("Proyecto no encontrado")
+    previous = project.status
+
+    def fail(message: str) -> None:
+        # Un re-detectar fallido sobre un proyecto ya listo no lo invalida: vuelve a `ready` con el error a la vista.
+        project.status = ProjectStatus.READY if previous is ProjectStatus.READY else ProjectStatus.FAILED
+        project.error = message[:2000]
+        ctx.db.commit()
+
+    try:
+        if not project.words_path:
+            raise RuntimeError("El proyecto no tiene transcripción")
+        project.status, project.error = ProjectStatus.DETECTING, None
+        ctx.db.commit()
+        data = transcription.load_words(storage.absolute(project.words_path))
+        silences = (silences_service.load_silences(storage.absolute(project.silences_path))
+                    if project.silences_path else [])
+
+        def progress(fraction: float) -> None:
+            ctx.check_cancelled()
+            ctx.progress(int(fraction * 90))
+
+        candidates = clip_detector.detect_clips(
+            data, parts=payload.get("parts"), clips_per_part=int(payload.get("clips_per_part", 5)),
+            target_dur=int(payload.get("target_dur", 40)), silences=silences, log=ctx.log, progress=progress,
+        )
+        total = project.duration
+        for c in candidates:
+            c.start = silences_service.snap_start(c.start, silences)
+            c.end = silences_service.snap_end(c.end, silences, total)
+        inserted, skipped = clips_service.replace_detected_clips(ctx.db, project, candidates)
+        ctx.log(f"{inserted} clips guardados" + (f" ({skipped} descartados por solaparse con clips ya trabajados)" if skipped else ""))
+        project.status = ProjectStatus.READY
         ctx.db.commit()
     except Cancelled:
         fail("Cancelado")
@@ -120,4 +209,4 @@ def ingest(ctx: JobContext, payload: dict) -> None:
         raise
 
 
-HANDLERS: dict[str, Handler] = {"demo": demo, "ingest": ingest}
+HANDLERS: dict[str, Handler] = {"demo": demo, "ingest": ingest, "detect": detect}

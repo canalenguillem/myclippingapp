@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     public_base_url: str = "http://localhost:5074"
 
     openai_api_key: str = ""
+    openai_clip_model: str = "gpt-4o"
     aai_api_key: str = ""
 
     worker_concurrency: int = 2

@@ -1,9 +1,10 @@
 """Modelo de datos. Toda tabla de contenido lleva user_id y se filtra por el usuario actual."""
 from __future__ import annotations
 
+import enum
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, func
+from sqlalchemy import JSON, Boolean, DateTime, Enum, Float, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .session import Base
@@ -11,6 +12,26 @@ from .session import Base
 
 def _now():
     return func.now()
+
+
+class ProjectStatus(enum.StrEnum):
+    """Texto en la BD (VARCHAR + validacion), no ENUM nativo: anadir un estado no exige ALTER."""
+
+    DOWNLOADING = "downloading"
+    TRANSCRIBING = "transcribing"
+    DETECTING = "detecting"
+    READY = "ready"
+    FAILED = "failed"
+
+    @property
+    def busy(self) -> bool:
+        return self in (ProjectStatus.DOWNLOADING, ProjectStatus.TRANSCRIBING, ProjectStatus.DETECTING)
+
+
+_project_status = Enum(
+    ProjectStatus, native_enum=False, length=16, validate_strings=True,
+    values_callable=lambda e: [m.value for m in e],
+)
 
 
 class User(Base):
@@ -72,8 +93,10 @@ class Project(Base):
     duration: Mapped[float | None] = mapped_column(Float, nullable=True)
     video_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     words_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
-    # downloading | transcribing | detecting | ready | failed
-    status: Mapped[str] = mapped_column(String(16), default="downloading")
+    silences_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    # {"A": {"name", "role", "caption_style": "sans_upper"|"serif_italic", "is_source": bool}}
+    speakers: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
+    status: Mapped[ProjectStatus] = mapped_column(_project_status, default=ProjectStatus.DOWNLOADING)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     default_channel_id: Mapped[int | None] = mapped_column(
         ForeignKey("youtube_channels.id", ondelete="SET NULL"), nullable=True
@@ -100,6 +123,8 @@ class Clip(Base):
     transcript: Mapped[str] = mapped_column(Text, default="")
     hook: Mapped[str] = mapped_column(String(255), default="")
     emphasis_json: Mapped[list] = mapped_column(JSON, default=list)
+    # Partes tematicas del clip, una frase cada una (§4.1 del md).
+    parts: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
     graphics_json: Mapped[list] = mapped_column(JSON, default=list)
     intro_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     outro_enabled: Mapped[bool] = mapped_column(Boolean, default=True)

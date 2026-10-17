@@ -3,12 +3,15 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.routers import auth, jobs, projects
+from app.routers import auth, clips, jobs, media, projects, transcript
 
 app = FastAPI(title="ClippingVideos")
 app.include_router(auth.router)
 app.include_router(jobs.router)
 app.include_router(projects.router)
+app.include_router(clips.router)
+app.include_router(transcript.router)
+app.include_router(media.router)
 
 
 @app.get("/api/health")

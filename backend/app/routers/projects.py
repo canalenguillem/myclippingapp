@@ -8,14 +8,12 @@ from sqlalchemy.orm import Session
 
 from app.auth.deps import current_user, get_owned
 from app.db import get_db
-from app.db.models import Job, Project, User
+from app.db.models import Job, Project, ProjectStatus, User
 from app.jobs import queue
-from app.services import storage, transcription
+from app.services import media_sign, storage, transcription
 from app.services.video_download import is_youtube_url
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
-
-BUSY = {"downloading", "transcribing"}
 
 
 class ProjectOut(BaseModel):
@@ -25,6 +23,7 @@ class ProjectOut(BaseModel):
     duration: float | None
     status: str
     error: str | None
+    speakers: dict
     created_at: datetime | None
     model_config = {"from_attributes": True}
 
@@ -32,6 +31,17 @@ class ProjectOut(BaseModel):
 class ProjectIn(BaseModel):
     source_url: str = Field(max_length=1024)
     language: str = Field(default="auto", pattern=r"^(auto|[a-z]{2})$")
+    speakers_expected: int | None = Field(default=None, ge=1, le=10)
+
+
+class RetranscribeIn(BaseModel):
+    language: str = Field(default="auto", pattern=r"^(auto|[a-z]{2})$")
+    speakers_expected: int | None = Field(default=None, ge=1, le=10)
+    force: bool = False  # sin esto, no se pisan las correcciones manuales de la transcripción
+
+
+class JobRef(BaseModel):
+    job_id: int
 
 
 class ProjectCreated(ProjectOut):
@@ -48,10 +58,13 @@ def create_project(body: ProjectIn, user: User = Depends(current_user), db: Sess
     url = body.source_url.strip()
     if not is_youtube_url(url):
         raise HTTPException(400, "Solo se admiten enlaces de YouTube (youtube.com / youtu.be)")
-    project = Project(user_id=user.id, source_url=url, title=url, status="downloading")
+    project = Project(user_id=user.id, source_url=url, title=url, status=ProjectStatus.DOWNLOADING)
     db.add(project)
     db.commit()
-    job = queue.enqueue(db, user.id, "ingest", {"project_id": project.id, "language": body.language})
+    payload = {"project_id": project.id, "language": body.language}
+    if body.speakers_expected:
+        payload["speakers_expected"] = body.speakers_expected
+    job = queue.enqueue(db, user.id, "ingest", payload)
     return ProjectCreated.model_validate({**ProjectOut.model_validate(project).model_dump(), "job_id": job.id})
 
 
@@ -65,16 +78,42 @@ def get_transcript(project_id: int, user: User = Depends(current_user), db: Sess
     project = get_owned(db, Project, project_id, user)
     if not project.words_path:
         raise HTTPException(409, "Todavía no hay transcripción")
-    return transcription.load_words(storage.absolute(project.words_path))
+    data = transcription.load_words(storage.absolute(project.words_path))
+    data["has_speakers"] = transcription.has_speakers(data)
+    return data
+
+
+@router.post("/{project_id}/retranscribe", response_model=JobRef, status_code=202)
+def retranscribe(
+    project_id: int, body: RetranscribeIn, user: User = Depends(current_user), db: Session = Depends(get_db)
+):
+    project = get_owned(db, Project, project_id, user)
+    if not project.video_path or not project.words_path:
+        raise HTTPException(409, "El proyecto aún no tiene vídeo y transcripción")
+    if queue.active_job(db, user.id, project.id):
+        raise HTTPException(409, "Hay un job en marcha para este proyecto")
+    current = transcription.load_words(storage.absolute(project.words_path))
+    if current.get("revision", 1) > 1 and not body.force:
+        raise HTTPException(409, "La transcripción tiene correcciones manuales; usa force=true para sobrescribirlas")
+    payload = {"project_id": project.id, "transcribe_only": True, "language": body.language}
+    if body.speakers_expected:
+        payload["speakers_expected"] = body.speakers_expected
+    return JobRef(job_id=queue.enqueue(db, user.id, "ingest", payload).id)
+
+
+@router.get("/{project_id}/video-url")
+def video_url(project_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """URL firmada y con caducidad del vídeo fuente, para reproducirlo en el navegador."""
+    project = get_owned(db, Project, project_id, user)
+    if not project.video_path:
+        raise HTTPException(409, "El proyecto aún no tiene vídeo")
+    return media_sign.signed_url(project.video_path)
 
 
 @router.delete("/{project_id}", status_code=204)
 def delete_project(project_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     project = get_owned(db, Project, project_id, user)
-    active = db.scalars(
-        select(Job).where(Job.user_id == user.id, Job.status.in_(("queued", "running")), Job.type == "ingest")
-    ).all()
-    if any((j.payload or {}).get("project_id") == project.id for j in active):
+    if queue.active_job(db, user.id, project.id):
         raise HTTPException(409, "Hay un job en marcha para este proyecto: cancélalo primero")
     shutil.rmtree(storage.media_root() / f"u{user.id}" / f"p{project.id}", ignore_errors=True)
     db.delete(project)

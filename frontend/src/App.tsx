@@ -1,5 +1,6 @@
 import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth";
+import ClipEditor from "./pages/ClipEditor";
 import Home from "./pages/Home";
 import Jobs from "./pages/Jobs";
 import ProjectDetail from "./pages/ProjectDetail";
@@ -24,6 +25,7 @@ export default function App() {
           <Route path="/jobs" element={<Jobs />} />
           <Route path="/projects" element={<Projects />} />
           <Route path="/projects/:id" element={<ProjectDetail />} />
+          <Route path="/clips/:id" element={<ClipEditor />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

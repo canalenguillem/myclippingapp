@@ -4,7 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.config import get_settings
-from app.db.models import Job, Project, User
+from app.db.models import Job, Project, ProjectStatus, User
 from app.jobs import handlers, queue
 from app.jobs.handlers import Cancelled, JobContext
 from app.services import video_download
@@ -71,18 +71,22 @@ def _setup_ingest(client, tmp_path, monkeypatch, duration=60):
     monkeypatch.setattr(video_download, "probe", lambda url, log: {"title": "Charla", "duration": duration})
     monkeypatch.setattr(video_download, "download", fake_download)
     monkeypatch.setattr(video_download, "extract_audio", lambda v, a: (a.write_bytes(b"mp3"), a)[1])
+    from app.services import silences
+    monkeypatch.setattr(silences, "detect_silences", lambda audio: [{"start": 1.0, "end": 1.5}])
     return db, ctx, job, pid
 
 
 def test_ingest_happy_path(client, tmp_path, monkeypatch):
     from app.services import transcription
     db, ctx, job, pid = _setup_ingest(client, tmp_path, monkeypatch)
-    monkeypatch.setattr(transcription, "transcribe_words", lambda audio, lang: {
-        "language": "es", "text": "hola mundo", "words": [{"text": "hola", "start": 0.1, "end": 0.4, "confidence": 0.9}]})
+    monkeypatch.setattr(transcription, "transcribe_words", lambda audio, lang, n=None: {
+        "version": 2, "revision": 1, "language": "es", "text": "hola mundo",
+        "words": [{"text": "hola", "start": 0.1, "end": 0.4, "confidence": 0.9, "speaker": "A"}], "segments": []})
     handlers.ingest(ctx, job.payload)
     p = db.get(Project, pid)
-    assert (p.status, p.title, p.duration) == ("transcribed", "Charla", 60)
+    assert (p.status, p.title, p.duration) == (ProjectStatus.DETECTING, "Charla", 60)
     assert (tmp_path / p.video_path).exists()
+    assert json.loads((tmp_path / p.silences_path).read_text())["silences"] == [{"start": 1.0, "end": 1.5}]
     assert json.loads((tmp_path / p.words_path).read_text())["words"][0]["text"] == "hola"
     assert client.get(f"/api/projects/{pid}/transcript").json()["language"] == "es"
 
@@ -92,7 +96,7 @@ def test_ingest_rejects_video_over_user_limit(client, tmp_path, monkeypatch):
     with pytest.raises(video_download.DownloadError, match="límite"):
         handlers.ingest(ctx, job.payload)
     p = db.get(Project, pid)
-    assert p.status == "failed" and "180" in p.error
+    assert p.status == ProjectStatus.FAILED and "180" in p.error
 
 
 def test_ingest_cancel_marks_project_failed(client, tmp_path, monkeypatch):
@@ -100,7 +104,7 @@ def test_ingest_cancel_marks_project_failed(client, tmp_path, monkeypatch):
     queue.cancel(db, db.get(Job, job.id))
     with pytest.raises(Cancelled):
         handlers.ingest(ctx, job.payload)
-    assert db.get(Project, pid).status == "failed"
+    assert db.get(Project, pid).status == ProjectStatus.FAILED
 
 
 def test_ingest_cannot_touch_other_users_project(client, tmp_path, monkeypatch):

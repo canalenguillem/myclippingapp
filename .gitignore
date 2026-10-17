@@ -6,3 +6,6 @@ __pycache__/
 *.pyc
 .venv/
 fx_worker/out/
+
+
+videos_ejemplo

@@ -1,0 +1,255 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import { api } from "../api";
+import type { Clip, Project, Transcript } from "../types";
+import { EDITABLE_CLIP, fmtTime } from "../types";
+
+type Draft = Pick<Clip, "start" | "end" | "title" | "hook" | "layout" | "focus" | "zoom" | "top_ratio" | "intro_enabled" | "outro_enabled">;
+
+const draftOf = (c: Clip): Draft => ({
+  start: c.start, end: c.end, title: c.title, hook: c.hook, layout: c.layout, focus: c.focus,
+  zoom: c.zoom, top_ratio: c.top_ratio, intro_enabled: c.intro_enabled, outro_enabled: c.outro_enabled,
+});
+
+const round = (n: number) => Math.round(n * 100) / 100;
+const CONTEXT = 15; // segundos de transcripción visibles antes y después del clip
+const URL_REFRESH_MS = 50 * 60 * 1000; // la URL firmada dura 1 h
+
+export default function ClipEditor() {
+  const { id } = useParams();
+  const [clip, setClip] = useState<Clip | null>(null);
+  const [draft, setDraft] = useState<Draft | null>(null);
+  const [project, setProject] = useState<Project | null>(null);
+  const [transcript, setTranscript] = useState<Transcript | null>(null);
+  const [videoUrl, setVideoUrl] = useState("");
+  const [t, setT] = useState(0);
+  const [picked, setPicked] = useState<number | null>(null);
+  const [loop, setLoop] = useState(true);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [saving, setSaving] = useState(false);
+  const video = useRef<HTMLVideoElement>(null);
+  const seeked = useRef(false);
+
+  const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
+
+  useEffect(() => {
+    api<Clip>(`/api/clips/${id}`)
+      .then(async (c) => {
+        setClip(c);
+        setDraft(draftOf(c));
+        const [p, tr] = await Promise.all([
+          api<Project>(`/api/projects/${c.project_id}`),
+          api<Transcript>(`/api/projects/${c.project_id}/transcript`),
+        ]);
+        setProject(p);
+        setTranscript(tr);
+      })
+      .catch(fail);
+  }, [id]);
+
+  const projectId = clip?.project_id;
+  const loadUrl = useCallback(() => {
+    if (projectId === undefined) return;
+    api<{ url: string }>(`/api/projects/${projectId}/video-url`).then((r) => setVideoUrl(r.url)).catch(fail);
+  }, [projectId]);
+  useEffect(() => {
+    loadUrl();
+    const timer = setInterval(loadUrl, URL_REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [loadUrl]);
+
+  const editable = clip ? EDITABLE_CLIP.has(clip.status) : false;
+  const dirty = clip && draft ? JSON.stringify(draft) !== JSON.stringify(draftOf(clip)) : false;
+  const duration = draft ? draft.end - draft.start : 0;
+  const problem = !draft ? "" : draft.end <= draft.start ? "El fin debe ser posterior al inicio"
+    : duration < 5 || duration > 180 ? "La duración debe estar entre 5 y 180 s"
+    : project?.duration && draft.end > project.duration + 0.05 ? "El fin está fuera del vídeo" : "";
+
+  const set = (patch: Partial<Draft>) => setDraft((d) => d && { ...d, ...patch });
+  const seek = (s: number) => { if (video.current) video.current.currentTime = Math.max(0, s); };
+
+  const onLoaded = () => {
+    if (draft && !seeked.current) { seeked.current = true; seek(draft.start); }
+  };
+  const onTime = () => {
+    const v = video.current;
+    if (!v || !draft) return;
+    setT(v.currentTime);
+    if (v.currentTime >= draft.end - 0.02) {
+      if (loop) v.currentTime = draft.start; else { v.pause(); v.currentTime = draft.end; }
+    }
+  };
+  const onPlay = () => {
+    const v = video.current;
+    if (v && draft && (v.currentTime < draft.start - 0.1 || v.currentTime >= draft.end - 0.05)) v.currentTime = draft.start;
+  };
+
+  const words = transcript?.words ?? [];
+  const visible = useMemo(() => {
+    if (!draft) return [];
+    const out: { i: number }[] = [];
+    for (let i = 0; i < words.length; i++) {
+      if (words[i].end >= draft.start - CONTEXT && words[i].start <= draft.end + CONTEXT) out.push({ i });
+      else if (words[i].start > draft.end + CONTEXT) break;
+    }
+    return out;
+  }, [words, draft?.start, draft?.end]);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  const save = async () => {
+    if (!clip || !draft || problem) return;
+    const base = draftOf(clip);
+    const changes = Object.fromEntries(Object.entries(draft).filter(([k, v]) => v !== base[k as keyof Draft]));
+    setSaving(true);
+    setError("");
+    setNotice("");
+    try {
+      const c = await api<Clip>(`/api/clips/${clip.id}`, { method: "PATCH", json: changes });
+      setClip(c);
+      setDraft(draftOf(c));
+      setNotice("Guardado");
+    } catch (e) {
+      fail(e);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const transition = async (action: "approve" | "unapprove") => {
+    if (!clip) return;
+    setError("");
+    try {
+      const c = await api<Clip>(`/api/clips/${clip.id}/${action}`, { method: "POST" });
+      setClip(c);
+    } catch (e) {
+      fail(e);
+    }
+  };
+
+  if (!clip || !draft) return <div className="page">{error ? <p className="error">{error}</p> : <p className="muted">Cargando…</p>}</div>;
+
+  const total = project?.duration ?? Math.max(draft.end, 1);
+  const pct = (s: number) => `${(Math.min(Math.max(s, 0), total) / total) * 100}%`;
+  const activeIdx = visible.find(({ i }) => words[i].start <= t && t < words[i].end)?.i ?? null;
+
+  return (
+    <div className="page">
+      <header className="bar">
+        <Link to={`/projects/${clip.project_id}`}>← Proyecto</Link>
+        <h1>{clip.hook || clip.title || `Clip ${clip.id}`}</h1>
+        <span className={`tag ${clip.status === "approved" ? "completed" : ""}`}>{clip.status === "approved" ? "aprobado" : clip.status}</span>
+      </header>
+      {error && <p className="error">{error}</p>}
+      {notice && <p className="notice">{notice}</p>}
+      {!editable && <p className="muted">Un clip en estado «{clip.status}» ya no se puede editar.</p>}
+
+      <div className="editor">
+        <div className="editor-video">
+          {videoUrl ? (
+            <video ref={video} src={videoUrl} controls onLoadedMetadata={onLoaded} onTimeUpdate={onTime} onPlay={onPlay} />
+          ) : <p className="muted">Preparando vídeo…</p>}
+          <div className="timeline" onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            seek(((e.clientX - r.left) / r.width) * total);
+          }}>
+            <div className="tl-window" style={{ left: pct(draft.start), width: `calc(${pct(draft.end)} - ${pct(draft.start)})` }} />
+            <div className="tl-head" style={{ left: pct(t) }} />
+          </div>
+          <div className="muted">{fmtTime(t)} / {fmtTime(total)} · clip de {fmtTime(draft.start)} a {fmtTime(draft.end)} ({duration.toFixed(1)} s)</div>
+          <label className="check"><input type="checkbox" checked={loop} onChange={(e) => setLoop(e.target.checked)} /> Repetir el clip</label>
+        </div>
+
+        <div className="editor-form">
+          <div className="trim">
+            <label>Inicio (s)
+              <input type="number" step={0.1} min={0} disabled={!editable} value={draft.start}
+                onChange={(e) => { const v = Number(e.target.value); set({ start: v }); seek(v); }} />
+            </label>
+            <div className="nudge">
+              <button className="ghost" disabled={!editable} onClick={() => { const v = round(draft.start - 0.5); set({ start: v }); seek(v); }}>−0,5</button>
+              <button className="ghost" disabled={!editable} onClick={() => { const v = round(draft.start + 0.5); set({ start: v }); seek(v); }}>+0,5</button>
+              <button className="ghost" disabled={!editable} onClick={() => set({ start: round(t) })}>Aquí</button>
+            </div>
+            <label>Fin (s)
+              <input type="number" step={0.1} min={0} disabled={!editable} value={draft.end}
+                onChange={(e) => set({ end: Number(e.target.value) })} />
+            </label>
+            <div className="nudge">
+              <button className="ghost" disabled={!editable} onClick={() => set({ end: round(draft.end - 0.5) })}>−0,5</button>
+              <button className="ghost" disabled={!editable} onClick={() => set({ end: round(draft.end + 0.5) })}>+0,5</button>
+              <button className="ghost" disabled={!editable} onClick={() => set({ end: round(t) })}>Aquí</button>
+            </div>
+          </div>
+          {problem && <p className="error">{problem}</p>}
+
+          <label>Gancho (máx. 6 palabras)
+            <input value={draft.hook} maxLength={255} disabled={!editable} onChange={(e) => set({ hook: e.target.value })} />
+          </label>
+          <label>Título
+            <input value={draft.title} maxLength={255} disabled={!editable} onChange={(e) => set({ title: e.target.value })} />
+          </label>
+          <div className="grid2">
+            <label>Layout
+              <select value={draft.layout} disabled={!editable} onChange={(e) => set({ layout: e.target.value as Draft["layout"] })}>
+                <option value="split">Pantalla partida</option>
+                <option value="full">Pantalla completa</option>
+                <option value="facecam">Facecam</option>
+              </select>
+            </label>
+            <label>Encuadre
+              <select value={draft.focus} disabled={!editable} onChange={(e) => set({ focus: e.target.value as Draft["focus"] })}>
+                <option value="left">Izquierda</option>
+                <option value="center">Centro</option>
+                <option value="right">Derecha</option>
+              </select>
+            </label>
+          </div>
+          <label>Zoom ×{draft.zoom.toFixed(2)}
+            <input type="range" min={1} max={3} step={0.05} disabled={!editable} value={draft.zoom} onChange={(e) => set({ zoom: Number(e.target.value) })} />
+          </label>
+          <label>Parte superior {Math.round(draft.top_ratio * 100)} %
+            <input type="range" min={0.2} max={0.9} step={0.05} disabled={!editable} value={draft.top_ratio} onChange={(e) => set({ top_ratio: Number(e.target.value) })} />
+          </label>
+          <div className="grid2">
+            <label className="check"><input type="checkbox" disabled={!editable} checked={draft.intro_enabled} onChange={(e) => set({ intro_enabled: e.target.checked })} /> Cortinilla de entrada</label>
+            <label className="check"><input type="checkbox" disabled={!editable} checked={draft.outro_enabled} onChange={(e) => set({ outro_enabled: e.target.checked })} /> Cortinilla de salida</label>
+          </div>
+
+          <div className="clip-actions">
+            <button onClick={save} disabled={!editable || !dirty || !!problem || saving}>{saving ? "Guardando…" : "Guardar cambios"}</button>
+            {clip.status === "detected" && <button disabled={dirty} title={dirty ? "Guarda antes de aprobar" : ""} onClick={() => transition("approve")}>Aprobar</button>}
+            {clip.status === "approved" && <button className="ghost" onClick={() => transition("unapprove")}>Desaprobar</button>}
+          </div>
+
+          {clip.reason && <p className="muted"><strong>Por qué: </strong>{clip.reason}</p>}
+          {clip.parts.length > 0 && <ol className="muted parts">{clip.parts.map((p, i) => <li key={i}>{p}</li>)}</ol>}
+          {clip.emphasis.length > 0 && <div className="chips">{clip.emphasis.map((e, i) => <span className="chip" key={i} title={fmtTime(e.start)}>{e.text}</span>)}</div>}
+        </div>
+      </div>
+
+      <section>
+        <h2>Transcripción del tramo</h2>
+        <p className="muted hint">Clic en una palabra para saltar a ella; después puedes poner el inicio o el fin del clip justo ahí. En gris, lo que queda fuera del clip.</p>
+        {picked !== null && (
+          <div className="selbar">
+            <span>«{words[picked].text}» · {fmtTime(words[picked].start)}</span>
+            <button disabled={!editable} onClick={() => { const v = round(Math.max(0, words[picked].start - 0.05)); set({ start: v }); seek(v); }}>Inicio aquí</button>
+            <button disabled={!editable} onClick={() => set({ end: round(Math.min(project?.duration ?? Infinity, words[picked].end + 0.05)) })}>Fin aquí</button>
+          </div>
+        )}
+        <p className="clip-words">
+          {visible.map(({ i }) => {
+            const w = words[i];
+            const inside = w.start >= draft.start - 0.05 && w.end <= draft.end + 0.05;
+            return (
+              <span key={i} className={`word${inside ? "" : " out"}${i === activeIdx ? " active" : ""}${i === picked ? " sel" : ""}`}
+                onClick={() => { setPicked(i); seek(w.start); }}>
+                {w.text}{" "}
+              </span>
+            );
+          })}
+        </p>
+      </section>
+    </div>
+  );
+}

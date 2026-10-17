@@ -6,6 +6,17 @@ export class ApiError extends Error {
   }
 }
 
+/** FastAPI devuelve `detail` como texto, o como lista de errores de validación (422). */
+const formatDetail = (detail: unknown): string => {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((e) => (e && typeof e === "object" && "msg" in e ? `${(e as { loc?: unknown[] }).loc?.slice(1).join(".") ?? ""}: ${(e as { msg: string }).msg}` : String(e)))
+      .join("; ");
+  }
+  return JSON.stringify(detail);
+};
+
 const readCookie = (name: string): string | null => {
   const m = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
   return m ? decodeURIComponent(m[1]) : null;
@@ -30,7 +41,7 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
     let detail = res.statusText;
     try {
       const data = await res.json();
-      detail = typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail ?? data);
+      detail = formatDetail(data.detail ?? data);
     } catch {
       /* cuerpo no JSON */
     }
