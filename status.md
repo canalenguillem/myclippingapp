@@ -45,16 +45,15 @@ Tras el ajuste de límites: 15 de 16 cortes caen en silencio y 7 de 8 clips acab
 | Fase | Contenido |
 |---|---|
 | **F5 Render vertical** | Portar `make_vertical_clip`, `render_clip`, `fx_client` y `fx_worker`; carril de render global de 1; análisis por clip; draft 540x960 y final tras aprobar; stills (ajustes de FASES.md; ver conflictos) |
-| **F6 Cortinillas** | Cortinilla del canal al principio y al final; plantillas de marca por usuario (ver conflictos) |
+| **F6 Cortinillas** | Intro corta del clip; cortinilla de inicio opcional (pausa el clip); cortinilla final siempre; plantillas de marca por usuario |
 | **F7 Gráficos por transcripción** | Librería de assets; motivos con objeto; `graphics_planner` |
 | **F8 YouTube por usuario** | Canales con su propio `client_secret.json` cifrado; OAuth con `state` firmado; SEO; subida |
 | **F9 QA y pulido** | Checks automáticos; bucle notas → reglas; hoja de contactos; limpieza de media |
 
-### Decisiones sin tomar (bloquean F5/F6, no F4)
+### Decisiones sin tomar (C2–C5 bloquean F5/F6, no F4)
 
 Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 
-- **C1** Estructura de la cortinilla (F6): intro de 3,6 s a pantalla completa (FASES) frente a intro corta superpuesta (plan); los vídeos de referencia solo llevan cortinillas a mitad de clip.
 - **C2** Si `PaperBand`, los dos estilos de subtítulo, `Grayscale` y el preset `editorial` van en F5 (FASES) o F6 (plan).
 - **C3** Si `@remotion/player` va en F6 (FASES) o F9 (plan).
 - **C4** Si `rules/` es global o por usuario (F9).
@@ -96,3 +95,4 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 - Los énfasis se guardan por tiempo absoluto y texto, no por índice de palabra.
 - El estado del proyecto es un Enum de Python guardado como texto, no un `ENUM` nativo de MariaDB.
 - Los cortes de clip priorizan acabar en una frase completa antes que en un silencio.
+- **Estructura del short (C1):** arranca directamente en contenido, con una intro corta del propio clip (~4 s, cortada en un silencio). La cortinilla de inicio es opcional (casilla por clip, valor por defecto en la plantilla de marca, apagada por defecto): entra tras la intro, pausa el clip y dura 3,6 s. La cortinilla final es siempre, sin interruptor; `outro_enabled` se elimina del modelo en F6.

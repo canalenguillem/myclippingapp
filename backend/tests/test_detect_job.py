@@ -49,6 +49,7 @@ def test_detect_saves_clips_snapped_to_silences_and_marks_project_ready(client, 
     assert c.start == pytest.approx(9.8) and c.end == pytest.approx(40.25)
     assert isinstance(c.start, float) and isinstance(c.end, float)
     assert (c.hook, c.parts, c.score, c.user_id, c.status) == ("gancho", ["a", "b"], 80, p.user_id, "detected")
+    assert c.intro_enabled is False  # la cortinilla de inicio es opcional: los clips nuevos la traen apagada
     assert c.emphasis_json == [{"start": 11.0, "text": "clave"}]
     assert db.get(Project, p.id).status is ProjectStatus.READY
 

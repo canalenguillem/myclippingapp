@@ -126,7 +126,9 @@ class Clip(Base):
     # Partes tematicas del clip, una frase cada una (§4.1 del md).
     parts: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
     graphics_json: Mapped[list] = mapped_column(JSON, default=list)
-    intro_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    # intro_enabled = cortinilla de inicio: opcional, apagada por defecto.
+    # outro_enabled se elimina en F6: la cortinilla final es siempre, sin interruptor.
+    intro_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     outro_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     template_id: Mapped[int | None] = mapped_column(
         ForeignKey("brand_templates.id", ondelete="SET NULL"), nullable=True

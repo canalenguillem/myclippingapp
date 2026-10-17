@@ -4,11 +4,11 @@ import { api } from "../api";
 import type { Clip, Project, Transcript } from "../types";
 import { EDITABLE_CLIP, fmtTime } from "../types";
 
-type Draft = Pick<Clip, "start" | "end" | "title" | "hook" | "layout" | "focus" | "zoom" | "top_ratio" | "intro_enabled" | "outro_enabled">;
+type Draft = Pick<Clip, "start" | "end" | "title" | "hook" | "layout" | "focus" | "zoom" | "top_ratio" | "intro_enabled">;
 
 const draftOf = (c: Clip): Draft => ({
   start: c.start, end: c.end, title: c.title, hook: c.hook, layout: c.layout, focus: c.focus,
-  zoom: c.zoom, top_ratio: c.top_ratio, intro_enabled: c.intro_enabled, outro_enabled: c.outro_enabled,
+  zoom: c.zoom, top_ratio: c.top_ratio, intro_enabled: c.intro_enabled,
 });
 
 const round = (n: number) => Math.round(n * 100) / 100;
@@ -210,10 +210,11 @@ export default function ClipEditor() {
           <label>Parte superior {Math.round(draft.top_ratio * 100)} %
             <input type="range" min={0.2} max={0.9} step={0.05} disabled={!editable} value={draft.top_ratio} onChange={(e) => set({ top_ratio: Number(e.target.value) })} />
           </label>
-          <div className="grid2">
-            <label className="check"><input type="checkbox" disabled={!editable} checked={draft.intro_enabled} onChange={(e) => set({ intro_enabled: e.target.checked })} /> Cortinilla de entrada</label>
-            <label className="check"><input type="checkbox" disabled={!editable} checked={draft.outro_enabled} onChange={(e) => set({ outro_enabled: e.target.checked })} /> Cortinilla de salida</label>
-          </div>
+          <label className="check">
+            <input type="checkbox" disabled={!editable} checked={draft.intro_enabled} onChange={(e) => set({ intro_enabled: e.target.checked })} />
+            Cortinilla de inicio (opcional)
+          </label>
+          <p className="muted hint">Si la activas, entra tras la intro del clip y lo pausa 3,6 s. La cortinilla final se añade siempre.</p>
 
           <div className="clip-actions">
             <button onClick={save} disabled={!editable || !dirty || !!problem || saving}>{saving ? "Guardando…" : "Guardar cambios"}</button>

@@ -47,6 +47,12 @@ def test_list_is_chronological_and_floats(client, tmp_path, monkeypatch):
     assert out[0]["parts"] == ["a"] and out[0]["layout"] == "split" and out[0]["status"] == "detected"
 
 
+def test_cortinilla_de_inicio_is_off_by_default(client, tmp_path, monkeypatch):
+    h, db, p = _project(client, tmp_path, monkeypatch)
+    _clip(db, p)
+    assert client.get(f"/api/projects/{p.id}/clips").json()[0]["intro_enabled"] is False
+
+
 def test_clips_isolated_between_users(client, tmp_path, monkeypatch):
     h, db, p = _project(client, tmp_path, monkeypatch)
     c = _clip(db, p)
@@ -64,10 +70,10 @@ def test_patch_updates_fields_and_refreshes_transcript(client, tmp_path, monkeyp
     h, db, p = _project(client, tmp_path, monkeypatch)
     c = _clip(db, p)
     r = client.patch(f"/api/clips/{c.id}", json={"start": 20.0, "end": 26.0, "title": "Nuevo", "layout": "full",
-                                                  "focus": "left", "zoom": 1.5, "top_ratio": 0.6, "intro_enabled": False}, headers=h)
+                                                  "focus": "left", "zoom": 1.5, "top_ratio": 0.6, "intro_enabled": True}, headers=h)
     assert r.status_code == 200, r.text
     body = r.json()
-    assert (body["start"], body["end"], body["duration"], body["layout"], body["intro_enabled"]) == (20.0, 26.0, 6.0, "full", False)
+    assert (body["start"], body["end"], body["duration"], body["layout"], body["intro_enabled"]) == (20.0, 26.0, 6.0, "full", True)
     assert body["transcript"] == "p20 p21 p22 p23 p24 p25"
     assert client.patch(f"/api/clips/{c.id}", json={"hook": "solo gancho"}, headers=h).json()["start"] == 20.0  # parcial
 
