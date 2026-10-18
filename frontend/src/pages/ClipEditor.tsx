@@ -208,10 +208,16 @@ export default function ClipEditor() {
             <input value={draft.title} maxLength={255} disabled={!editable} onChange={(e) => set({ title: e.target.value })} />
           </label>
           <div className="grid2">
-            <label>Layout
-              <select value={draft.layout} disabled={!editable} onChange={(e) => set({ layout: e.target.value as Draft["layout"] })}>
-                <option value="split">Pantalla partida</option>
-                {draft.layout !== "split" && <option value={draft.layout}>{draft.layout === "full" ? "Pantalla completa" : "Facecam"} (sin render)</option>}
+            <label>Diseño
+              <select value={draft.layout} disabled={!editable} onChange={(e) => {
+                const layout = e.target.value as Draft["layout"];
+                // al pasar a pantalla completa la parte nítida ocupa más (deja sitio a los gráficos abajo); al volver, el corte al medio
+                const ratio = layout === "full" && draft.top_ratio === 0.5 ? 0.65 : layout === "split" && draft.top_ratio === 0.65 ? 0.5 : draft.top_ratio;
+                set({ layout, top_ratio: ratio });
+              }}>
+                <option value="split">Pantalla partida (plano corto + escena)</option>
+                <option value="full">Pantalla completa (abajo difuminado)</option>
+                {draft.layout === "facecam" && <option value="facecam">Facecam (sin render)</option>}
               </select>
             </label>
             <label>Encuadre
@@ -225,7 +231,7 @@ export default function ClipEditor() {
           <label>Zoom ×{draft.zoom.toFixed(2)}
             <input type="range" min={1} max={3} step={0.05} disabled={!editable} value={draft.zoom} onChange={(e) => set({ zoom: Number(e.target.value) })} />
           </label>
-          <label>Parte superior {Math.round(draft.top_ratio * 100)} %
+          <label>{draft.layout === "full" ? "Parte nítida" : "Parte superior"} {Math.round(draft.top_ratio * 100)} %
             <input type="range" min={0.2} max={0.9} step={0.05} disabled={!editable} value={draft.top_ratio} onChange={(e) => set({ top_ratio: Number(e.target.value) })} />
           </label>
           <label>Plantilla de marca

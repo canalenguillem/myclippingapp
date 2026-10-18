@@ -224,7 +224,7 @@ def test_cancelling_restores_the_state_that_matches_the_files(client, tmp_path, 
     assert e.clip.render_state is RenderState.DRAFT and draft.exists()
 
 
-@pytest.mark.parametrize("kw,msg", [({"layout": "full"}, "split"), ({"layout": "facecam"}, "split"), ({"words": False, "status": "approved"}, None)])
+@pytest.mark.parametrize("kw,msg", [({"layout": "facecam"}, "pantalla completa"), ({"words": False, "status": "approved"}, None)])
 def test_unsupported_layout_fails_clearly(client, tmp_path, monkeypatch, source_file, kw, msg):
     e = setup(client, tmp_path, monkeypatch, source_file, **kw)
     if msg is None:
@@ -396,3 +396,22 @@ def test_no_graphics_means_no_graphics_key(client, tmp_path, monkeypatch, source
     e = setup(client, tmp_path, monkeypatch, source_file)
     run_job(e)
     assert "graphics" not in e.fx.requests[0]
+
+
+def test_full_layout_renders_a_blurred_bottom_and_tells_the_service(client, tmp_path, monkeypatch, source_file):
+    e = setup(client, tmp_path, monkeypatch, source_file, layout="full", top_ratio=0.66)
+    run_job(e)
+    assert e.fx.requests[0]["layout"] == {"mode": "full", "top_ratio": 0.66}
+    assert e.clip.render_state is RenderState.DRAFT
+    assert "Render borrador" in log(e)
+
+
+def test_full_layout_graphics_share_one_lane(client, tmp_path, monkeypatch, source_file):
+    e = setup(client, tmp_path, monkeypatch, source_file, layout="full", top_ratio=0.66)
+    e.clip.start, e.clip.end = 0.5, 7.5
+    e.clip.graphics_json = [{"type": "keyword", "at": 3.0, "text": "Uno"}, {"type": "emoji", "at": 3.8, "emoji": "🐔"}]
+    e.db.commit()
+    run_job(e)
+    assert [g["type"] for g in e.fx.requests[0]["graphics"]] == ["keyword"]      # en full no caben dos a la vez
+    assert "solapa con otro gráfico más prioritario" in log(e)
+    split = setup(client, tmp_path / "s", monkeypatch, source_file, layout="split") if False else None  # noqa: F841

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { buildProject } from "../src/builder.mjs";
 import { ContractError, parseRequest } from "../src/contract.mjs";
-import { graphicWindow, graphicsLayer } from "../src/layers/graphics.mjs";
+import { graphicWindow, graphicZones, graphicsLayer } from "../src/layers/graphics.mjs";
 import { keywordMotif, keywordSize } from "../src/motifs/keyword.mjs";
 import { checkProject } from "../src/render.mjs";
 import { makeTimeMap } from "../src/timemap.mjs";
@@ -43,7 +43,7 @@ test("la capa aplica el mapa de tiempos: lo posterior a la cortinilla se desplaz
 });
 
 test("keyword: texto escapado en mayúsculas, tamaño ajustado y salida antes del final", () => {
-  const m = keywordMotif({ id: "g0", item: { text: "<b>Hola</b>" }, t0: 1, at: 1.5, t1: 3.5 });
+  const m = keywordMotif({ id: "g0", item: { text: "<b>Hola</b>" }, t0: 1, at: 1.5, t1: 3.5, zones: graphicZones({ mode: "split" }) });
   assert.ok(!m.html.includes("<b>Hola") && m.html.includes("&lt;B&gt;HOLA&lt;/B&gt;"));
   assert.equal(keywordSize("INDULTOS"), 68);
   assert.ok(keywordSize("UNA PALABRA CLAVE MUY LARGA SIN CABER") < 68 && keywordSize("X".repeat(40)) >= 40);
@@ -77,12 +77,13 @@ test("emoji: solo se aceptan emojis (nada de texto ni HTML) y el objetivo es opc
 });
 
 test("emoji con objetivo: la llegada cae en la palabra y el objetivo rebota; sin objetivo, pop y salto", () => {
-  const scene = emojiMotif({ id: "g1", item: { emoji: "🐔", target: "🗳️" }, t0: 10, at: 11, t1: 13 });
+  const scene = emojiMotif({ id: "g1", item: { emoji: "🐔", target: "🗳️" }, t0: 10, at: 11, t1: 13, zones: graphicZones({ mode: "split" }) });
   assert.ok(scene.html.includes('id="g1m"') && scene.html.includes('id="g1t"') && scene.html.includes("🐔") && scene.html.includes("🗳️"));
   assert.ok(scene.script.includes('{scale:1.28,duration:0.12,ease:"power2.out",yoyo:true,repeat:1},11);'), "el objetivo rebota en la palabra (11 s)");
   assert.equal((scene.script.match(/ease:"none"/g) ?? []).length, 3, "tres saltos");
   assert.ok(scene.script.includes("scaleX:-1") && scene.cssItem.includes("top:1100px"));
-  const solo = emojiMotif({ id: "g2", item: { emoji: "🔥" }, t0: 5, at: 5.5, t1: 7.5 });
+  assert.ok(emojiMotif({ id: "g1", item: { emoji: "🐔" }, t0: 1, at: 2, t1: 4, zones: { card: 1, strip: 1500 } }).cssItem.includes("top:1500px"));
+  const solo = emojiMotif({ id: "g2", item: { emoji: "🔥" }, t0: 5, at: 5.5, t1: 7.5, zones: graphicZones({ mode: "split" }) });
   assert.ok(!solo.html.includes("g2t") && solo.script.includes('y:-60') && solo.script.includes('visibility:"hidden"},7.5'));
 });
 
@@ -99,4 +100,16 @@ test("builder: una escena de emoji compone, pasa el linter y no nombra fuentes s
   const html = readFileSync(join(work, "index.html"), "utf8");
   assert.ok(html.includes("🐔") && html.includes("🗳️") && html.includes("🔥") && !/Noto Color Emoji|Apple Color Emoji|Segoe UI Emoji/.test(html));
   assert.equal((await checkProject(work)).totalErrors, 0);
+});
+
+
+test("zonas de los gráficos: fijas en split; en full cuelgan de la parte nítida y no pasan del 15 % inferior de Shorts", () => {
+  assert.deepEqual(graphicZones({ mode: "split", top_ratio: 0.5 }), { card: 1290, strip: 1100 });
+  assert.deepEqual(graphicZones({ mode: "full", top_ratio: 0.66 }), { card: 1336, strip: 1351 });
+  const low = graphicZones({ mode: "full", top_ratio: 0.9 });
+  assert.ok(low.card + 230 <= 1632 && low.strip + 200 <= 1632);
+  const request = parseRequest({ ...base, layout: { mode: "full", top_ratio: 0.66 }, graphics: [kw({ at: 5 })] });
+  assert.equal(request.layout.mode, "full");
+  const out = graphicsLayer({ items: request.graphics, map: makeTimeMap(undefined), clipDuration: 20, zones: graphicZones(request.layout) });
+  assert.ok(out.css.includes("#g0{top:1336px}"));
 });

@@ -212,8 +212,8 @@ def render_clip(clip_id: int, body: RenderIn, user: User = Depends(current_user)
         raise HTTPException(409, f"Un clip en estado «{clip.status}» no se puede renderizar")
     if body.quality == "final" and clip.status != "approved":
         raise HTTPException(409, "El render final solo se hace con el clip aprobado")
-    if clip.layout != "split":
-        raise HTTPException(409, f"Solo se renderiza el diseño partido (split); este clip usa «{clip.layout}»")
+    if clip.layout not in ("split", "full"):
+        raise HTTPException(409, f"Solo se renderizan los diseños partido (split) y pantalla completa (full); este clip usa «{clip.layout}»")
     if not project.video_path or not project.words_path:
         raise HTTPException(409, "El proyecto aún no tiene vídeo y transcripción")
     if clip.render_state is RenderState.RENDERING:

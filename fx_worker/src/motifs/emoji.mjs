@@ -6,13 +6,12 @@
 import { escapeHtml } from "../html.mjs";
 
 const fmt = (n) => Number(n.toFixed(3));
-export const STRIP_TOP = 1100;   // franja de 200 px bajo la banda de papel y sobre la tarjeta de palabra clave (y ≥ 1290)
 const SIZE = 150;
 const HOPS = 3;
 const HOP_HEIGHT = 110;
 
 /** @param {{id:string, item:{emoji:string, target?:string}, t0:number, at:number, t1:number}} p  tiempos de SALIDA */
-export function emojiMotif({ id, item, t0, at, t1 }) {
+export function emojiMotif({ id, item, t0, at, t1, zones }) {
   const main = escapeHtml(item.emoji);
   const target = item.target ? escapeHtml(item.target) : null;
   const html = `<div id="${id}" class="gfx em"><span id="${id}m" class="emj">${main}</span>${target ? `<span id="${id}t" class="emj">${target}</span>` : ""}</div>`;
@@ -53,5 +52,5 @@ export function emojiMotif({ id, item, t0, at, t1 }) {
     );
   }
   parts.push(`tl.to("#${id}",{opacity:0,duration:0.3,ease:"power3.in"},${exit});`, `tl.set("#${id}",{visibility:"hidden"},${fmt(t1)});`);
-  return { html, css, cssItem: `#${id}{top:${STRIP_TOP}px}${cssItem}`, script: parts.join("") };
+  return { html, css, cssItem: `#${id}{top:${zones.strip}px}${cssItem}`, script: parts.join("") };
 }

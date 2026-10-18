@@ -76,6 +76,7 @@ def build_fx_request(
     quality: str,
     duration: float,
     top_ratio: float,
+    layout: str = "split",
     words: list[dict],
     speakers: dict,
     hook: str,
@@ -93,7 +94,7 @@ def build_fx_request(
         "quality": QUALITY[quality],
         "fps": 30,
         "duration": round(duration, 3),
-        "layout": {"mode": "split", "top_ratio": round(top_ratio, 3)},
+        "layout": {"mode": layout, "top_ratio": round(top_ratio, 3)},
         "words": words,
         "speakers": {
             label: {

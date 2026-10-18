@@ -77,3 +77,7 @@ npm run test:integration    # render real con Chrome; tarda ~10 s
 ## Gráficos ligados a la transcripción (`graphics`)
 
 Cada gráfico es `{type, at, lead, duration, ...parámetros}`: `at` es el inicio de la palabra gancho (segundos del clip sin cortinillas), entra `lead` s antes y vive `duration` s en total. Pasan por el mapa de tiempos; el contrato rechaza uno que cruce la cortinilla de inicio (el programador del backend, `graphics_schedule.py`, ya lo evita). Motivos en `src/motifs/` (registro en `index.mjs`): `keyword` (tarjeta de papel con la palabra clave, abajo por defecto; pop al entrar y golpe de énfasis en la palabra) y `emoji` (emoji de color; con `target` hace una escena: el principal llega a saltos y la llegada cae en la palabra, p. ej. 🐔 → 🗳️). Cada gráfico lleva un pop sintetizado (`sfx`).
+
+## Diseños (`layout`)
+
+`layout: {mode: "split" | "full", top_ratio}`. La composición vertical la hace el backend con ffmpeg (en `full`, arriba el vídeo nítido y el resto del lienzo una copia difuminada y oscurecida); `fx_worker` solo coloca la banda de papel en el corte (`top_ratio`) y, en `full`, cuelga las zonas de los gráficos de la parte nítida (`graphicZones`), siempre por encima del 15 % inferior de Shorts.

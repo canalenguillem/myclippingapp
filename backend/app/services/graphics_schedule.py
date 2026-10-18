@@ -38,7 +38,8 @@ def _num(value, default: float) -> float:
         return default
 
 
-def schedule(beats: list[dict] | None, clip_duration: float, *, cortinilla_at: float | None = None) -> Scheduled:
+def schedule(beats: list[dict] | None, clip_duration: float, *, cortinilla_at: float | None = None, single_lane: bool = False) -> Scheduled:
+    """`single_lane`: en pantalla completa todos los gráficos comparten el hueco difuminado de abajo, así que nunca hay dos a la vez."""
     dropped: list[dict] = []
     candidates: list[dict] = []
 
@@ -89,12 +90,14 @@ def schedule(beats: list[dict] | None, clip_duration: float, *, cortinilla_at: f
 
     accepted: list[dict] = []
     for c in sorted(candidates, key=lambda c: (-c["priority"], c["beat"]["at"])):
-        if c["big"]:
+        if single_lane:
+            clash = next((a for a in accepted if a["start"] < c["end"] and c["start"] < a["end"]), None)
+        elif c["big"]:
             clash = next((a for a in accepted if a["big"] and abs(a["start"] - c["start"]) < MIN_BIG_GAP), None)
         else:
             clash = next((a for a in accepted if a["beat"]["type"] == c["beat"]["type"] and a["start"] < c["end"] and c["start"] < a["end"]), None)
         if clash:
-            drop(c["beat"], "solapa con otro gráfico más prioritario" if c["big"] else "solapa con otro gráfico del mismo tipo")
+            drop(c["beat"], "solapa con otro gráfico más prioritario" if c["big"] or single_lane else "solapa con otro gráfico del mismo tipo")
             continue
         accepted.append(c)
     accepted.sort(key=lambda c: c["beat"]["at"])

@@ -180,3 +180,40 @@ def test_validation_and_ffmpeg_errors(levels_src, tmp_path):
     with pytest.raises(vertical.VerticalError, match="ffmpeg falló"):
         vertical.make_vertical_clip(bad, 0, 1, tmp_path / "x.mp4")
     assert not (tmp_path / "x.mp4").exists()
+
+
+# --- pantalla completa con la parte de abajo difuminada --------------------------------------
+
+def test_full_layout_has_a_sharp_top_and_a_blurred_darker_bottom(halves_src, tmp_path):
+    out = vertical.make_vertical_clip(halves_src, 0.0, 1.0, tmp_path / "full.mp4", layout="full", top_ratio=0.66)
+    info = probe(out, "stream=width,height,r_frame_rate")["streams"]
+    v = next(s for s in info if s.get("width"))
+    assert (v["width"], v["height"], v["r_frame_rate"]) == (1080, 1920, "30/1")
+    img = frame_at(out, 0.3, tmp_path)
+    top_red, top_blue = img.getpixel((530, 300)), img.getpixel((550, 300))
+    assert top_red[0] > 150 and top_blue[2] > 150, "arriba el corte rojo/azul es nítido"
+    assert abs(top_red[0] - top_blue[0]) > 150
+    low_a, low_b = img.getpixel((530, 1700)), img.getpixel((550, 1700))
+    assert abs(low_a[0] - low_b[0]) < 70, "abajo el borde está difuminado"
+    assert img.getpixel((100, 1700))[0] < top_red[0] - 20, "abajo está oscurecido"
+    assert img.getpixel((100, 1700))[0] > 60 and img.getpixel((1000, 1700))[2] > 60, "pero sigue siendo el mismo vídeo"
+
+
+def test_full_layout_respects_focus_zoom_and_ratio_and_the_draft_size(halves_src, tmp_path):
+    # a 66 % el vídeo se escala a 1266 px de alto (2250 de ancho): el corte rojo/azul cae en x = 1125, fuera de un recorte de 1080
+    cols = {}
+    for focus in ("left", "center", "right"):
+        out = vertical.make_vertical_clip(halves_src, 0.0, 1.0, tmp_path / f"{focus}.mp4", layout="full", focus=focus, top_ratio=0.66)
+        cols[focus] = first_blue_column(frame_at(out, 0.3, tmp_path), 200)
+    assert cols["left"] is None and cols["right"] == 0 and cols["center"] == pytest.approx(540, abs=10)
+    draft = vertical.make_vertical_clip(halves_src, 0.0, 1.0, tmp_path / "d.mp4", layout="full", top_ratio=0.66, draft=True)
+    v = next(s for s in probe(draft, "stream=width,height")["streams"] if s.get("width"))
+    assert (v["width"], v["height"]) == (540, 960)
+    img = frame_at(draft, 0.3, tmp_path)
+    assert abs(img.getpixel((265, 150))[0] - img.getpixel((275, 150))[0]) > 150   # nítido arriba (66 % de 960 = 633 px)
+    assert abs(img.getpixel((265, 800))[0] - img.getpixel((275, 800))[0]) < 70    # difuminado abajo
+
+
+def test_unknown_layout_is_rejected(halves_src, tmp_path):
+    with pytest.raises(vertical.VerticalError, match="Diseño no válido"):
+        vertical.make_vertical_clip(halves_src, 0.0, 1.0, tmp_path / "x.mp4", layout="facecam")

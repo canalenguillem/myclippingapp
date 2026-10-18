@@ -6,7 +6,7 @@ import { extname, join } from "node:path";
 import { bandLayer, ROOM } from "./layers/band.mjs";
 import { captionsLayer } from "./layers/captions.mjs";
 import { cortinillaLayer, SWEEP } from "./layers/cortinilla.mjs";
-import { graphicsLayer } from "./layers/graphics.mjs";
+import { graphicsLayer, graphicZones } from "./layers/graphics.mjs";
 import { hookLayer } from "./layers/hook.mjs";
 import { outroLayer } from "./layers/outro.mjs";
 import { sourceIntervals, treatmentLayer } from "./layers/treatment.mjs";
@@ -62,7 +62,7 @@ export function buildProject({ request, video, workDir, orbit = null }) {
   const center = (core.y0 + core.y1) / 2;
   const captions = captionsLayer({ words, speakers, duration: total, preset, center, height: Math.max(90, core.y1 - core.y0), stops: C ? [C.at] : [] });
   const hook = request.hook ? hookLayer({ hook: request.hook, preset }) : null;
-  const graphics = graphicsLayer({ items: request.graphics, map, clipDuration: duration });
+  const graphics = graphicsLayer({ items: request.graphics, map, clipDuration: duration, zones: graphicZones(layout) });
   const treatment = treatmentLayer({ intervals: sourceSpans });
   let orbitFile = null;
   if (C && orbit) {

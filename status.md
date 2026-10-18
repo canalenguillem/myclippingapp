@@ -110,3 +110,8 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 
 - **Medido el 2026-10-18** (clip 40, 41,8 s, plantilla «Spain Facts», cortinilla de inicio a los 14,3 s): render final en 157 s. Con cortinilla el vídeo dura clip + 3,6 + 2,5 s.
 - **Deuda:** el objeto que orbita es un cuadrado de color hasta que haya subida de logo (librería de assets, F7a); no hay selector de la posición de la cortinilla sobre una forma de onda (solo lista de silencios); un clip con `intro_enabled` sin silencio válido se renderiza sin cortinilla de inicio y solo lo dice `render_error`.
+
+## Diseños de pantalla (actualizado el 2026-10-18)
+
+- **`split`**: plano corto arriba y escena completa abajo. **`full`** (nuevo, a petición del usuario para vídeos de un orador a pantalla): el vídeo nítido ocupa `top_ratio` del alto (por defecto 65 % al cambiar desde el editor) con encuadre y zoom del clip, y debajo va una copia del mismo vídeo muy difuminada y oscurecida donde caben los gráficos; la banda de papel y los subtítulos van en el corte. `facecam` sigue sin renderizarse. Amplía la decisión O1.
+- En `full` los gráficos comparten el hueco difuminado (arriba de la zona de Shorts, y < 1632 px): nunca hay dos a la vez (el programador usa `single_lane`). Si un clip lleva una tarjeta y una escena de emoji a la vez, gana la más prioritaria.

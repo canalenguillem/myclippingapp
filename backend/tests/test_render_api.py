@@ -51,10 +51,10 @@ def test_rejects_bad_requests(client, tmp_path, monkeypatch):
     p.video_path = "u1/p1/source.mp4"
     db.commit()
     assert client.post(f"/api/clips/{c.id}/render", json={"quality": "ultra"}, headers=h).status_code == 422
-    c.layout = "full"
+    c.layout = "facecam"
     db.commit()
     r = client.post(f"/api/clips/{c.id}/render", json={}, headers=h)
-    assert r.status_code == 409 and "split" in r.json()["detail"]
+    assert r.status_code == 409 and "pantalla completa" in r.json()["detail"]
     assert not render_jobs(db) and client.get(f"/api/clips/{c.id}").json()["render_state"] == "none"
 
 
@@ -155,3 +155,11 @@ def test_cortinilla_options_without_silences_and_isolation(client, tmp_path, mon
     other = TestClient(client.app)
     _login(other, "b@x.com")
     assert other.get(f"/api/clips/{c.id}/cortinilla-options").status_code == 404
+
+
+def test_full_layout_can_be_rendered(client, tmp_path, monkeypatch):
+    h, db, p = _project(client, tmp_path, monkeypatch)
+    p.video_path = "u1/p1/source.mp4"
+    db.commit()
+    c = _clip(db, p, layout="full")
+    assert client.post(f"/api/clips/{c.id}/render", json={}, headers=h).status_code == 202

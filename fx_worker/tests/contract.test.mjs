@@ -41,7 +41,7 @@ test("el vídeo y la salida deben ser .mp4", () => {
 test("valores fuera de rango o desconocidos", () => {
   const bads = [
     { duration: 0 }, { duration: 601 }, { duration: -1 }, { quality: "ultra" }, { fps: 25 },
-    { layout: { mode: "full" } }, { layout: { mode: "split", top_ratio: 0.1 } }, { preset: "otro" },
+    { layout: { mode: "facecam" } }, { layout: { mode: "split", top_ratio: 0.1 } }, { preset: "otro" },
     { words: [{ text: "x", start: 2, end: 1 }] }, { words: [{ text: "", start: 0, end: 1 }] },
     { words: [{ text: "x", start: -1, end: 1 }] }, { words: [{ text: "x", start: 0, end: 1, color: "red" }] },
     { speakers: { "A b": {} } }, { speakers: { A: { caption_style: "comic" } } },

@@ -93,8 +93,8 @@ def render(ctx: JobContext, payload: dict) -> None:
     try:
         if not draft and clip.status != "approved":
             raise RenderError("El render final solo se hace con el clip aprobado")
-        if clip.layout != "split":
-            raise RenderError(f"Solo se renderiza el diseño partido (split); este clip usa «{clip.layout}»")
+        if clip.layout not in vertical.LAYOUTS:
+            raise RenderError(f"Solo se renderizan los diseños partido (split) y pantalla completa (full); este clip usa «{clip.layout}»")
         if not project.video_path or not project.words_path:
             raise RenderError("El proyecto aún no tiene vídeo y transcripción")
         source = storage.absolute(project.video_path)
@@ -117,7 +117,7 @@ def render(ctx: JobContext, payload: dict) -> None:
     try:
         ctx.log(f"Render {'borrador' if draft else 'final'} del clip {clip.id}: {clip.start:.2f}–{clip.end:.2f} s ({duration:.1f} s)")
         vertical.make_vertical_clip(source, clip.start, clip.end, vertical_path, top_ratio=clip.top_ratio, focus=clip.focus,
-                                    zoom=clip.zoom, draft=draft, on_progress=_stage(ctx, 0, 20), cancel_check=cancel)
+                                    zoom=clip.zoom, layout=clip.layout, draft=draft, on_progress=_stage(ctx, 0, 20), cancel_check=cancel)
         ctx.log("Clip vertical listo")
 
         try:
@@ -151,14 +151,14 @@ def render(ctx: JobContext, payload: dict) -> None:
         start_params = fx_request.cortinilla_params(config, colors, at=at, orbit=_orbit_path(template)) if at is not None else None
         end_params = fx_request.outro_params(config, colors)
         # Gráficos ligados a la transcripción: el programador deja solo los que caben (sin cruzar la cortinilla ni el gancho).
-        plan = graphics_schedule.schedule(clip.graphics_json, duration, cortinilla_at=at)
+        plan = graphics_schedule.schedule(clip.graphics_json, duration, cortinilla_at=at, single_lane=clip.layout == "full")
         for d in plan.dropped:
-            ctx.log(f"Gráfico descartado ({d['reason']}): {d['beat'].get('type')} «{d['beat'].get('text', '')}» a {d['beat'].get('at')} s")
+            ctx.log(f"Gráfico descartado ({d['reason']}): {d['beat'].get('type')} «{d['beat'].get('text') or d['beat'].get('emoji', '')}» a {d['beat'].get('at')} s")
         out_total = duration + (start_params["duration"] if start_params else 0.0) + end_params["duration"]
         ctx.log(f"Cortinillas: inicio {'a los %.1f s del clip' % at if at is not None else 'no'}, final {end_params['duration']:.1f} s → vídeo de {out_total:.1f} s")
         request = fx_request.build_fx_request(
             video=storage.rel(vertical_path), output=storage.rel(target if not draft else fx_full), quality=quality,
-            duration=duration, top_ratio=clip.top_ratio, words=words, speakers=project.speakers, hook=clip.hook,
+            duration=duration, top_ratio=clip.top_ratio, layout=clip.layout, words=words, speakers=project.speakers, hook=clip.hook,
             preset=preset, band=band, cortinilla=start_params, outro=end_params, graphics=plan.beats, sfx=bool(template.sfx) if template else True,
         )
 

@@ -77,7 +77,7 @@ export const renderRequest = z
     fps: z.union([z.literal(24), z.literal(30), z.literal(60)]).default(30),
     duration: z.number().positive().max(600),
     layout: z
-      .object({ mode: z.literal("split"), top_ratio: z.number().min(0.2).max(0.9).default(0.5) })
+      .object({ mode: z.enum(["split", "full"]).default("split"), top_ratio: z.number().min(0.2).max(0.9).default(0.5) })
       .strict()
       .default({ mode: "split", top_ratio: 0.5 }),
     words: z.array(word).max(5000).default([]),

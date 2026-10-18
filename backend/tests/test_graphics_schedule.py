@@ -75,3 +75,13 @@ def test_emoji_is_small_enters_earlier_and_can_overlap_a_big_graphic_but_not_ano
     assert [b["lead"] for b in r.beats] == [0.5, 0.8]
     assert r.dropped[0]["reason"] == "solapa con otro gráfico del mismo tipo" and r.dropped[0]["beat"]["at"] == 16.5
     assert schedule([{"type": "emoji", "at": 9.0, "emoji": " "}], 40.0).dropped[0]["reason"] == "falta el campo «emoji»"
+
+
+def test_single_lane_never_shows_two_graphics_at_once():
+    em = {"type": "emoji", "at": 9.0, "emoji": "🐔"}
+    both = [kw(10), em]
+    assert [b["type"] for b in schedule(both, 40.0).beats] == ["emoji", "keyword"]                   # en split caben los dos
+    only = schedule(both, 40.0, single_lane=True)
+    assert [b["type"] for b in only.beats] == ["keyword"] and only.dropped[0]["reason"] == "solapa con otro gráfico más prioritario"
+    far = schedule([kw(10), {"type": "emoji", "at": 20.0, "emoji": "🐔"}], 40.0, single_lane=True)
+    assert len(far.beats) == 2

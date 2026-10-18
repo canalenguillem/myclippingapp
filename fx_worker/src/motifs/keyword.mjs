@@ -7,7 +7,7 @@ const CARD_W = 500;
 const CARD_H = 230;
 // Los gráficos van en la mitad de ABAJO (la escena completa), dejando libre la cara del plano corto, y por encima del 15 %
 // inferior que tapa la interfaz de Shorts (y ≥ 1632 px). `top` solo para clips donde la cara no está arriba.
-export const ZONES = { bottom: 1290, top: 600 };
+export const TOP_ZONE = 600; // `zone: "top"`; la zona de abajo la fija el diseño (`graphicZones`)
 
 /** Tamaño del texto: 68 px que se reducen para que quepa en el ancho útil de la tarjeta (≥ 40 px). */
 export function keywordSize(text) {
@@ -16,8 +16,8 @@ export function keywordSize(text) {
 }
 
 /** @param {{id:string, item:{text:string}, t0:number, at:number, t1:number}} p  tiempos de SALIDA (ya con el mapa de tiempos) */
-export function keywordMotif({ id, item, t0, at, t1 }) {
-  const top = ZONES[item.zone ?? "bottom"];
+export function keywordMotif({ id, item, t0, at, t1, zones }) {
+  const top = item.zone === "top" ? TOP_ZONE : zones.card;
   const text = item.text.trim().toUpperCase();
   const html = `<div id="${id}" class="gfx kw"><b></b><span style="font-size:${keywordSize(text)}px">${escapeHtml(text)}</span></div>`;
   const css = `.kw{left:${(1080 - CARD_W) / 2}px;width:${CARD_W}px;height:${CARD_H}px;border-radius:26px;background:#F3EEE2;box-shadow:0 12px 14px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;overflow:hidden}

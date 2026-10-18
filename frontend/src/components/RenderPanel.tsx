@@ -29,7 +29,7 @@ export default function RenderPanel({ clip, dirty, editable, onClip }: Props) {
 
   const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
   const rendering = clip.render_state === "rendering";
-  const isSplit = clip.layout === "split";
+  const canRender = clip.layout === "split" || clip.layout === "full";
   const duration = clip.end - clip.start;
 
   const reloadClip = useCallback(
@@ -94,13 +94,13 @@ export default function RenderPanel({ clip, dirty, editable, onClip }: Props) {
   const shownQuality: "draft" | "final" = urls?.[view] ? view : urls?.draft ? "draft" : "final";
   const warning = clip.render_error?.startsWith("Aviso:") ? clip.render_error : "";
   const failure = clip.render_error && !warning ? clip.render_error : "";
-  const canDraft = editable && !dirty && !rendering && isSplit;
+  const canDraft = editable && !dirty && !rendering && canRender;
   const canFinal = canDraft && clip.status === "approved";
 
   return (
     <section className="render-panel">
       <h2>Render <span className={`tag ${clip.render_state === "failed" ? "failed" : clip.render_state === "rendering" ? "running" : clip.render_state === "none" ? "" : "completed"}`}>{STATE_LABEL[clip.render_state]}</span></h2>
-      {!isSplit && <p className="muted hint">El render solo admite pantalla partida; cambia el layout a «Pantalla partida» y guarda.</p>}
+      {!canRender && <p className="muted hint">El render admite pantalla partida y pantalla completa; cambia el diseño y guarda.</p>}
       {dirty && <p className="muted hint">Guarda los cambios antes de renderizar: el render usa lo guardado.</p>}
       {error && <p className="error">{error}</p>}
       {failure && <p className="error">El último render falló: {failure}</p>}
