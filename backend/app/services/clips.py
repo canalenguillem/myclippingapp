@@ -4,7 +4,8 @@ from __future__ import annotations
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app.db.models import Clip, Project
+from app.db.models import Clip, Project, RenderState
+from app.services import storage
 from app.services.clip_detector import ClipCandidate
 
 
@@ -36,3 +37,40 @@ def replace_detected_clips(db: Session, project: Project, candidates: list[ClipC
 def text_between(words: list[dict], start: float, end: float) -> str:
     """Texto de las palabras que caen dentro de [start, end] (segundos), para refrescar `Clip.transcript`."""
     return " ".join(w["text"] for w in words if w["start"] >= start - 0.05 and w["end"] <= end + 0.05)[:2000]
+
+
+# Campos del clip que cambian el vídeo renderizado: editarlos deja obsoletos el borrador y el final.
+RENDER_AFFECTING = frozenset({"start", "end", "hook", "layout", "focus", "zoom", "top_ratio", "intro_enabled"})
+
+
+def drop_render_files(clip: Clip) -> None:
+    """Borra del disco los ficheros de render del clip (si existen) y limpia sus rutas."""
+    for attr in ("draft_path", "rendered_path", "thumbnail_path"):
+        rel = getattr(clip, attr)
+        if rel:
+            try:
+                storage.absolute(rel).unlink(missing_ok=True)
+            except (ValueError, OSError):
+                pass  # ruta rara o fichero ya ido: no impide limpiar el estado
+        setattr(clip, attr, None)
+
+
+def invalidate_render(clip: Clip) -> None:
+    drop_render_files(clip)
+    clip.render_state = RenderState.NONE
+    clip.render_error = None
+    clip.rendered_at = None
+
+
+def invalidate_project_renders(db: Session, project: Project) -> int:
+    """Texto de la transcripción o estilo de los speakers cambiaron: los renders del proyecto ya no valen."""
+    clips = db.scalars(
+        select(Clip).where(
+            Clip.project_id == project.id, Clip.user_id == project.user_id,
+            Clip.render_state.in_((RenderState.DRAFT, RenderState.FINAL, RenderState.FAILED)),
+        )
+    ).all()
+    for clip in clips:
+        invalidate_render(clip)
+    db.commit()
+    return len(clips)

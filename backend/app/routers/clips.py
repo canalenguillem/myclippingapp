@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.auth.deps import current_user, get_owned
-from app.db.models import Clip, Job, Project, User
+from app.db.models import Clip, Job, Project, RenderState, User
 from app.db import get_db
 from app.jobs import queue
 from app.services import clips as clips_service
@@ -41,6 +41,10 @@ class ClipOut(BaseModel):
     intro_enabled: bool
     outro_enabled: bool
     status: str
+    render_state: str
+    has_draft: bool
+    has_final: bool
+    render_error: str | None
     created_at: datetime | None
 
 
@@ -50,7 +54,8 @@ def _out(c: Clip) -> ClipOut:
         title=c.title, reason=c.reason, score=c.score, transcript=c.transcript, hook=c.hook,
         emphasis=c.emphasis_json or [], parts=c.parts or [], layout=c.layout, focus=c.focus, zoom=c.zoom,
         top_ratio=c.top_ratio, intro_enabled=c.intro_enabled, outro_enabled=c.outro_enabled,
-        status=c.status, created_at=c.created_at,
+        status=c.status, render_state=c.render_state.value, has_draft=bool(c.draft_path),
+        has_final=bool(c.rendered_path), render_error=c.render_error, created_at=c.created_at,
     )
 
 
@@ -111,7 +116,10 @@ def patch_clip(clip_id: int, body: ClipPatch, user: User = Depends(current_user)
     clip = get_owned(db, Clip, clip_id, user)
     if clip.status not in EDITABLE:
         raise HTTPException(409, f"Un clip en estado «{clip.status}» no se puede editar")
+    if clip.render_state is RenderState.RENDERING:
+        raise HTTPException(409, "El clip se está renderizando; espera a que termine o cancela el render")
     changes = body.model_dump(exclude_unset=True)
+    really_changed = {k for k, v in changes.items() if v is not None and getattr(clip, k) != v}
     start, end = changes.get("start", clip.start), changes.get("end", clip.end)
     if "start" in changes or "end" in changes:
         project = db.get(Project, clip.project_id)
@@ -129,6 +137,8 @@ def patch_clip(clip_id: int, body: ClipPatch, user: User = Depends(current_user)
         if project.words_path:
             words = transcription.load_words(storage.absolute(project.words_path))["words"]
             clip.transcript = clips_service.text_between(words, clip.start, clip.end)
+    if really_changed & clips_service.RENDER_AFFECTING and clip.render_state is not RenderState.NONE:
+        clips_service.invalidate_render(clip)  # el borrador y el final ya no corresponden a lo editado
     db.commit()
     return _out(clip)
 
@@ -158,5 +168,8 @@ def delete_clip(clip_id: int, user: User = Depends(current_user), db: Session = 
     clip = get_owned(db, Clip, clip_id, user)
     if clip.status in NOT_DELETABLE:
         raise HTTPException(409, f"El clip está en proceso («{clip.status}»)")
+    if clip.render_state is RenderState.RENDERING:
+        raise HTTPException(409, "El clip se está renderizando; cancela el render primero")
+    clips_service.drop_render_files(clip)
     db.delete(clip)
     db.commit()

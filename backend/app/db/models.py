@@ -34,6 +34,23 @@ _project_status = Enum(
 )
 
 
+class RenderState(enum.StrEnum):
+    """Estado del render de un clip, aparte de su estado editorial (`Clip.status`): así un clip se puede
+    seguir editando y re-renderizando como borrador sin dejar de estar «detectado» o «aprobado»."""
+
+    NONE = "none"            # sin render, o el que había quedó obsoleto
+    RENDERING = "rendering"  # job de render en cola o en marcha
+    DRAFT = "draft"          # hay borrador (540x960)
+    FINAL = "final"          # hay render final (1080x1920)
+    FAILED = "failed"
+
+
+_render_state = Enum(
+    RenderState, native_enum=False, length=16, validate_strings=True,
+    values_callable=lambda e: [m.value for m in e],
+)
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -137,10 +154,15 @@ class Clip(Base):
     focus: Mapped[str] = mapped_column(String(16), default="center")
     zoom: Mapped[float] = mapped_column(Float, default=1.0)
     top_ratio: Mapped[float] = mapped_column(Float, default=0.5)
-    # detected | approved | planning | rendering | rendered | uploading | uploaded | failed
+    # Estado editorial: detected | approved | uploading | uploaded | failed. El render va en `render_state`.
     status: Mapped[str] = mapped_column(String(16), default="detected")
     rendered_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     thumbnail_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    render_state: Mapped[RenderState] = mapped_column(_render_state, default=RenderState.NONE, server_default="none")
+    draft_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)  # relativa a MEDIA_DIR
+    render_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    rendered_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    analysis_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)  # subtítulos quemados, etc.
     seo_title: Mapped[str] = mapped_column(String(255), default="")
     seo_description: Mapped[str] = mapped_column(Text, default="")
     seo_tags: Mapped[str] = mapped_column(Text, default="")

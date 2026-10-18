@@ -105,6 +105,7 @@ def edit_words(project_id: int, body: WordsPatch, user: User = Depends(current_u
 
     revision = _run(path, body.revision, mutate)
     _refresh_clips(db, project, transcription.load_words(path)["words"], changed)
+    clips_service.invalidate_project_renders(db, project)  # los subtítulos renderizados llevan el texto viejo
     return Revision(revision=revision)
 
 
@@ -129,13 +130,17 @@ def reassign_speakers(project_id: int, body: SpeakersPatch, user: User = Depends
                 w["speaker"] = r.speaker
         transcription.refresh_segments(data, regroup=True)
 
-    return Revision(revision=_run(path, body.revision, mutate))
+    revision = _run(path, body.revision, mutate)
+    clips_service.invalidate_project_renders(db, project)  # el estilo de subtítulo depende del speaker
+    return Revision(revision=revision)
 
 
 @router.put("/speakers")
 def put_speakers(project_id: int, body: dict[str, SpeakerCard], user: User = Depends(current_user), db: Session = Depends(get_db)):
     """Sustituye las fichas de speakers (nombre, cargo, estilo de subtítulo, clip citado)."""
     project = get_owned(db, Project, project_id, user)
+    if queue.active_job(db, user.id, project.id):
+        raise HTTPException(409, "Hay un job en marcha para este proyecto; espera a que termine")
     for label, card in body.items():
         if not LABEL.match(label):
             raise HTTPException(422, f"Etiqueta de speaker no válida: {label!r}")
@@ -148,4 +153,5 @@ def put_speakers(project_id: int, body: dict[str, SpeakerCard], user: User = Dep
             raise HTTPException(422, f"No se pueden quitar speakers que aún tienen palabras: {sorted(missing)}")
     project.speakers = {label: card.model_dump() for label, card in body.items()}
     db.commit()
+    clips_service.invalidate_project_renders(db, project)  # nombre, cargo y estilo salen en el render
     return project.speakers

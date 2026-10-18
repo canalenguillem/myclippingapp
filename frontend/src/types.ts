@@ -20,6 +20,9 @@ export type Clip = {
   layout: "split" | "full" | "facecam"; focus: "left" | "center" | "right";
   zoom: number; top_ratio: number; intro_enabled: boolean; outro_enabled: boolean;
   status: string; created_at: string | null;
+  /** Estado del render, aparte del editorial: none | rendering | draft | final | failed. */
+  render_state: "none" | "rendering" | "draft" | "final" | "failed";
+  has_draft: boolean; has_final: boolean; render_error: string | null;
 };
 
 export const EDITABLE_CLIP = new Set(["detected", "approved"]);
