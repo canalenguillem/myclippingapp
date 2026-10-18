@@ -78,3 +78,11 @@ def rebase_silences(silences: list[dict], clip_start: float, clip_end: float) ->
         {"start": max(s["start"], clip_start) - clip_start, "end": min(s["end"], clip_end) - clip_start}
         for s in silences if s["end"] > clip_start and s["start"] < clip_end
     ]
+
+
+def resolve_position(requested: float | None, words: list[dict], silences: list[dict], duration: float) -> float | None:
+    """Dónde entra de verdad la cortinilla de inicio: la posición pedida llevada al punto válido más cercano, o la
+    automática si no se pidió ninguna. None si el clip no tiene ningún silencio válido."""
+    if requested is not None:
+        return snap_position(requested, words, silences, duration)
+    return default_position(words, silences, duration)

@@ -5,7 +5,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -16,7 +16,7 @@ from app.jobs import queue
 from app.pipeline import ffops
 from app.services import clips as clips_service
 from app.services import cortinilla as cortinilla_service
-from app.services import fx_request, media_sign, silences as silences_service, storage, transcription
+from app.services import fx_request, graphics_schedule, media_sign, silences as silences_service, storage, transcription
 
 router = APIRouter(tags=["clips"])
 
@@ -47,6 +47,7 @@ class ClipOut(BaseModel):
     intro_enabled: bool
     cortinilla_at: float | None
     template_id: int | None
+    graphics: list[dict]
     status: str
     render_state: str
     has_draft: bool
@@ -61,10 +62,47 @@ def _out(c: Clip, render_job_id: int | None = None) -> ClipOut:
         id=c.id, project_id=c.project_id, start=c.start, end=c.end, duration=round(c.end - c.start, 3),
         title=c.title, reason=c.reason, score=c.score, transcript=c.transcript, hook=c.hook,
         emphasis=c.emphasis_json or [], parts=c.parts or [], layout=c.layout, focus=c.focus, zoom=c.zoom,
-        top_ratio=c.top_ratio, intro_enabled=c.intro_enabled, cortinilla_at=c.cortinilla_at, template_id=c.template_id,
+        top_ratio=c.top_ratio, intro_enabled=c.intro_enabled, cortinilla_at=c.cortinilla_at, template_id=c.template_id, graphics=c.graphics_json or [],
         status=c.status, render_state=c.render_state.value, has_draft=bool(c.draft_path),
         has_final=bool(c.rendered_path), render_error=c.render_error, render_job_id=render_job_id, created_at=c.created_at,
     )
+
+
+class GraphicIn(BaseModel):
+    """Un gráfico ligado a la transcripción. `at` son segundos DEL CLIP (inicio de la palabra gancho)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["keyword", "emoji"]
+    at: float = Field(ge=0)
+    text: str | None = Field(default=None, max_length=40)
+    emoji: str | None = Field(default=None, max_length=16)
+    target: str | None = Field(default=None, max_length=16)
+    zone: Literal["bottom", "top"] | None = None
+    lead: float | None = Field(default=None, ge=0, le=1)
+    duration: float | None = Field(default=None, ge=1, le=6)
+    priority: float | None = Field(default=None, ge=0, le=100)
+
+    @model_validator(mode="after")
+    def _fields(self):
+        if self.type == "keyword" and not (self.text or "").strip():
+            raise ValueError("la tarjeta necesita texto")
+        if self.type == "emoji":
+            if not graphics_schedule.is_emoji(self.emoji or ""):
+                raise ValueError("emoji no válido")
+            if self.target not in (None, "") and not graphics_schedule.is_emoji(self.target):
+                raise ValueError("el objetivo no es un emoji")
+        return self
+
+
+def _beats(items: list[GraphicIn]) -> list[dict]:
+    out = []
+    for g in items:
+        beat = {k: v for k, v in g.model_dump().items() if v not in (None, "")}
+        if "text" in beat:
+            beat["text"] = beat["text"].strip()
+        out.append(beat)
+    return sorted(out, key=lambda b: b["at"])
 
 
 class ClipPatch(BaseModel):
@@ -82,6 +120,7 @@ class ClipPatch(BaseModel):
     top_ratio: float | None = Field(default=None, ge=0.2, le=0.9)
     intro_enabled: bool | None = None
     template_id: int | None = Field(default=None, ge=1)
+    graphics: list[GraphicIn] | None = Field(default=None, max_length=40)
     cortinilla_at: float | None = Field(default=None, gt=0)
 
 
@@ -140,6 +179,9 @@ def patch_clip(clip_id: int, body: ClipPatch, user: User = Depends(current_user)
     if clip.render_state is RenderState.RENDERING:
         raise HTTPException(409, "El clip se está renderizando; espera a que termine o cancela el render")
     changes = body.model_dump(exclude_unset=True)
+    new_graphics = _beats(body.graphics) if body.graphics is not None else None
+    changes.pop("graphics", None)
+    old_start = clip.start
     # `cortinilla_at: null` vuelve a la posición automática; en los demás campos null significa «sin cambio»
     really_changed = {k for k, v in changes.items() if (v is not None or k in NULLABLE) and getattr(clip, k) != v}
     start, end = changes.get("start", clip.start), changes.get("end", clip.end)
@@ -155,9 +197,22 @@ def patch_clip(clip_id: int, body: ClipPatch, user: User = Depends(current_user)
         get_owned(db, BrandTemplate, changes["template_id"], user)  # una plantilla ajena responde 404
     if changes.get("cortinilla_at") is not None and changes["cortinilla_at"] > end - start - cortinilla_service.END_MARGIN:
         raise HTTPException(422, "La cortinilla de inicio no puede entrar en el último segundo del clip")
+    if new_graphics is not None and any(b["at"] > end - start for b in new_graphics):
+        raise HTTPException(422, "Un gráfico se ancla fuera del clip")
     for field, value in changes.items():
         if value is not None or field in NULLABLE:
             setattr(clip, field, value)
+    if new_graphics is not None:
+        really_changed |= {"graphics_json"} if new_graphics != (clip.graphics_json or []) else set()
+        clip.graphics_json = new_graphics
+    elif ("start" in changes or "end" in changes) and clip.graphics_json:
+        # los gráficos van en segundos del clip: al mover el inicio se desplazan para seguir pegados a su palabra
+        shift = clip.start - old_start
+        moved = [{**b, "at": round(b["at"] - shift, 3)} for b in clip.graphics_json]
+        moved = [b for b in moved if 0 <= b["at"] <= clip.end - clip.start]
+        if moved != clip.graphics_json:
+            really_changed.add("graphics_json")
+            clip.graphics_json = moved
     if ("start" in changes or "end" in changes) and "cortinilla_at" not in changes:
         clip.cortinilla_at = None  # es relativa al inicio del clip: con otro recorte ya no apunta al mismo sitio
     if "start" in changes or "end" in changes:
@@ -281,13 +336,7 @@ def cortinilla_options(clip_id: int, start: float | None = Query(default=None, g
         raise HTTPException(422, "Recorte no válido")
     if not project.words_path:
         raise HTTPException(409, "El proyecto aún no tiene transcripción")
-    words = fx_request.clip_words(transcription.load_words(storage.absolute(project.words_path))["words"], start, end)
-    silences = []
-    if project.silences_path:
-        try:
-            silences = cortinilla_service.rebase_silences(silences_service.load_silences(storage.absolute(project.silences_path)), start, end)
-        except (OSError, ValueError):
-            silences = []
+    words, silences = _words_and_silences(db, project, start, end)
     duration = end - start
     sentence = set(cortinilla_service.candidates(words, silences, duration, sentence_only=True))
     every = cortinilla_service.candidates(words, silences, duration, sentence_only=False)
@@ -296,4 +345,56 @@ def cortinilla_options(clip_id: int, start: float | None = Query(default=None, g
         "intro": cortinilla_service.INTRO_SECONDS,
         "default": cortinilla_service.default_position(words, silences, duration),
         "positions": [{"at": at, "sentence": at in sentence} for at in every],
+    }
+
+
+def _words_and_silences(db: Session, project: Project, start: float, end: float) -> tuple[list[dict], list[dict]]:
+    """Palabras del recorte (relativas a su inicio) y silencios que lo tocan, como los usa el job de render."""
+    words = fx_request.clip_words(transcription.load_words(storage.absolute(project.words_path))["words"], start, end)
+    silences: list[dict] = []
+    if project.silences_path:
+        try:
+            silences = cortinilla_service.rebase_silences(silences_service.load_silences(storage.absolute(project.silences_path)), start, end)
+        except (OSError, ValueError):
+            silences = []
+    return words, silences
+
+
+class PlanIn(BaseModel):
+    """Lo que hay en el formulario del editor, guardado o no: el plan se calcula sobre eso."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    graphics: list[GraphicIn] = Field(default_factory=list, max_length=40)
+    start: float | None = Field(default=None, ge=0)
+    end: float | None = Field(default=None, ge=0)
+    layout: Literal["split", "full", "facecam"] | None = None
+    intro_enabled: bool | None = None
+    cortinilla_at: float | None = Field(default=None, gt=0)
+
+
+@router.post("/api/clips/{clip_id}/graphics-plan")
+def graphics_plan(clip_id: int, body: PlanIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Qué haría el programador con estos gráficos: ventana real de cada uno, los descartados con su motivo y dónde cae la
+    cortinilla de inicio. No guarda nada."""
+    clip = get_owned(db, Clip, clip_id, user)
+    project = db.get(Project, clip.project_id)
+    start = clip.start if body.start is None else body.start
+    end = clip.end if body.end is None else body.end
+    if end - start < 1.0:
+        raise HTTPException(422, "Recorte no válido")
+    if not project.words_path:
+        raise HTTPException(409, "El proyecto aún no tiene transcripción")
+    duration = end - start
+    words, silences = _words_and_silences(db, project, start, end)
+    intro = clip.intro_enabled if body.intro_enabled is None else body.intro_enabled
+    at = cortinilla_service.resolve_position(body.cortinilla_at, words, silences, duration) if intro else None
+    layout = body.layout or clip.layout
+    plan = graphics_schedule.schedule(_beats(body.graphics), duration, cortinilla_at=at, single_lane=layout == "full")
+    return {
+        "duration": round(duration, 3),
+        "cortinilla_at": at,
+        "hook_seconds": graphics_schedule.HOOK_SECONDS,
+        "beats": [{**b, "start": round(max(0.0, b["at"] - b["lead"]), 3), "end": round(max(0.0, b["at"] - b["lead"]) + b["duration"], 3)} for b in plan.beats],
+        "dropped": plan.dropped,
     }

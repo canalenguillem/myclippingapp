@@ -141,8 +141,7 @@ def render(ctx: JobContext, payload: dict) -> None:
         notes: list[str] = []
         if clip.intro_enabled:
             silences = _load_silences(project, clip)
-            at = (cortinilla_service.snap_position(clip.cortinilla_at, words, silences, duration) if clip.cortinilla_at is not None
-                  else cortinilla_service.default_position(words, silences, duration))
+            at = cortinilla_service.resolve_position(clip.cortinilla_at, words, silences, duration)
             if at is None:
                 notes.append("no hay un silencio válido donde insertar la cortinilla de inicio; se omitió")
                 ctx.log("Sin cortinilla de inicio: " + notes[-1])

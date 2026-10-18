@@ -7,6 +7,7 @@ Beat de salida:   el mismo con `lead` y `duration` ya ajustados, listo para el c
 """
 from __future__ import annotations
 
+import unicodedata
 from dataclasses import dataclass
 
 LEAD_MIN, LEAD_MAX, LEAD_DEFAULT = 0.3, 0.8, 0.5   # el elemento entra 0,3–0,8 s antes de la palabra
@@ -23,6 +24,15 @@ DURATION_BY_TYPE = {"keyword": 2.5, "emoji": 2.5}
 PRIORITY_BY_TYPE = {"keyword": 5, "emoji": 3}
 LEAD_BY_TYPE = {"emoji": 0.8}                       # una escena con saltos necesita tiempo para llegar a la palabra
 REQUIRED_FIELD = {"keyword": "text", "emoji": "emoji"}
+
+
+_EMOJI_CATEGORIES = {"So", "Sk", "Cf", "Mn"}
+
+
+def is_emoji(text: str) -> bool:
+    """Igual que el contrato de fx_worker (`^[\\p{So}\\p{Sk}\\p{Cf}\\p{Mn}]+$`): símbolos, modificadores, ZWJ y selectores de variante;
+    sin letras, cifras, espacios ni signos ASCII (así nada de HTML y un emoji «raro» no tumba el render del servicio)."""
+    return 0 < len(text) <= 16 and all(unicodedata.category(c) in _EMOJI_CATEGORIES and ord(c) > 0x7F for c in text)
 
 
 @dataclass
@@ -52,6 +62,9 @@ def schedule(beats: list[dict] | None, clip_duration: float, *, cortinilla_at: f
         kind = beat.get("type")
         if kind not in BIG and kind not in SMALL:
             drop(beat, f"motivo desconocido: {kind!r}")
+            continue
+        if kind == "emoji" and not (is_emoji(str(beat.get("emoji", ""))) and (beat.get("target") in (None, "") or is_emoji(str(beat["target"])))):
+            drop(beat, "emoji no válido")
             continue
         field = REQUIRED_FIELD.get(kind)
         if field and not str(beat.get(field, "")).strip():
