@@ -197,3 +197,22 @@ class Job(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=_now())
     started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class Asset(Base):
+    """Imagen del usuario para los gráficos (una hucha, un logo…). Solo se usa lo que el usuario sube o elige."""
+
+    __tablename__ = "assets"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(16), default="object")  # object | face | logo | icon | map
+    name: Mapped[str] = mapped_column(String(120))
+    tags: Mapped[list] = mapped_column(JSON, default=list)
+    path: Mapped[str] = mapped_column(String(1024), default="")  # relativa a MEDIA_DIR; siempre PNG
+    source: Mapped[str] = mapped_column(String(255), default="")
+    license_note: Mapped[str] = mapped_column(String(255), default="")
+    width: Mapped[int] = mapped_column(Integer, default=0)
+    height: Mapped[int] = mapped_column(Integer, default=0)
+    size_bytes: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=_now())
