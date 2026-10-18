@@ -46,6 +46,13 @@ export const renderRequest = z
       .default({ mode: "split", top_ratio: 0.5 }),
     words: z.array(word).max(5000).default([]),
     speakers: z.record(z.string().regex(/^[A-Za-z0-9]{1,8}$/), speaker).default({}),
+    // Filas (en px del lienzo 1080x1920) que la banda debe cubrir, p. ej. donde el vídeo de origen lleva subtítulos
+    // quemados. Sin este campo la banda va centrada en el corte entre el plano corto y la escena completa.
+    band: z
+      .object({ y0: z.number().int().min(0).max(1919), y1: z.number().int().min(1).max(1920) })
+      .strict()
+      .refine((b) => b.y1 > b.y0 && b.y1 - b.y0 <= 400, { message: "band: y1 debe ser mayor que y0 y la altura, de 400 px como máximo" })
+      .optional(),
     hook: z
       .object({ text: z.string().min(1).max(120), duration: z.number().min(0.5).max(6).default(2) })
       .strict()

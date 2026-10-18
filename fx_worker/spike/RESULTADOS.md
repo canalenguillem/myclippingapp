@@ -46,10 +46,15 @@ Con 2 workers se consigue casi lo mismo que con 4 usando la mitad de memoria. Re
 9. El servidor de la vista previa debe admitir `Range` y el componente necesita una relación de aspecto en el CSS (`aspect-ratio: 1080 / 1920`).
 10. Variables de entorno del render que interesan al servicio: `PRODUCER_MAX_WORKERS`, `PRODUCER_LOW_MEMORY_MODE`, `HYPERFRAMES_BROWSER_PATH`, `PRODUCER_RENDERS_DIR`.
 
+## Hallazgos posteriores (paso 5 de F5)
+
+- **Los tratamientos de color de HyperFrames (`data-color-grading`) usan WebGL y son inviables sin GPU.** Con Chrome en modo software, un clip de 4 s tardaba más de 150 s (solo arrancar los navegadores ya llevaba ~36 s) frente a ~7 s sin el tratamiento. El blanco y negro del clip citado se hace con un filtro CSS `grayscale()` animado con GSAP sobre un contenedor del vídeo (+0,6 s).
+- **La banda de papel con `drop-shadow` cuesta unas décimas** (6,6 s sin banda, 6,9 s con ella en un clip de 4 s); se mantiene.
+- **Un servicio de larga vida necesita un proceso `init`** (`init: true` en el compose): sin él, los procesos de Chrome que terminan quedan como zombis colgando del `node` del contenedor.
+- **Las pruebas que lanzan Chrome pueden dejar navegadores huérfanos** si el proceso de test muere (un test con tiempo agotado dejó 8 navegadores al 900 % de CPU y falseó las mediciones). Medir siempre con la máquina en reposo (`uptime`) y limpiar con `pkill -f chrome-headless-shell`.
+
 ## Sin probar todavía
 
-- Blanco y negro para el clip citado (`is_source`): la documentación pide usar sus «media treatments» y no filtros CSS improvisados.
-- Los dos estilos de subtítulo según speaker y la banda de papel rasgado con ruido.
 - El resto de motivos de F7 y los tratamientos de audio (ducking con `data-automation`).
 - `PRODUCER_LOW_MEMORY_MODE` y el renderizado con GPU.
 - Varios renders seguidos en un mismo proceso (el servicio real renderiza de uno en uno por el carril global).

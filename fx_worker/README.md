@@ -29,12 +29,23 @@ Todas las rutas son **relativas a `MEDIA_DIR`** (sin `/` inicial ni `..`) y los 
   "layout": { "mode": "split", "top_ratio": 0.5 },
   "words": [{ "text": "Urgente", "start": 0.6, "end": 1.0, "speaker": "A" }],
   "speakers": { "A": { "name": "Ana", "role": "periodista", "caption_style": "sans_upper", "is_source": false } },
+  "band": { "y0": 1380, "y1": 1470 },
   "hook": { "text": "Nadie se lo esperaba", "duration": 2 },
   "preset": "editorial"
 }
 ```
 
-Solo `video`, `output` y `duration` son obligatorios. El clip vertical de entrada debe llevar **fotogramas clave densos** (`-g 30`); lo genera `backend/app/pipeline/vertical.py`. El esquema completo está en `src/contract.mjs`.
+Solo `video`, `output` y `duration` son obligatorios. ## Capas de estilo
+
+| Capa | Qué hace |
+|---|---|
+| Banda de papel | Franja crema rasgada a todo el ancho que **tapa** las filas `band.y0`–`band.y1` (p. ej. subtítulos quemados del origen) con 10 px de margen; sin `band` va centrada en el corte entre el plano corto y la escena completa. Solo en el preset `editorial`. El rasgado es determinista (semilla fija) y siempre sobresale entre 6 y 22 px de la zona protegida |
+| Subtítulos | Karaoke por palabra en dos estilos según `speakers[x].caption_style`: `sans_upper` (Inter ExtraBold, MAYÚSCULAS) y `serif_italic` (Cormorant SemiBold cursiva). La palabra activa va en el color de acento; las que aún no se dicen, atenuadas. Frases de ≤ 4 palabras y ~22 letras, con corte tras puntuación, pausas de más de 0,35 s y cambios de speaker |
+| Clip citado | Los tramos de los speakers con `is_source: true` salen en blanco y negro (filtro CSS con fundido de 0,2 s); la banda y el texto siguen en color |
+| Gancho | Titular de pocas palabras que entra desenfocado; en `editorial` la última palabra va en serif cursiva y color de acento |
+| Presets | `editorial` (banda y acento rojo), `hormozi` (sin banda, acento amarillo, trazo negro) y `minimal` (sin banda, texto blanco) |
+
+El clip vertical de entrada debe llevar **fotogramas clave densos** (`-g 30`); lo genera `backend/app/pipeline/vertical.py`. El esquema completo está en `src/contract.mjs`.
 
 ## Variables de entorno
 

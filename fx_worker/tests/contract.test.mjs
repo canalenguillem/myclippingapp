@@ -64,3 +64,12 @@ test("el error de contrato lista los campos", () => {
     assert.ok(e.details.some((d) => d.startsWith("duration")) && e.details.some((d) => d.startsWith("quality")));
   }
 });
+
+test("band: filas válidas y límites", () => {
+  assert.deepEqual(parseRequest({ ...base, band: { y0: 1400, y1: 1500 } }).band, { y0: 1400, y1: 1500 });
+  for (const bad of [{ y0: 1500, y1: 1400 }, { y0: 100, y1: 100 }, { y0: 0, y1: 500 }, { y0: -1, y1: 10 }, { y0: 10.5, y1: 90 }, { y0: 10, y1: 90, x: 1 }]) {
+    assert.throws(() => parseRequest({ ...base, band: bad }), ContractError, JSON.stringify(bad));
+  }
+  assert.equal(parseRequest(base).band, undefined);
+});
+

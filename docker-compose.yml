@@ -69,6 +69,7 @@ services:
   fx_worker:
     build: ./fx_worker
     container_name: clip_fx
+    init: true                      # tini recoge los procesos zombi de Chrome que cuelgan del servicio
     shm_size: "1gb"                 # Chrome headless se cae a mitad del render con los 64 MB por defecto
     environment:
       MEDIA_DIR: /media

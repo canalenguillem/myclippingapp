@@ -4,23 +4,11 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { buildProject } from "../src/builder.mjs";
 import { parseRequest } from "../src/contract.mjs";
-import { groupPhrases } from "../src/layers/captions.mjs";
 import { checkProject } from "../src/render.mjs";
 import { makeVideo, tmp } from "./helpers.mjs";
 
 const w = (text, start, end) => ({ text, start, end });
 const base = { video: "a.mp4", output: "b.mp4", duration: 3 };
-
-test("groupPhrases: máximo 3 palabras, corte tras puntuación y tras pausa, y descarta lo que pasa del final", () => {
-  const g = groupPhrases([w("uno", 0, 0.3), w("dos", 0.4, 0.7), w("tres", 0.8, 1.1), w("cuatro", 1.2, 1.5)], 5);
-  assert.deepEqual(g.map((x) => x.map((y) => y.text)), [["uno", "dos", "tres"], ["cuatro"]]);
-  const p = groupPhrases([w("Hola.", 0, 0.3), w("Adiós", 0.4, 0.7)], 5);
-  assert.deepEqual(p.map((x) => x.length), [1, 1]);
-  const gap = groupPhrases([w("a", 0, 0.3), w("b", 1.5, 1.8)], 5);
-  assert.equal(gap.length, 2);
-  const cut = groupPhrases([w("a", 0, 0.3), w("fuera", 6, 6.3)], 5);
-  assert.deepEqual(cut.flat().map((x) => x.text), ["a"]);
-});
 
 test("construye un proyecto válido: estructura, GSAP y fuentes locales, vídeo con audio y sin red", async () => {
   const dir = tmp();
@@ -66,3 +54,65 @@ test("sin palabras también compila y pasa el linter", async () => {
   const r = buildProject({ request: parseRequest({ ...base, duration: 2 }), video, workDir: join(dir, "work") });
   await checkProject(r.projectDir);
 });
+
+const spk = {
+  A: { name: "Ana", role: "", caption_style: "sans_upper", is_source: false },
+  B: { name: "Bea", role: "", caption_style: "serif_italic", is_source: true },
+};
+const ws = [
+  { text: "Hola", start: 0.2, end: 0.6, speaker: "A" },
+  { text: "mundo", start: 0.7, end: 1.1, speaker: "A" },
+  { text: "cita", start: 1.8, end: 2.2, speaker: "B" },
+  { text: "textual", start: 2.3, end: 2.8, speaker: "B" },
+];
+const build = (extra = {}, name = "w") => {
+  const dir = tmp();
+  const video = makeVideo(join(dir, "src.mp4"), 4);
+  const request = parseRequest({ video: "a.mp4", output: "b.mp4", duration: 4, words: ws, speakers: spk, ...extra });
+  const r = buildProject({ request, video, workDir: join(dir, name) });
+  return { html: readFileSync(join(r.projectDir, "index.html"), "utf8"), projectDir: r.projectDir };
+};
+
+test("cada frase usa el estilo de su speaker", () => {
+  const { html } = build();
+  assert.match(html, /<div class="phrase sans" id="p0"[^>]*>.*HOLA.*MUNDO/);
+  assert.match(html, /<div class="phrase serif" id="p1"[^>]*>.*cita.*textual/); // serif cursiva: sin pasar a mayúsculas
+});
+
+test("la banda solo existe en el preset editorial y cubre las filas pedidas con 10 px de margen", () => {
+  const a = build({ band: { y0: 1700, y1: 1780 } });
+  assert.ok(a.html.includes('<svg id="band"'));
+  assert.ok(a.html.includes(`top:${1700 - 10 - 30}px`), "svg 30 px por encima de la zona protegida con margen");
+  assert.ok(!build({ preset: "hormozi" }).html.includes('id="band"'));
+  assert.ok(!build({ preset: "minimal" }).html.includes('id="band"'));
+  const centered = build();
+  assert.ok(centered.html.includes(`top:${960 - 45 - 30}px`), "sin `band` va centrada en el corte (top_ratio 0,5)");
+});
+
+test("el blanco y negro solo aparece si algún speaker es is_source", () => {
+  const { html } = build();
+  assert.ok(html.includes('"#vwrap"') && html.includes("grayscale(1)"));
+  assert.ok(!html.includes("data-color-grading"), "sin el tratamiento WebGL de HyperFrames (inviable sin GPU)");
+  const none = build({ speakers: { A: spk.A, B: { ...spk.B, is_source: false } } });
+  assert.ok(!none.html.includes("grayscale"));
+});
+
+test("el gancho entra en la composición, escapado, con la última palabra como acento", () => {
+  const { html } = build({ hook: { text: "Nadie <b>se</b> lo esperaba", duration: 2 } });
+  assert.ok(!html.includes("<b>se"));
+  assert.match(html, /<div id="hook">.*&lt;B&gt;SE&lt;\/B&gt; LO <span class="acc">ESPERABA<\/span>/);
+  assert.ok(!build().html.includes('id="hook"'));
+});
+
+test("todas las combinaciones de capas pasan el linter de HyperFrames", async () => {
+  for (const [name, extra] of [
+    ["editorial", { hook: { text: "Nadie se lo esperaba" }, band: { y0: 1380, y1: 1470 } }],
+    ["hormozi", { preset: "hormozi", hook: { text: "Gancho corto" } }],
+    ["minimal", { preset: "minimal" }],
+  ]) {
+    const { projectDir } = build(extra, name);
+    const result = await checkProject(projectDir);
+    assert.equal(result.totalErrors, 0, name);
+  }
+});
+
