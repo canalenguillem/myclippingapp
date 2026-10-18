@@ -132,3 +132,16 @@ def test_plan_counts_an_image_as_a_big_graphic(client, tmp_path, monkeypatch):
     body = {"graphics": [{"type": "image", "at": 12.0, "asset_id": a.id, "effect": "vaporize"}, {**KW, "at": 13.0}]}
     plan = client.post(f"/api/clips/{c.id}/graphics-plan", json=body, headers=h).json()
     assert [b["type"] for b in plan["beats"]] == ["image"] and "más prioritario" in plan["dropped"][0]["reason"]   # la imagen gana a la tarjeta
+
+
+def test_entry_and_explode_are_accepted_for_images_and_emoji_but_validated(client, tmp_path, monkeypatch):
+    h, db, p = _project(client, tmp_path, monkeypatch)
+    c = _clip(db, p, 10.0, 40.0)
+    a = _asset(db, p.user_id)
+    img = {"type": "image", "at": 12.0, "asset_id": a.id, "style": "card", "entry": "punch", "effect": "explode"}
+    assert client.patch(f"/api/clips/{c.id}", json={"graphics": [img]}, headers=h).json()["graphics"] == [img]
+    assert client.patch(f"/api/clips/{c.id}", json={"graphics": [{"type": "emoji", "at": 5.0, "emoji": "💣", "effect": "explode"}]}, headers=h).status_code == 200
+    for bad in ({**img, "entry": "volar"}, {"type": "emoji", "at": 5.0, "emoji": "💣", "entry": "punch"}, {"type": "keyword", "at": 5.0, "text": "x", "entry": "drop"}):
+        assert client.patch(f"/api/clips/{c.id}", json={"graphics": [bad]}, headers=h).status_code == 422, bad
+    plan = client.post(f"/api/clips/{c.id}/graphics-plan", json={"graphics": [img]}, headers=h).json()
+    assert plan["beats"][0]["lead"] == 0.7 and plan["beats"][0]["start"] == 11.3

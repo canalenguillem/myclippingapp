@@ -92,3 +92,13 @@ def test_image_is_a_big_graphic_with_more_priority_than_a_card_and_needs_its_ass
     r = schedule([kw(11), im(10)], 40.0)
     assert [b["type"] for b in r.beats] == ["image"] and r.beats[0]["duration"] == 3.0
     assert schedule([{"type": "image", "at": 10}], 40.0).dropped[0]["reason"] == "falta la imagen"
+
+
+def test_moving_entries_get_more_lead_unless_the_beat_sets_one():
+    im = lambda at, **k: {"type": "image", "at": at, "asset_id": 3, **k}  # noqa: E731
+    assert schedule([im(10)], 40.0).beats[0]["lead"] == 0.5
+    assert schedule([im(10, entry="punch")], 40.0).beats[0]["lead"] == 0.7
+    assert schedule([im(10, entry="drop", lead=0.4)], 40.0).beats[0]["lead"] == 0.4
+    assert schedule([im(10, entry="pop")], 40.0).beats[0]["lead"] == 0.5
+    b = schedule([im(10, entry="punch", effect="explode")], 40.0).beats[0]
+    assert (b["entry"], b["effect"]) == ("punch", "explode")

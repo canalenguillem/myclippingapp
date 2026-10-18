@@ -81,7 +81,8 @@ class GraphicIn(BaseModel):
     zone: Literal["bottom", "top"] | None = None
     asset_id: int | None = Field(default=None, ge=1)                                  # imagen de la librería (type=image)
     style: Literal["original", "card", "silhouette", "red"] | None = None            # cómo se viste la imagen
-    effect: Literal["pop", "vaporize", "break"] | None = None                        # cómo entra/se deshace (emoji: pop | vaporize)
+    entry: Literal["pop", "punch", "slide_left", "slide_right", "slide_top", "drop"] | None = None   # cómo entra (imagen)
+    effect: Literal["pop", "vaporize", "break", "explode"] | None = None             # qué pasa en la palabra (emoji: pop | vaporize | explode)
     lead: float | None = Field(default=None, ge=0, le=1)
     duration: float | None = Field(default=None, ge=1, le=6)
     priority: float | None = Field(default=None, ge=0, le=100)
@@ -94,7 +95,9 @@ class GraphicIn(BaseModel):
             if self.asset_id is None:
                 raise ValueError("falta la imagen")
         if self.type == "emoji" and self.effect == "break":
-            raise ValueError("un emoji solo puede aparecer o vaporizarse")
+            raise ValueError("un emoji solo puede aparecer, vaporizarse o explotar")
+        if self.type != "image" and self.entry not in (None, "pop"):
+            raise ValueError("solo las imágenes tienen entrada con movimiento")
         if self.type == "emoji":
             if not graphics_schedule.is_emoji(self.emoji or ""):
                 raise ValueError("emoji no válido")

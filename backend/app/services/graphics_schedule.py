@@ -22,7 +22,9 @@ BIG = {"keyword", "image"}
 SMALL = {"emoji"}
 DURATION_BY_TYPE = {"keyword": 2.5, "emoji": 2.5, "image": 3.0}
 PRIORITY_BY_TYPE = {"keyword": 5, "emoji": 3, "image": 6}
-LEAD_BY_TYPE = {"emoji": 0.8}                       # una escena con saltos necesita tiempo para llegar a la palabra
+LEAD_BY_TYPE = {"emoji": 0.8}
+MOVING_ENTRIES = {"punch", "slide_left", "slide_right", "slide_top", "drop"}   # entradas con recorrido: necesitan tiempo para llegar
+MOVING_LEAD = 0.7                       # una escena con saltos necesita tiempo para llegar a la palabra
 REQUIRED_FIELD = {"keyword": "text", "emoji": "emoji", "image": "asset_id"}
 
 
@@ -75,7 +77,8 @@ def schedule(beats: list[dict] | None, clip_duration: float, *, cortinilla_at: f
         if not 0.0 <= at <= clip_duration:
             drop(beat, "la palabra gancho cae fuera del clip")
             continue
-        lead = min(LEAD_MAX, max(LEAD_MIN, _num(beat.get("lead"), LEAD_BY_TYPE.get(kind, LEAD_DEFAULT))))
+        default_lead = MOVING_LEAD if beat.get("entry") in MOVING_ENTRIES else LEAD_BY_TYPE.get(kind, LEAD_DEFAULT)
+        lead = min(LEAD_MAX, max(LEAD_MIN, _num(beat.get("lead"), default_lead)))
         length = min(DURATION_MAX, max(DURATION_MIN, _num(beat.get("duration"), DURATION_BY_TYPE.get(kind, 2.5))))
         start = max(0.0, at - lead)
         end = min(clip_duration, start + length)

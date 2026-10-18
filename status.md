@@ -121,3 +121,9 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 - `POST /api/assets` (multipart: `file`, `name`), `GET/PATCH/DELETE /api/assets`. Las imágenes viven en `media/u{id}/assets/{id}.png`; borrar una que usa algún clip da 409. Solo se usan las que sube el usuario: el render descarta con motivo un gráfico cuya imagen ya no existe o es ajena.
 - Un gráfico de imagen se guarda como `{type: "image", at, asset_id, style, effect}`; el job lo traduce a la ruta del PNG para `fx_worker`. La imagen cuenta como gráfico grande (prioridad 6, mayor que la tarjeta).
 - **Deuda:** sin recorte automático de fondo (rembg): un PNG con fondo se vaporiza con su fondo; el logo que orbita en la cortinilla aún se asigna a mano (`logo_path`), y las imágenes no se pueden compartir entre usuarios.
+
+## Entradas, explosión y texto libre (F7, 2026-10-18)
+
+- **Entradas** de los gráficos de imagen: aparece con rebote, entra de un golpe (llega acelerando, golpea EN la palabra, rebota y tiembla el plano), cae desde arriba (rebota al llegar), desde la izquierda, derecha o arriba. **Efectos** en la palabra: se queda, se vaporiza, se parte o **explota** (fragmentos radiales con gravedad y anillo de onda; también para emojis sueltos). Sonidos sintetizados: whoosh, golpe sordo, polvo y crujido; golpear y explotar en la misma palabra suena un solo golpe.
+- **Texto libre:** `POST /api/graphics/interpret` traduce una frase («el guante da un golpe y explota») a entrada, efecto y estilo. Primero palabras clave en español (sin red); si no reconoce nada y hay clave de OpenAI, pregunta al modelo con un JSON cerrado y valida la respuesta. No genera código: solo elige entre las piezas conocidas, y el editor enseña lo entendido para corregirlo.
+- **Deuda:** el golpe da contra la pantalla (no sobre otro objeto de la escena); el temblor sacude solo el vídeo (no los gráficos); no hay selector de dirección del golpe (siempre desde la izquierda).

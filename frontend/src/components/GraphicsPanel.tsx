@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
-import type { Asset, Clip, Graphic, GraphicsPlan } from "../types";
+import type { Asset, Clip, Graphic, GraphicsPlan, Interpreted } from "../types";
 import { fmtTime } from "../types";
 
 const EMOJI = /^[\p{So}\p{Sk}\p{Cf}\p{Mn}]{1,16}$/u;
@@ -42,6 +42,8 @@ export default function GraphicsPanel({ clip, list, onChange, start, end, layout
   const [assets, setAssets] = useState<Asset[]>([]);
   const [assetError, setAssetError] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [describe, setDescribe] = useState<Record<number, string>>({});
+  const [understood, setUnderstood] = useState<Record<number, string>>({});
   const [plan, setPlan] = useState<GraphicsPlan | null>(null);
   const [planError, setPlanError] = useState("");
   const problem = graphicsProblem(list, duration);
@@ -58,6 +60,20 @@ export default function GraphicsPanel({ clip, list, onChange, start, end, layout
       const a = await api<Asset>("/api/assets", { method: "POST", body: fd });
       setAssets((xs) => [a, ...xs]);
     } catch (e) { setAssetError(e instanceof Error ? e.message : String(e)); } finally { setUploading(false); }
+  };
+  // Frase libre → entrada, efecto y estilo (palabras clave o modelo); se aplica a la fila y se enseña lo entendido para corregirlo.
+  const interpret = async (i: number) => {
+    const text = (describe[i] ?? "").trim();
+    if (!text) return;
+    try {
+      const r = await api<Interpreted>("/api/graphics/interpret", { json: { text } });
+      const patch: Partial<Graphic> = {};
+      if (r.entry) patch.entry = r.entry;
+      if (r.effect) patch.effect = r.effect;
+      if (r.style) patch.style = r.style;
+      if (Object.keys(patch).length) update(i, patch);
+      setUnderstood((u) => ({ ...u, [i]: r.source === "none" ? "No he entendido la frase: usa los selectores (por ejemplo «golpe», «explota», «se vaporiza», «cae»)." : `Entendido (${r.source === "llm" ? "con el modelo" : "por palabras"}): ${r.understood}. Corrígelo en los selectores si no es lo que querías.` }));
+    } catch (e) { setUnderstood((u) => ({ ...u, [i]: e instanceof Error ? e.message : String(e) })); }
   };
   const removeAsset = async (a: Asset) => {
     if (!window.confirm(`¿Borrar la imagen «${a.name}» de la librería?`)) return;
@@ -162,7 +178,7 @@ export default function GraphicsPanel({ clip, list, onChange, start, end, layout
               <select value={g.type} disabled={!editable} onChange={(e) => {
                 const t = e.target.value;
                 if (t === "emoji") update(i, { type: "emoji", emoji: "🔥", text: undefined, asset_id: undefined, style: undefined, effect: "pop" });
-                else if (t === "image") update(i, { type: "image", asset_id: assets[0]?.id, style: "original", effect: "pop", text: undefined, emoji: undefined, target: undefined });
+                else if (t === "image") update(i, { type: "image", asset_id: assets[0]?.id, style: "original", effect: "pop", entry: "pop", text: undefined, emoji: undefined, target: undefined });
                 else update(i, { type: "keyword", text: "PALABRA", emoji: undefined, target: undefined, asset_id: undefined, style: undefined, effect: undefined });
               }}>
                 <option value="keyword">Tarjeta</option>
@@ -185,10 +201,19 @@ export default function GraphicsPanel({ clip, list, onChange, start, end, layout
                     <option value="silhouette">Silueta</option>
                     <option value="red">Rojo de marca</option>
                   </select>
-                  <select value={g.effect ?? "pop"} disabled={!editable} onChange={(e) => update(i, { effect: e.target.value as Graphic["effect"] })} title="Efecto en la palabra">
-                    <option value="pop">Entra y sale</option>
+                  <select value={g.entry ?? "pop"} disabled={!editable} onChange={(e) => update(i, { entry: e.target.value as Graphic["entry"] })} title="Cómo entra">
+                    <option value="pop">Aparece con rebote</option>
+                    <option value="punch">Entra de un golpe</option>
+                    <option value="drop">Cae desde arriba</option>
+                    <option value="slide_left">Desde la izquierda</option>
+                    <option value="slide_right">Desde la derecha</option>
+                    <option value="slide_top">Baja desde arriba</option>
+                  </select>
+                  <select value={g.effect ?? "pop"} disabled={!editable} onChange={(e) => update(i, { effect: e.target.value as Graphic["effect"] })} title="Qué pasa en la palabra">
+                    <option value="pop">Se queda y sale</option>
                     <option value="vaporize">Se vaporiza</option>
                     <option value="break">Se parte</option>
+                    <option value="explode">Explota</option>
                   </select>
                 </>
               ) : g.type === "keyword" ? (
@@ -201,12 +226,21 @@ export default function GraphicsPanel({ clip, list, onChange, start, end, layout
                     <select value={g.effect ?? "pop"} disabled={!editable} onChange={(e) => update(i, { effect: e.target.value as Graphic["effect"] })} title="Efecto en la palabra">
                       <option value="pop">Entra y sale</option>
                       <option value="vaporize">Se vaporiza</option>
+                      <option value="explode">Explota</option>
                     </select>
                   )}
                   <input className={`gfx-emoji${bad ? " invalid" : ""}`} value={g.target ?? ""} maxLength={16} disabled={!editable} onChange={(e) => update(i, { target: e.target.value || undefined })} placeholder="objetivo" title="Objeto al que llega (opcional)" />
                 </>
               )}
               <button className="ghost" disabled={!editable} onClick={() => remove(i)} title="Quitar">✕</button>
+              {g.type === "image" && editable && (
+                <span className="gfx-describe">
+                  <input value={describe[i] ?? ""} maxLength={300} placeholder="o descríbelo: el guante da un golpe y explota"
+                    onChange={(e) => setDescribe((d) => ({ ...d, [i]: e.target.value }))} onKeyDown={(e) => { if (e.key === "Enter") interpret(i); }} />
+                  <button className="ghost" disabled={!(describe[i] ?? "").trim()} onClick={() => interpret(i)}>Entender</button>
+                </span>
+              )}
+              {understood[i] && <span className="muted gfx-understood">{understood[i]}</span>}
               {st.text && <span className={st.ok ? "muted" : "error"}>{st.text}</span>}
             </li>
           );

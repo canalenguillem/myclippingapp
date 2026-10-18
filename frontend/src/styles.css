@@ -125,3 +125,6 @@ input[type="range"] { padding: 0; }
 .gfx-asset img { width: 70px; height: 70px; object-fit: contain; background: repeating-conic-gradient(#2b2b2b 0 25%, #1d1d1d 0 50%) 50% / 14px 14px; border-radius: 6px; }
 .gfx-asset span { font-size: .72rem; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gfx-del { position: absolute; top: -6px; right: -6px; padding: 0 6px; font-size: .7rem; line-height: 1.4; }
+
+.gfx-describe { display: flex; gap: 6px; flex: 1 1 100%; } .gfx-describe input { flex: 1; min-width: 220px; }
+.gfx-understood { flex: 1 1 100%; font-size: .85rem; }
