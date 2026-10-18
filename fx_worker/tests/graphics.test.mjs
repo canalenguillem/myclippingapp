@@ -15,7 +15,7 @@ const kw = (extra = {}) => ({ type: "keyword", at: 8, text: "Indultos", ...extra
 
 test("contrato: valores por defecto, texto recortado y validaciones", () => {
   const g = parseRequest({ ...base, graphics: [kw({ text: "  Indultos " })] }).graphics[0];
-  assert.deepEqual(g, { type: "keyword", at: 8, lead: 0.5, duration: 2.5, text: "Indultos" });
+  assert.deepEqual(g, { type: "keyword", at: 8, lead: 0.5, duration: 2.5, text: "Indultos", zone: "bottom" });
   assert.deepEqual(parseRequest(base).graphics, []);
   for (const bad of [kw({ type: "otro" }), kw({ text: "" }), kw({ text: "x".repeat(41) }), kw({ at: -1 }), kw({ lead: 2 }), kw({ duration: 0.2 }), kw({ extra: 1 })])
     assert.throws(() => parseRequest({ ...base, graphics: [bad] }), ContractError, JSON.stringify(bad));
@@ -64,4 +64,39 @@ test("builder: el gráfico entra en la composición con su sonido, sin red, y pa
   const off = join(dir, "off");
   buildProject({ request: parseRequest({ video: "a.mp4", output: "b.mp4", duration: 12, sfx: false, graphics: [kw({ at: 3 })] }), video, workDir: off });
   assert.ok(!readFileSync(join(off, "index.html"), "utf8").includes("<audio"));
+});
+
+import { emojiMotif } from "../src/motifs/emoji.mjs";
+
+test("emoji: solo se aceptan emojis (nada de texto ni HTML) y el objetivo es opcional", () => {
+  const ok = parseRequest({ ...base, graphics: [{ type: "emoji", at: 8, emoji: "🐔", target: "🗳️" }] }).graphics[0];
+  assert.deepEqual([ok.emoji, ok.target, ok.lead, ok.duration], ["🐔", "🗳️", 0.5, 2.5]);
+  assert.equal(parseRequest({ ...base, graphics: [{ type: "emoji", at: 8, emoji: "👍🏽" }] }).graphics[0].target, undefined);
+  for (const bad of ["abc", "<b>", "🐔x", "", "1"]) assert.throws(() => parseRequest({ ...base, graphics: [{ type: "emoji", at: 8, emoji: bad }] }), ContractError, bad);
+  assert.throws(() => parseRequest({ ...base, graphics: [{ type: "emoji", at: 8, emoji: "🐔", target: "hola" }] }), ContractError);
+});
+
+test("emoji con objetivo: la llegada cae en la palabra y el objetivo rebota; sin objetivo, pop y salto", () => {
+  const scene = emojiMotif({ id: "g1", item: { emoji: "🐔", target: "🗳️" }, t0: 10, at: 11, t1: 13 });
+  assert.ok(scene.html.includes('id="g1m"') && scene.html.includes('id="g1t"') && scene.html.includes("🐔") && scene.html.includes("🗳️"));
+  assert.ok(scene.script.includes('{scale:1.28,duration:0.12,ease:"power2.out",yoyo:true,repeat:1},11);'), "el objetivo rebota en la palabra (11 s)");
+  assert.equal((scene.script.match(/ease:"none"/g) ?? []).length, 3, "tres saltos");
+  assert.ok(scene.script.includes("scaleX:-1") && scene.cssItem.includes("top:1100px"));
+  const solo = emojiMotif({ id: "g2", item: { emoji: "🔥" }, t0: 5, at: 5.5, t1: 7.5 });
+  assert.ok(!solo.html.includes("g2t") && solo.script.includes('y:-60') && solo.script.includes('visibility:"hidden"},7.5'));
+});
+
+
+test("builder: una escena de emoji compone, pasa el linter y no nombra fuentes sin @font-face", async () => {
+  const dir = tmp();
+  const video = makeVideo(join(dir, "src.mp4"), 12);
+  const request = parseRequest({
+    video: "a.mp4", output: "b.mp4", duration: 12,
+    graphics: [kw({ at: 3, text: "Vótame gallina" }), { type: "emoji", at: 6, lead: 0.8, emoji: "🐔", target: "🗳️" }, { type: "emoji", at: 9, emoji: "🔥" }],
+  });
+  const work = join(dir, "work");
+  buildProject({ request, video, workDir: work });
+  const html = readFileSync(join(work, "index.html"), "utf8");
+  assert.ok(html.includes("🐔") && html.includes("🗳️") && html.includes("🔥") && !/Noto Color Emoji|Apple Color Emoji|Segoe UI Emoji/.test(html));
+  assert.equal((await checkProject(work)).totalErrors, 0);
 });

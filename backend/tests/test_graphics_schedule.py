@@ -66,3 +66,12 @@ def test_output_matches_the_fx_worker_window():
 
 def test_no_beats():
     assert schedule(None, 30.0).beats == [] and schedule([], 30.0).dropped == []
+
+
+def test_emoji_is_small_enters_earlier_and_can_overlap_a_big_graphic_but_not_another_emoji():
+    em = lambda at, **k: {"type": "emoji", "at": at, "emoji": "🐔", "target": "🗳️", **k}  # noqa: E731
+    r = schedule([kw(15.0), em(15.6), em(16.5)], 40.0)
+    assert [(b["type"], b["at"]) for b in r.beats] == [("keyword", 15.0), ("emoji", 15.6)]
+    assert [b["lead"] for b in r.beats] == [0.5, 0.8]
+    assert r.dropped[0]["reason"] == "solapa con otro gráfico del mismo tipo" and r.dropped[0]["beat"]["at"] == 16.5
+    assert schedule([{"type": "emoji", "at": 9.0, "emoji": " "}], 40.0).dropped[0]["reason"] == "falta el campo «emoji»"

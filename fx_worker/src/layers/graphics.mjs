@@ -9,7 +9,7 @@ export function graphicWindow(item, clipDuration) {
 }
 
 export function graphicsLayer({ items, map, clipDuration }) {
-  const parts = { html: [], css: [], script: [] };
+  const parts = { html: [], css: [], cssItem: [], script: [] };
   const sfx = [];
   items.forEach((item, i) => {
     const [s, e] = graphicWindow(item, clipDuration);
@@ -17,9 +17,10 @@ export function graphicsLayer({ items, map, clipDuration }) {
     const out = MOTIFS[item.type]({ id, item, t0: map.out(s), at: map.out(item.at), t1: map.out(e) });
     parts.html.push(out.html);
     parts.css.push(out.css);
+    if (out.cssItem) parts.cssItem.push(out.cssItem);
     parts.script.push(out.script);
     sfx.push({ id, type: item.type, at: map.out(s) });
   });
-  const css = `.gfx{position:absolute;opacity:0}\n${[...new Set(parts.css)].join("\n")}`;
+  const css = `.gfx{position:absolute;opacity:0}\n${[...new Set(parts.css)].join("\n")}\n${parts.cssItem.join("\n")}`;
   return { html: parts.html.join("\n  "), css: items.length ? css : "", script: parts.script.join("\n"), sfx };
 }

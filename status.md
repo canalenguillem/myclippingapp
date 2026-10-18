@@ -46,7 +46,7 @@ Tras el ajuste de límites: 15 de 16 cortes caen en silencio y 7 de 8 clips acab
 
 | Fase | Contenido |
 |---|---|
-| **F7 Gráficos por transcripción** (paso 1 de 8 hecho: contrato `graphics`, capa y motivo `keyword` en `fx_worker`, programador determinista en el backend y render que los manda; orden decidido: motivos tipográficos y línea de tiempo manual → `graphics_planner` → librería de assets → motivos con objeto) | Resto de motivos tipográficos; línea de tiempo editable; `graphics_planner`; librería de assets; motivos con objeto |
+| **F7 Gráficos por transcripción** (pasos 1 y parte del 3 hechos: contrato `graphics`, capa y motivos `keyword` (tarjeta abajo) y `emoji` (con escena «salta hasta el objetivo») en `fx_worker`, programador determinista en el backend y render que los manda; orden decidido: motivos tipográficos y línea de tiempo manual → `graphics_planner` → librería de assets → motivos con objeto) | Resto de motivos tipográficos; línea de tiempo editable; `graphics_planner`; librería de assets; motivos con objeto |
 | **F8 YouTube por usuario** | Canales con su propio `client_secret.json` cifrado; OAuth con `state` firmado; SEO; subida |
 | **F9 QA y pulido** | Checks automáticos; bucle notas → reglas por usuario (`style_rules`, decisión C4); hoja de contactos; limpieza de media |
 

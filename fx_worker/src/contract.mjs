@@ -63,8 +63,10 @@ const outro = z
 // Gráficos ligados a la transcripción. `at` es el inicio de la palabra gancho (segundos del clip sin cortinillas); el gráfico
 // entra `lead` s antes y vive `duration` s en total (2–4 s en la práctica; el programador del backend lo impone).
 const graphicBase = { at: z.number().min(0), lead: z.number().min(0).max(1).default(0.5), duration: z.number().min(1).max(6).default(2.5) };
+const emojiText = z.string().min(1).max(16).regex(/^\p{Extended_Pictographic}[\p{Extended_Pictographic}\u200d\ufe0f\u{1F3FB}-\u{1F3FF}]*$/u, "debe ser un emoji");
 const graphic = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("keyword"), ...graphicBase, text: z.string().trim().min(1).max(40) }).strict(),
+  z.object({ type: z.literal("emoji"), ...graphicBase, emoji: emojiText, target: emojiText.optional() }).strict(),
+  z.object({ type: z.literal("keyword"), ...graphicBase, text: z.string().trim().min(1).max(40), zone: z.enum(["bottom", "top"]).default("bottom") }).strict(),
 ]);
 
 export const renderRequest = z

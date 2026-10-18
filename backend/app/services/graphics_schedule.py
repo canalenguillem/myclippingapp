@@ -18,10 +18,11 @@ HOOK_SECONDS = 2.2                                 # el gancho ocupa los primero
 
 # Motivos y su tamaño: nunca dos grandes a la vez. Cada motivo nuevo se da de alta aquí (y en el contrato de fx_worker).
 BIG = {"keyword"}
-SMALL: set[str] = set()
-DURATION_BY_TYPE = {"keyword": 2.5}
-PRIORITY_BY_TYPE = {"keyword": 5}
-REQUIRES_TEXT = {"keyword"}
+SMALL = {"emoji"}
+DURATION_BY_TYPE = {"keyword": 2.5, "emoji": 2.5}
+PRIORITY_BY_TYPE = {"keyword": 5, "emoji": 3}
+LEAD_BY_TYPE = {"emoji": 0.8}                       # una escena con saltos necesita tiempo para llegar a la palabra
+REQUIRED_FIELD = {"keyword": "text", "emoji": "emoji"}
 
 
 @dataclass
@@ -51,14 +52,15 @@ def schedule(beats: list[dict] | None, clip_duration: float, *, cortinilla_at: f
         if kind not in BIG and kind not in SMALL:
             drop(beat, f"motivo desconocido: {kind!r}")
             continue
-        if kind in REQUIRES_TEXT and not str(beat.get("text", "")).strip():
-            drop(beat, "falta el texto")
+        field = REQUIRED_FIELD.get(kind)
+        if field and not str(beat.get(field, "")).strip():
+            drop(beat, "falta el texto" if field == "text" else f"falta el campo «{field}»")
             continue
         at = _num(beat.get("at"), -1.0)
         if not 0.0 <= at <= clip_duration:
             drop(beat, "la palabra gancho cae fuera del clip")
             continue
-        lead = min(LEAD_MAX, max(LEAD_MIN, _num(beat.get("lead"), LEAD_DEFAULT)))
+        lead = min(LEAD_MAX, max(LEAD_MIN, _num(beat.get("lead"), LEAD_BY_TYPE.get(kind, LEAD_DEFAULT))))
         length = min(DURATION_MAX, max(DURATION_MIN, _num(beat.get("duration"), DURATION_BY_TYPE.get(kind, 2.5))))
         start = max(0.0, at - lead)
         end = min(clip_duration, start + length)

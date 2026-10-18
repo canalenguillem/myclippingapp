@@ -188,7 +188,7 @@ test("gráficos: la tarjeta entra en su ventana, no antes ni después, y se desp
     graphics: [{ type: "keyword", at: 2, text: "Indultos" }, { type: "keyword", at: 6, text: "España" }],
   });
   const px = (t, x, y) => pixels(out, t, { x, y, w: 1, h: 1 }).at(0, 0);
-  const card = (t) => isCream(...px(t, 700, 625));
+  const card = (t) => isCream(...px(t, 700, 1315));
   assert.ok(!card(1.0), "antes de la ventana (entra a 1,5 s) se ve el vídeo");
   assert.ok(card(2.4) && card(3.4), "tarjeta visible mientras dura");
   assert.ok(!card(8.5), "tras reanudar el clip (7,6 s) y antes del segundo gráfico se ve el vídeo");
@@ -196,6 +196,6 @@ test("gráficos: la tarjeta entra en su ventana, no antes ni después, y se desp
   const info = probe(out, "format=duration");
   assert.ok(Math.abs(Number(info.format.duration) - 11.6) < 0.2);
   // texto de la tarjeta: tinta oscura en el centro
-  const ink = pixels(out, 2.6, { x: 340, y: 690, w: 400, h: 100 }).count((r, g, b) => r < 90 && g < 90 && b < 90);
+  const ink = pixels(out, 2.6, { x: 340, y: 1360, w: 400, h: 90 }).count((r, g, b) => r < 90 && g < 90 && b < 90);
   assert.ok(ink >= 300, `texto «INDULTOS» visible (${ink} px)`);
 });
