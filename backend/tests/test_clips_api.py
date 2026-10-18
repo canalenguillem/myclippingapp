@@ -182,6 +182,7 @@ def test_cortinilla_at_null_goes_back_to_automatic_and_invalidates_the_render(cl
     h, db, p = _project(client, tmp_path, monkeypatch)
     c = _clip(db, p, 10.0, 40.0, cortinilla_at=12.5, intro_enabled=True)
     assert client.patch(f"/api/clips/{c.id}", json={"cortinilla_at": None}, headers=h).json()["cortinilla_at"] is None
+    db.refresh(c)  # la API usa otra sesión: sin esto `c` conserva el valor anterior y el cambio no se escribe
     c.cortinilla_at = 12.5
     c.render_state = RenderState.DRAFT
     c.draft_path = "u1/p1/clip_1/draft.mp4"
