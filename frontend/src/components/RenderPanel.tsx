@@ -129,6 +129,9 @@ export default function RenderPanel({ clip, dirty, editable, onClip }: Props) {
               <button className={view === "final" ? "" : "ghost"} onClick={() => setView("final")}>Final</button>
             </div>
           )}
+          <a className="btn" href={shown.url} download={`short_${clip.id}_${shownQuality === "final" ? "final" : "borrador"}.mp4`}>
+            Descargar {shownQuality === "final" ? "el vídeo final" : "el borrador"}
+          </a>
           <video key={shown.url.split("?")[0] + stamp} src={shown.url} controls playsInline className="render-video" />
           <div className="stills">
             {STILL_POINTS.map((p) => {

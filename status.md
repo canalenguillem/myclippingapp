@@ -127,3 +127,8 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 - **Entradas** de los gráficos de imagen: aparece con rebote, entra de un golpe (llega acelerando, golpea EN la palabra, rebota y tiembla el plano), cae desde arriba (rebota al llegar), desde la izquierda, derecha o arriba. **Efectos** en la palabra: se queda, se vaporiza, se parte o **explota** (fragmentos radiales con gravedad y anillo de onda; también para emojis sueltos). Sonidos sintetizados: whoosh, golpe sordo, polvo y crujido; golpear y explotar en la misma palabra suena un solo golpe.
 - **Texto libre:** `POST /api/graphics/interpret` traduce una frase («el guante da un golpe y explota») a entrada, efecto y estilo. Primero palabras clave en español (sin red); si no reconoce nada y hay clave de OpenAI, pregunta al modelo con un JSON cerrado y valida la respuesta. No genera código: solo elige entre las piezas conocidas, y el editor enseña lo entendido para corregirlo.
 - **Deuda:** el golpe da contra la pantalla (no sobre otro objeto de la escena); el temblor sacude solo el vídeo (no los gráficos); no hay selector de dirección del golpe (siempre desde la izquierda).
+
+## Próximo paso decidido (2026-10-18)
+
+- **Mañana: F8, subida automática a YouTube** (canal @SpainFactsjjj), antes del `graphics_planner`. Motivo: el usuario ya da por buenos los shorts que salen y quiere publicarlos sin pasos manuales. Mientras tanto, el panel de render tiene un botón «Descargar» (sin commitear aún) para subir a mano desde YouTube Studio.
+- Después de F8: `graphics_planner`, motivos `counter` / `strike` / `lower_third`, y los subtítulos quemados del original.
