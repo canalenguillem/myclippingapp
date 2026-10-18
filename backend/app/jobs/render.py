@@ -54,15 +54,6 @@ def _cancel_check(ctx: JobContext) -> Callable[[], None]:
     return check
 
 
-def _settled_state(clip: Clip) -> RenderState:
-    """Estado al que volver si el render se cancela: el que correspondería a los ficheros que quedan."""
-    if clip.rendered_path:
-        return RenderState.FINAL
-    if clip.draft_path:
-        return RenderState.DRAFT
-    return RenderState.NONE
-
-
 def render(ctx: JobContext, payload: dict) -> None:
     db = ctx.db
     clip = db.get(Clip, int(payload["clip_id"]))
@@ -153,14 +144,14 @@ def render(ctx: JobContext, payload: dict) -> None:
             clip.draft_path = storage.rel(target)
         else:
             clip.rendered_path = storage.rel(target)
-        clip.render_state = _settled_state(clip)  # FINAL si existe el final, aunque lo último que se hizo fuera un borrador
+        clip.render_state = clips_service.settled_state(clip)  # FINAL si existe el final, aunque lo último que se hizo fuera un borrador
         clip.thumbnail_path = storage.rel(thumb)
         clip.rendered_at = queue.utcnow()
         clip.render_error = f"Aviso: {warning}; se usaron subtítulos simples" if warning else None
         db.commit()
         ctx.log("Render terminado")
     except Cancelled:
-        clip.render_state, clip.render_error = _settled_state(clip), None
+        clip.render_state, clip.render_error = clips_service.settled_state(clip), None
         db.commit()
         raise
     except Exception as exc:  # noqa: BLE001

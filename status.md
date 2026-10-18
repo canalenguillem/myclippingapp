@@ -40,12 +40,13 @@ Tras el ajuste de límites: 15 de 16 cortes caen en silencio y 7 de 8 clips acab
 3. En Proyectos, pegar un enlace de YouTube. El job descarga, transcribe y detecta clips; el progreso se ve en Jobs.
 4. En el proyecto: poner nombre y cargo a los speakers, corregir la transcripción, revisar los clips y aprobarlos. En el editor de clip se ajusta el inicio y el fin viendo el vídeo.
 
-## F5 en curso (pasos 1–6 de 9)
+## F5 en curso (pasos 1–7 de 9)
 
 - Hecho: carril de render global de 1 (paso 1), estado de render del clip (2), clip vertical con ffmpeg (3), servicio `fx_worker` con HyperFrames (4), capas de estilo (5) y, en el paso 6, `fx_client`, el job `render` con fallback a subtítulos ASS, miniatura, borrador 540x960 y detección de subtítulos quemados. 260 tests en verde.
 - Verificado de punta a punta (2026-10-18): job `render` borrador del clip 40 (41,8 s) por `fx_worker`, 71 s de render, `draft.mp4` de 540x960 con audio y banda, subtítulos y gancho.
 - **Subtítulos quemados amarillos:** la detección ya los reconoce (test nuevo). En el clip 40 los subtítulos de la fuente solo salen ~10 % del clip (los primeros segundos), por debajo del umbral de persistencia del 25 %, así que sigue sin banda obligatoria; es decisión de diseño, no fallo. Si se quiere cubrirlos también cuando son esporádicos, bajar `MIN_PERSISTENCE`.
-- Faltan: API de render (7), interfaz (8) y cierre con vídeo largo (9).
+- **Paso 7, API de render:** `POST /api/clips/{id}/render` (`quality` draft|final; final solo aprobado; solo `split`; 409 si el clip ya se renderiza o hay otro job no-render en el proyecto), `POST /api/clips/{id}/render/cancel`, `GET /api/clips/{id}/render-urls` (URLs firmadas), `GET /api/clips/{id}/still?t=&quality=` (JPEG de un fotograma del render ya hecho). `ClipOut` trae `render_job_id`. Cancelar un render en cola (por el clip o por `/api/jobs/{id}/cancel`) devuelve el clip a su estado estable. 270 tests en verde.
+- Faltan: interfaz (8) y cierre con vídeo largo (9). Deuda: si un render agota sus 3 intentos fuera del handler, el clip se queda en `rendering`.
 
 ## Pendiente
 

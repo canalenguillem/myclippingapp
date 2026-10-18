@@ -74,3 +74,20 @@ def invalidate_project_renders(db: Session, project: Project) -> int:
         invalidate_render(clip)
     db.commit()
     return len(clips)
+
+
+def settled_state(clip: Clip) -> RenderState:
+    """Estado de render que corresponde a los ficheros que tiene el clip (FINAL, DRAFT o NONE)."""
+    if clip.rendered_path:
+        return RenderState.FINAL
+    if clip.draft_path:
+        return RenderState.DRAFT
+    return RenderState.NONE
+
+
+def restore_after_cancel(db: Session, job) -> None:
+    """Un job `render` cancelado antes de arrancar no pasa por el handler: devuelve el clip a un estado estable."""
+    clip = db.get(Clip, int((job.payload or {}).get("clip_id", 0)))
+    if clip is not None and clip.user_id == job.user_id and clip.render_state is RenderState.RENDERING:
+        clip.render_state, clip.render_error = settled_state(clip), None
+        db.commit()

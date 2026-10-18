@@ -12,6 +12,7 @@ from app.auth.deps import current_user, get_owned
 from app.db import SessionLocal, get_db
 from app.db.models import Job, User
 from app.jobs import queue
+from app.services import clips as clips_service
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
@@ -57,8 +58,11 @@ def get_job(job_id: int, user: User = Depends(current_user), db: Session = Depen
 @router.post("/{job_id}/cancel", response_model=JobOut)
 def cancel_job(job_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     job = get_owned(db, Job, job_id, user)
+    was_queued = job.status == "queued"
     if not queue.cancel(db, job):
         raise HTTPException(409, "El job ya habia terminado")
+    if job.type == "render" and was_queued:  # en marcha lo restaura el handler; en cola no hay handler
+        clips_service.restore_after_cancel(db, job)
     return job
 
 
