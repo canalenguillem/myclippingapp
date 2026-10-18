@@ -51,7 +51,11 @@ export const EMPTY_CORTINILLA: TemplateCortinilla = {
 };
 
 /** Gráfico ligado a la transcripción; `at` son segundos DEL CLIP (inicio de la palabra gancho). */
-export type Graphic = { type: "keyword" | "emoji"; at: number; text?: string; emoji?: string; target?: string };
+export type Graphic = {
+  type: "keyword" | "emoji" | "image"; at: number; text?: string; emoji?: string; target?: string;
+  asset_id?: number; style?: "original" | "card" | "silhouette" | "red"; effect?: "pop" | "vaporize" | "break";
+};
+export type Asset = { id: number; name: string; kind: string; tags: string[]; width: number; height: number; url: string | null; created_at: string | null };
 export type GraphicsPlan = {
   duration: number; cortinilla_at: number | null; hook_seconds: number;
   beats: (Graphic & { lead: number; duration: number; start: number; end: number })[];

@@ -81,3 +81,5 @@ Cada gráfico es `{type, at, lead, duration, ...parámetros}`: `at` es el inicio
 ## Diseños (`layout`)
 
 `layout: {mode: "split" | "full", top_ratio}`. La composición vertical la hace el backend con ffmpeg (en `full`, arriba el vídeo nítido y el resto del lienzo una copia difuminada y oscurecida); `fx_worker` solo coloca la banda de papel en el corte (`top_ratio`) y, en `full`, cuelga las zonas de los gráficos de la parte nítida (`graphicZones`), siempre por encima del 15 % inferior de Shorts.
+
+`image`: imagen de la librería (`image` = ruta png dentro de MEDIA_DIR), con `style` (`original`, `card` — tarjeta de papel inclinada −5° —, `silhouette`, `red`) y `effect` (`pop`, `vaporize` — rejilla de 10×10 teselas que salen volando en onda de izquierda a derecha —, `break` — dos mitades que giran ±9° y se separan 34 px, con 9 chispas con gravedad). La acción cae en `at`. `emoji` admite `effect: "vaporize"` (sin `target`). Sonidos sintetizados: pop al entrar, polvo al vaporizarse y crujido al partirse.

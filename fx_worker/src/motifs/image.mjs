@@ -5,8 +5,9 @@
 import { breakHtml, breakScript, SPARKS_CSS, sparksHtml, TILES_CSS, tilesHtml, vaporizeScript } from "./dissolve.mjs";
 
 const fmt = (n) => Number(n.toFixed(3));
-const BOX = 300;                       // imagen en un cuadrado (se ajusta con contain)
-export const CARD = { w: 340, h: 380, inset: 40 };
+// Tamaños pensados para caber bajo la banda de papel también en pantalla completa (zona de gráficos y ≥ 1318, h ≤ 314).
+const BOX = 270;                       // imagen en un cuadrado (se ajusta con contain)
+export const CARD = { w: 270, h: 310, inset: 34 };
 const GRID = 10;
 
 export function imageBox(style) {

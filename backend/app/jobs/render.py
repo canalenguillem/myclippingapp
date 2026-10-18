@@ -10,7 +10,7 @@ import json
 import time
 from collections.abc import Callable
 
-from app.db.models import BrandTemplate, Clip, Project, RenderState
+from app.db.models import Asset, BrandTemplate, Clip, Project, RenderState
 from app.jobs import queue
 from app.pipeline import analysis as analysis_mod
 from app.pipeline import ass_fallback, ffops, vertical
@@ -63,6 +63,30 @@ def _load_silences(project: Project, clip: Clip) -> list[dict]:
         return cortinilla_service.rebase_silences(silences_mod.load_silences(storage.absolute(project.silences_path)), clip.start, clip.end)
     except (OSError, ValueError):
         return []
+
+
+def _resolve_images(db, user_id: int, beats: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Cambia `asset_id` por la ruta de la imagen (solo del usuario y si existe en disco); el resto se descarta con motivo."""
+    out: list[dict] = []
+    missing: list[dict] = []
+    for beat in beats:
+        if not isinstance(beat, dict) or beat.get("type") != "image":
+            out.append(beat)
+            continue
+        asset = db.get(Asset, beat.get("asset_id") or 0)
+        path = None
+        if asset is not None and asset.user_id == user_id and asset.path:
+            try:
+                path = asset.path if storage.absolute(asset.path).is_file() else None
+            except ValueError:
+                path = None
+        if path is None:
+            missing.append({"beat": beat, "reason": "la imagen ya no existe en la librería"})
+            continue
+        resolved = {k: v for k, v in beat.items() if k != "asset_id"}
+        resolved["image"] = path
+        out.append(resolved)
+    return out, missing
 
 
 def _orbit_path(template: BrandTemplate | None) -> str | None:
@@ -150,9 +174,11 @@ def render(ctx: JobContext, payload: dict) -> None:
         start_params = fx_request.cortinilla_params(config, colors, at=at, orbit=_orbit_path(template)) if at is not None else None
         end_params = fx_request.outro_params(config, colors)
         # Gráficos ligados a la transcripción: el programador deja solo los que caben (sin cruzar la cortinilla ni el gancho).
-        plan = graphics_schedule.schedule(clip.graphics_json, duration, cortinilla_at=at, single_lane=clip.layout == "full")
+        beats, missing = _resolve_images(db, ctx.user_id, clip.graphics_json or [])
+        plan = graphics_schedule.schedule(beats, duration, cortinilla_at=at, single_lane=clip.layout == "full")
+        plan.dropped[:0] = missing
         for d in plan.dropped:
-            ctx.log(f"Gráfico descartado ({d['reason']}): {d['beat'].get('type')} «{d['beat'].get('text') or d['beat'].get('emoji', '')}» a {d['beat'].get('at')} s")
+            ctx.log(f"Gráfico descartado ({d['reason']}): {d['beat'].get('type')} «{d['beat'].get('text') or d['beat'].get('emoji') or d['beat'].get('image') or d['beat'].get('asset_id', '')}» a {d['beat'].get('at')} s")
         out_total = duration + (start_params["duration"] if start_params else 0.0) + end_params["duration"]
         ctx.log(f"Cortinillas: inicio {'a los %.1f s del clip' % at if at is not None else 'no'}, final {end_params['duration']:.1f} s → vídeo de {out_total:.1f} s")
         request = fx_request.build_fx_request(

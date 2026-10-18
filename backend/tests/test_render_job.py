@@ -415,3 +415,44 @@ def test_full_layout_graphics_share_one_lane(client, tmp_path, monkeypatch, sour
     assert [g["type"] for g in e.fx.requests[0]["graphics"]] == ["keyword"]      # en full no caben dos a la vez
     assert "solapa con otro gráfico más prioritario" in log(e)
     split = setup(client, tmp_path / "s", monkeypatch, source_file, layout="split") if False else None  # noqa: F841
+
+
+def _asset_file(e, tmp_path):
+    from app.db.models import Asset
+    path = storage.project_dir(e.user.id, e.project.id) / "hucha.png"
+    path.write_bytes(b"png")
+    a = Asset(user_id=e.user.id, name="hucha", path=storage.rel(path))
+    e.db.add(a)
+    e.db.commit()
+    return a, path
+
+
+def test_image_graphics_are_sent_with_the_asset_path_and_options(client, tmp_path, monkeypatch, source_file):
+    e = setup(client, tmp_path, monkeypatch, source_file)
+    a, path = _asset_file(e, tmp_path)
+    e.clip.start, e.clip.end = 0.5, 7.5
+    e.clip.graphics_json = [{"type": "image", "at": 4.0, "asset_id": a.id, "style": "card", "effect": "vaporize"}]
+    e.db.commit()
+    run_job(e)
+    assert "graphics" in e.fx.requests[0], log(e)
+    (g,) = e.fx.requests[0]["graphics"]
+    assert g == {"type": "image", "at": 4.0, "lead": 0.5, "duration": 3.0, "image": storage.rel(path), "style": "card", "effect": "vaporize"}
+    assert "asset_id" not in g and e.clip.render_state is RenderState.DRAFT
+
+
+def test_a_missing_or_foreign_image_is_dropped_with_a_reason_and_the_render_goes_on(client, tmp_path, monkeypatch, source_file):
+    from app.db.models import Asset, User
+    e = setup(client, tmp_path, monkeypatch, source_file)
+    other = User(email="o@x.com", password_hash="x")
+    e.db.add(other)
+    e.db.commit()
+    theirs = Asset(user_id=other.id, name="ajena", path="u99/assets/1.png")
+    gone = Asset(user_id=e.user.id, name="borrada", path="u1/assets/no_existe.png")
+    e.db.add_all([theirs, gone])
+    e.db.commit()
+    e.clip.start, e.clip.end = 0.5, 7.5
+    e.clip.graphics_json = [{"type": "image", "at": 4.0, "asset_id": theirs.id}, {"type": "image", "at": 4.5, "asset_id": gone.id}, {"type": "image", "at": 5, "asset_id": 99999}]
+    e.db.commit()
+    run_job(e)
+    assert "graphics" not in e.fx.requests[0]
+    assert log(e).count("la imagen ya no existe en la librería") == 3 and e.clip.render_state is RenderState.DRAFT

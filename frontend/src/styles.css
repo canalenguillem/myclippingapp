@@ -115,3 +115,13 @@ input[type="range"] { padding: 0; }
 .gfx-list li { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .gfx-at input { width: 70px; } .gfx-text { min-width: 180px; } .gfx-emoji { width: 90px; text-align: center; } .gfx-emoji.invalid { border-color: #ff5a4a; }
 .gfx-list label.gfx-at { flex-direction: row; align-items: center; gap: 6px; white-space: nowrap; }
+
+.gfx-beat.image { background: #bcd7ff; }
+.gfx-lib { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+.gfx-upload { display: inline-flex; padding: 7px 12px; border-radius: 8px; background: var(--accent, #da2e09); color: #fff; cursor: pointer; font-weight: 600; }
+.gfx-upload input { display: none; }
+.gfx-assets { display: flex; gap: 10px; flex-wrap: wrap; }
+.gfx-asset { position: relative; } .gfx-asset > button:first-child { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 92px; padding: 6px; }
+.gfx-asset img { width: 70px; height: 70px; object-fit: contain; background: repeating-conic-gradient(#2b2b2b 0 25%, #1d1d1d 0 50%) 50% / 14px 14px; border-radius: 6px; }
+.gfx-asset span { font-size: .72rem; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gfx-del { position: absolute; top: -6px; right: -6px; padding: 0 6px; font-size: .7rem; line-height: 1.4; }

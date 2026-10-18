@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.auth.deps import current_user, get_owned
-from app.db.models import BrandTemplate, Clip, Job, Project, RenderState, User
+from app.db.models import Asset, BrandTemplate, Clip, Job, Project, RenderState, User
 from app.db import get_db
 from app.jobs import queue
 from app.pipeline import ffops
@@ -73,12 +73,15 @@ class GraphicIn(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    type: Literal["keyword", "emoji"]
+    type: Literal["keyword", "emoji", "image"]
     at: float = Field(ge=0)
     text: str | None = Field(default=None, max_length=40)
     emoji: str | None = Field(default=None, max_length=16)
     target: str | None = Field(default=None, max_length=16)
     zone: Literal["bottom", "top"] | None = None
+    asset_id: int | None = Field(default=None, ge=1)                                  # imagen de la librería (type=image)
+    style: Literal["original", "card", "silhouette", "red"] | None = None            # cómo se viste la imagen
+    effect: Literal["pop", "vaporize", "break"] | None = None                        # cómo entra/se deshace (emoji: pop | vaporize)
     lead: float | None = Field(default=None, ge=0, le=1)
     duration: float | None = Field(default=None, ge=1, le=6)
     priority: float | None = Field(default=None, ge=0, le=100)
@@ -87,6 +90,11 @@ class GraphicIn(BaseModel):
     def _fields(self):
         if self.type == "keyword" and not (self.text or "").strip():
             raise ValueError("la tarjeta necesita texto")
+        if self.type == "image":
+            if self.asset_id is None:
+                raise ValueError("falta la imagen")
+        if self.type == "emoji" and self.effect == "break":
+            raise ValueError("un emoji solo puede aparecer o vaporizarse")
         if self.type == "emoji":
             if not graphics_schedule.is_emoji(self.emoji or ""):
                 raise ValueError("emoji no válido")
@@ -197,6 +205,9 @@ def patch_clip(clip_id: int, body: ClipPatch, user: User = Depends(current_user)
         get_owned(db, BrandTemplate, changes["template_id"], user)  # una plantilla ajena responde 404
     if changes.get("cortinilla_at") is not None and changes["cortinilla_at"] > end - start - cortinilla_service.END_MARGIN:
         raise HTTPException(422, "La cortinilla de inicio no puede entrar en el último segundo del clip")
+    if new_graphics is not None:
+        for aid in {b["asset_id"] for b in new_graphics if "asset_id" in b}:
+            get_owned(db, Asset, aid, user)  # una imagen ajena (o inexistente) responde 404
     if new_graphics is not None and any(b["at"] > end - start for b in new_graphics):
         raise HTTPException(422, "Un gráfico se ancla fuera del clip")
     for field, value in changes.items():

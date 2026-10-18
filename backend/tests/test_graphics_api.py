@@ -97,3 +97,38 @@ def test_graphics_endpoints_are_isolated(client, tmp_path, monkeypatch):
     hb = _login(other, "b@x.com")
     assert other.post(f"/api/clips/{c.id}/graphics-plan", json={}, headers=hb).status_code == 404
     assert other.patch(f"/api/clips/{c.id}", json={"graphics": [KW]}, headers=hb).status_code == 404
+
+
+def _asset(db, user_id, name="hucha"):
+    from app.db.models import Asset
+    a = Asset(user_id=user_id, name=name, path="")
+    db.add(a)
+    db.commit()
+    return a
+
+
+def test_image_graphics_need_an_owned_asset_and_valid_options(client, tmp_path, monkeypatch):
+    h, db, p = _project(client, tmp_path, monkeypatch)
+    c = _clip(db, p, 10.0, 40.0)
+    a = _asset(db, p.user_id)
+    ok = {"type": "image", "at": 12.0, "asset_id": a.id, "style": "card", "effect": "vaporize"}
+    assert client.patch(f"/api/clips/{c.id}", json={"graphics": [ok]}, headers=h).json()["graphics"] == [ok]
+    for bad in ({"type": "image", "at": 5.0}, {**ok, "style": "otro"}, {**ok, "effect": "explotar"}, {**ok, "asset_id": 0},
+                {"type": "emoji", "at": 5.0, "emoji": "🐷", "effect": "break"}):
+        assert client.patch(f"/api/clips/{c.id}", json={"graphics": [bad]}, headers=h).status_code == 422, bad
+    assert client.patch(f"/api/clips/{c.id}", json={"graphics": [{**ok, "asset_id": 99999}]}, headers=h).status_code == 404
+    other = TestClient(client.app)
+    hb = _login(other, "b@x.com")
+    from app.db.models import User
+    theirs = _asset(db, db.query(User).filter(User.email == "b@x.com").one().id)
+    assert client.patch(f"/api/clips/{c.id}", json={"graphics": [{**ok, "asset_id": theirs.id}]}, headers=h).status_code == 404   # imagen ajena
+    assert client.patch(f"/api/clips/{c.id}", json={"graphics": [{"type": "emoji", "at": 5.0, "emoji": "🐷", "effect": "vaporize"}]}, headers=h).status_code == 200
+
+
+def test_plan_counts_an_image_as_a_big_graphic(client, tmp_path, monkeypatch):
+    h, db, p = _project(client, tmp_path, monkeypatch)
+    c = _clip(db, p, 10.0, 40.0)
+    a = _asset(db, p.user_id)
+    body = {"graphics": [{"type": "image", "at": 12.0, "asset_id": a.id, "effect": "vaporize"}, {**KW, "at": 13.0}]}
+    plan = client.post(f"/api/clips/{c.id}/graphics-plan", json=body, headers=h).json()
+    assert [b["type"] for b in plan["beats"]] == ["image"] and "más prioritario" in plan["dropped"][0]["reason"]   # la imagen gana a la tarjeta

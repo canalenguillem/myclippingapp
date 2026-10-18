@@ -210,13 +210,13 @@ test("imagen con efecto: la tarjeta se ve antes de la palabra y se vaporiza desp
     video: "u1/p1/clip.mp4", output: "u1/p1/img.mp4", duration: 8, quality: "draft",
     graphics: [{ type: "image", at: 2.5, image: "u1/assets/1.png", style: "card", effect: "vaporize" }, { type: "image", at: 6, image: "u1/assets/1.png", style: "red" }],
   });
-  const region = { x: 370, y: 1250, w: 340, h: 380 };                   // la tarjeta (340x380) con su inclinación
+  const region = { x: 395, y: 1280, w: 290, h: 330 };                   // la tarjeta (270x310) con su inclinación
   const cream = (t) => pixels(out, t, region).count((r, g, b) => isCream(r, g, b));
   const blue = (t) => pixels(out, t, region).count((r, g, b) => isBlue(r, g, b));
-  assert.ok(cream(2.4) > 20000, `tarjeta de papel visible antes de la palabra (${cream(2.4)} px)`);
-  assert.ok(blue(2.4) > 8000, "con la imagen dentro");
-  assert.ok(cream(2.4) - cream(4.6) > 18000 && cream(4.6) < 3000, `vaporizada pasado un rato (${cream(4.6)} px)`);
+  assert.ok(cream(2.4) > 15000, `tarjeta de papel visible antes de la palabra (${cream(2.4)} px)`);
+  assert.ok(blue(2.4) > 6000, "con la imagen dentro");
+  assert.ok(cream(2.4) - cream(4.6) > 12000 && cream(4.6) < 3000, `vaporizada pasado un rato (${cream(4.6)} px)`);
   // estilo rojo: la silueta de una imagen azul sale del color de marca (máscara), no azul
-  const px = pixels(out, 6.6, { x: 540, y: 1450, w: 1, h: 1 }).at(0, 0);
+  const px = pixels(out, 6.6, { x: 540, y: 1440, w: 1, h: 1 }).at(0, 0);
   assert.ok(isRed(...px) && !isBlue(...px), `silueta en rojo de marca: ${px}`);
 });

@@ -18,12 +18,12 @@ MIN_BIG_GAP = 4.0                                  # entre el inicio de dos grá
 HOOK_SECONDS = 2.2                                 # el gancho ocupa los primeros segundos (igual que fx_request)
 
 # Motivos y su tamaño: nunca dos grandes a la vez. Cada motivo nuevo se da de alta aquí (y en el contrato de fx_worker).
-BIG = {"keyword"}
+BIG = {"keyword", "image"}
 SMALL = {"emoji"}
-DURATION_BY_TYPE = {"keyword": 2.5, "emoji": 2.5}
-PRIORITY_BY_TYPE = {"keyword": 5, "emoji": 3}
+DURATION_BY_TYPE = {"keyword": 2.5, "emoji": 2.5, "image": 3.0}
+PRIORITY_BY_TYPE = {"keyword": 5, "emoji": 3, "image": 6}
 LEAD_BY_TYPE = {"emoji": 0.8}                       # una escena con saltos necesita tiempo para llegar a la palabra
-REQUIRED_FIELD = {"keyword": "text", "emoji": "emoji"}
+REQUIRED_FIELD = {"keyword": "text", "emoji": "emoji", "image": "asset_id"}
 
 
 _EMOJI_CATEGORIES = {"So", "Sk", "Cf", "Mn"}
@@ -67,8 +67,9 @@ def schedule(beats: list[dict] | None, clip_duration: float, *, cortinilla_at: f
             drop(beat, "emoji no válido")
             continue
         field = REQUIRED_FIELD.get(kind)
-        if field and not str(beat.get(field, "")).strip():
-            drop(beat, "falta el texto" if field == "text" else f"falta el campo «{field}»")
+        # la imagen llega como `asset_id` (lo guardado) o ya resuelta como `image` (la ruta que se manda a fx_worker)
+        if field and not (str(beat.get(field, "")).strip() or (kind == "image" and beat.get("image"))):
+            drop(beat, "falta el texto" if field == "text" else "falta la imagen" if field == "asset_id" else f"falta el campo «{field}»")
             continue
         at = _num(beat.get("at"), -1.0)
         if not 0.0 <= at <= clip_duration:

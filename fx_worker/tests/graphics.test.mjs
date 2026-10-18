@@ -116,7 +116,7 @@ test("zonas de los gráficos: fijas en split; en full cuelgan de la parte nítid
 
 
 import { breakScript, tilesHtml, vaporizeScript } from "../src/motifs/dissolve.mjs";
-import { imageBox, imageInner, imageMotif } from "../src/motifs/image.mjs";
+import { CARD, imageBox, imageInner, imageMotif } from "../src/motifs/image.mjs";
 
 const IMG = { id: "g3", item: { image: "u1/assets/7.png" }, t0: 5, at: 5.5, t1: 8, zones: { card: 1290, strip: 1100 }, files: { "u1/assets/7.png": "gfx_img0.png" } };
 
@@ -154,16 +154,18 @@ test("partir: dos mitades que giran ±9° y se separan 34 px, con chispas", () =
 });
 
 test("image: estilos, efectos y posición dentro de la zona de Shorts", () => {
-  assert.deepEqual(imageBox("original"), { w: 300, h: 300 });
-  assert.deepEqual(imageBox("card"), { w: 340, h: 380 });
+  assert.deepEqual(imageBox("original"), { w: 270, h: 270 });
+  assert.deepEqual(imageBox("card"), { w: 270, h: 310 });
   assert.ok(imageInner("original", "a.png", imageBox("original")).includes('<img class="imo" src="a.png"'));
   assert.ok(imageInner("red", "a.png", imageBox("red")).includes("#DA2E09") && imageInner("silhouette", "a.png", imageBox("silhouette")).includes("#1D1A17"));
   const card = imageMotif({ ...IMG, item: { ...IMG.item, style: "card", effect: "pop" } });
-  assert.ok(card.html.includes("gfx_img0.png") && card.script.includes("rotation:-5") && card.cssItem.includes("top:1252px"), card.cssItem);   // 1632 − 380
+  assert.ok(card.html.includes("gfx_img0.png") && card.script.includes("rotation:-5") && card.cssItem.includes("top:1290px"), card.cssItem);
   const vap = imageMotif({ ...IMG, item: { ...IMG.item, effect: "vaporize" } });
   assert.equal((vap.html.match(/class="vt"/g) ?? []).length, 100);
   assert.deepEqual(vap.sfx, [{ kind: "pop", at: 5 }, { kind: "dust", at: 5.5 }]);
   const brk = imageMotif({ ...IMG, item: { ...IMG.item, effect: "break" } });
+  const fullZone = imageMotif({ ...IMG, zones: { card: 1318, strip: 1333 }, item: { ...IMG.item, style: "card" } });
+  assert.ok(fullZone.cssItem.includes("top:1318px") && 1318 + CARD.h <= 1632, "en pantalla completa cabe sin pisar la banda ni la zona de Shorts");
   assert.ok(brk.html.includes('id="g3L"') && brk.html.includes('id="g3R"') && brk.html.includes('id="g3s8"'));
   assert.deepEqual(brk.sfx, [{ kind: "pop", at: 5 }, { kind: "crack", at: 5.5 }]);
   assert.deepEqual(imageMotif(IMG).sfx, [{ kind: "pop", at: 5 }]);

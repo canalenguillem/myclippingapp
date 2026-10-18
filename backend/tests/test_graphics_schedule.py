@@ -85,3 +85,10 @@ def test_single_lane_never_shows_two_graphics_at_once():
     assert [b["type"] for b in only.beats] == ["keyword"] and only.dropped[0]["reason"] == "solapa con otro gráfico más prioritario"
     far = schedule([kw(10), {"type": "emoji", "at": 20.0, "emoji": "🐔"}], 40.0, single_lane=True)
     assert len(far.beats) == 2
+
+
+def test_image_is_a_big_graphic_with_more_priority_than_a_card_and_needs_its_asset():
+    im = lambda at, **k: {"type": "image", "at": at, "asset_id": 3, **k}  # noqa: E731
+    r = schedule([kw(11), im(10)], 40.0)
+    assert [b["type"] for b in r.beats] == ["image"] and r.beats[0]["duration"] == 3.0
+    assert schedule([{"type": "image", "at": 10}], 40.0).dropped[0]["reason"] == "falta la imagen"
