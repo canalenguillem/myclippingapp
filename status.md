@@ -54,7 +54,7 @@ Tras el ajuste de límites: 15 de 16 cortes caen en silencio y 7 de 8 clips acab
 
 Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 
-- **O1** Los ejemplos usan tres diseños de pantalla: `split`, pantalla completa + banda inferior (`v1725`) y escenario de papel arriba + vídeo abajo (el del amigo). Cuáles se soportan se decide en F5. Los vídeos de ejemplo están descritos en la sección «Vídeos de referencia» del plan.
+- Ninguna bloquea F5. Queda por decidir más adelante si entra el presentador-muñeco (F7).
 
 ## Deuda técnica y problemas conocidos
 
@@ -97,3 +97,5 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 - **Reglas de estilo por usuario (C4):** tabla `style_rules` en la BD; `rules/` del repo queda como guía de desarrollo.
 - **Sin `FX_PARALLEL` (C5):** rige solo el carril global de 1; no hay escalado por réplicas del servicio de render.
 - **Motor de animación: HyperFrames de HeyGen (HTML + GSAP)**, en lugar de Remotion; el experimento de F5 salió bien (GO). Remotion queda como plan B.
+- **Diseño de pantalla de F5 (O1):** solo `split`: plano corto arriba y escena completa abajo, con la banda y los subtítulos encima aunque la tapen en parte. Más adelante, el hueco de abajo podrá llevar un gameplay o un vídeo del usuario.
+- **Alcance de F5 (recortes aprobados el 2026-10-18):** subtítulos en dos estilos, gancho, banda de papel, blanco y negro del clip citado, borrador y final, y stills. El análisis por clip se reduce a detectar subtítulos quemados; cortes de plano y caras (mediapipe) pasan a F7. Zooms de énfasis, emojis, barra de progreso, SFX y música quedan fuera de F5 (los zooms con su whoosh podrían entrar como paso extra opcional).

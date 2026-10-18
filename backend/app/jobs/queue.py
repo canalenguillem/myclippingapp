@@ -4,8 +4,8 @@ from __future__ import annotations
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, select, update
-from sqlalchemy.orm import Session
+from sqlalchemy import exists, func, or_, select, update
+from sqlalchemy.orm import Session, aliased
 
 from app.config import get_settings
 from app.db.models import Job, User  # noqa: F401
@@ -13,6 +13,7 @@ from app.db.models import Job, User  # noqa: F401
 STALE_AFTER = timedelta(minutes=2)
 MAX_ATTEMPTS = 3
 TERMINAL = {"completed", "failed", "cancelled"}
+RENDER_TYPE = "render"  # carril global: solo un job de este tipo en marcha en todo el sistema
 
 
 def utcnow() -> datetime:
@@ -35,18 +36,25 @@ def enqueue(db: Session, user_id: int, type_: str, payload: dict | None = None) 
 @contextmanager
 def _claim_lock(db: Session):
     """Serializa los reclamos entre workers: sin esto, dos workers podrian saltarse
-    max_concurrent_jobs de un usuario a la vez (cada uno ve < limite y reclama uno)."""
-    if db.get_bind().dialect.name not in ("mysql", "mariadb"):
+    max_concurrent_jobs de un usuario (o el carril de render) a la vez.
+
+    El cerrojo `GET_LOCK` pertenece a una CONEXION, no a la sesion: se toma y se libera en una conexion
+    dedicada. Si se usara la de la sesion, el `commit()` de `claim_next` la devuelve al pool y `RELEASE_LOCK`
+    podria ir por otra conexion distinta: el cerrojo quedaria retenido y los demas workers esperarian 10 s
+    en cada intento."""
+    engine = db.get_bind()
+    if engine.dialect.name not in ("mysql", "mariadb"):
         yield
         return
-    got = db.connection().exec_driver_sql("SELECT GET_LOCK('clip_claim', 10)").scalar()
-    if got != 1:
-        yield False
-        return
-    try:
-        yield
-    finally:
-        db.connection().exec_driver_sql("SELECT RELEASE_LOCK('clip_claim')")
+    with engine.connect() as lock_conn:
+        got = lock_conn.exec_driver_sql("SELECT GET_LOCK('clip_claim', 10)").scalar()
+        if got != 1:
+            yield False
+            return
+        try:
+            yield
+        finally:
+            lock_conn.exec_driver_sql("SELECT RELEASE_LOCK('clip_claim')")
 
 
 def claim_next(db: Session, worker_id: str) -> Job | None:
@@ -55,12 +63,17 @@ def claim_next(db: Session, worker_id: str) -> Job | None:
         .where(Job.user_id == User.id, Job.status == "running")
         .correlate(User).scalar_subquery()
     )
+    # Carril de render: un `render` en cola no se reclama mientras haya otro en marcha (de cualquier usuario).
+    # No bloquea a los demás tipos de job: un detect de otro usuario sigue pudiendo pasar por delante.
+    other = aliased(Job)
+    render_busy = exists().where(other.type == RENDER_TYPE, other.status == "running")
     with _claim_lock(db) as ok:
         if ok is False:
             return None
         job = db.scalars(
             select(Job).join(User, User.id == Job.user_id)
-            .where(Job.status == "queued", User.is_active.is_(True), running < User.max_concurrent_jobs)
+            .where(Job.status == "queued", User.is_active.is_(True), running < User.max_concurrent_jobs,
+                   or_(Job.type != RENDER_TYPE, ~render_busy))
             .order_by(Job.created_at, Job.id).limit(1).with_for_update(skip_locked=True)
         ).first()
         if job is None:

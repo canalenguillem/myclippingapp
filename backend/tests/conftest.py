@@ -1,7 +1,8 @@
 import os
 
 os.environ.setdefault("JWT_SECRET", "test-secret-test-secret-test-secret-123456")
-os.environ["DATABASE_URL"] = "sqlite://"
+if os.environ.get("RUN_MARIADB_TESTS") != "1":  # las pruebas de carrera necesitan la MariaDB real
+    os.environ["DATABASE_URL"] = "sqlite://"
 
 import pytest
 from fastapi.testclient import TestClient
