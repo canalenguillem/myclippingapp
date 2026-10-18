@@ -7,3 +7,4 @@
 - Ninguna cortinilla pisa una palabra: la de inicio cae en un silencio tras una frase completa.
 - Todo lo posterior a la cortinilla de inicio se desplaza con un único mapa de tiempos: `t_salida = t_origen + Σ duración de las cortinillas anteriores`. Se calcula en un solo sitio.
 - La posición de la cortinilla de inicio se guarda en `clips.cortinilla_at` (segundo del clip, `NULL` = la elige el programador); al cambiar el recorte se resetea, porque es relativa al inicio. Los textos y colores de las cortinillas dependen del canal: viven en `brand_templates.cortinilla` y el usuario los edita en Plantillas.
+- La cortinilla final se manda SIEMPRE (sin plantilla, con color de marca y botones por defecto). Si la de inicio está activada y no hay silencio válido, se omite con un aviso en `render_error`; el fallback ASS no lleva ninguna cortinilla y lo dice. La miniatura nunca cae dentro de una cortinilla.

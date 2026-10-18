@@ -268,3 +268,108 @@ def test_invalid_quality_and_unknown_clip(client, tmp_path, monkeypatch, source_
         run_job(e, "ultra")
     with pytest.raises(render_mod.RenderError, match="no encontrado"):
         run_job(e, clip_id=99999)
+
+
+# --- cortinillas (F6) ------------------------------------------------------------------------------------
+
+def with_silences(e, silences):
+    """Clip de 7 s (0,5–7,5 del vídeo) y silencios en segundos del vídeo."""
+    from app.services import silences as silences_service
+
+    e.clip.start, e.clip.end = 0.5, 7.5
+    path = storage.project_dir(e.user.id, e.project.id) / "silences.json"
+    silences_service.save_silences(silences, path)
+    e.project.silences_path = storage.rel(path)
+    e.db.commit()
+
+
+SILENCE = [{"start": 5.6, "end": 6.4}]  # = 5,1–5,9 s del clip: centro en 5,5 s
+
+
+def test_the_final_cortinilla_is_always_sent_and_the_initial_one_only_if_enabled(client, tmp_path, monkeypatch, source_file):
+    e = setup(client, tmp_path, monkeypatch, source_file)
+    with_silences(e, SILENCE)
+    run_job(e)
+    r = e.fx.requests[0]
+    assert "cortinilla" not in r and r["sfx"] is True
+    assert r["outro"] == {"duration": 2.5, "color": "#DA2E09", "handle": "", "text": "", "like": "ME GUSTA", "subscribe": "SUSCRÍBETE"}
+    assert "Cortinillas: inicio no, final 2.5 s → vídeo de 9.5 s" in log(e)
+
+
+def test_initial_cortinilla_goes_to_the_first_valid_silence_after_the_intro(client, tmp_path, monkeypatch, source_file):
+    e = setup(client, tmp_path, monkeypatch, source_file, intro_enabled=True)
+    with_silences(e, SILENCE)
+    run_job(e)
+    r = e.fx.requests[0]
+    assert r["cortinilla"] == {"at": 5.5, "duration": 3.6, "color": "#DA2E09", "title": "", "kicker": ""}
+    assert r["duration"] == 7.0 and "inicio a los 5.5 s del clip" in log(e) and "vídeo de 13.1 s" in log(e)
+    assert e.clip.render_state is RenderState.DRAFT and e.clip.render_error is None
+
+
+def test_a_manual_position_snaps_to_a_valid_silence(client, tmp_path, monkeypatch, source_file):
+    e = setup(client, tmp_path, monkeypatch, source_file, intro_enabled=True, cortinilla_at=5.0)
+    with_silences(e, SILENCE)
+    run_job(e)
+    assert e.fx.requests[0]["cortinilla"]["at"] == 5.5
+
+
+def test_no_valid_silence_skips_the_initial_cortinilla_with_a_warning(client, tmp_path, monkeypatch, source_file):
+    e = setup(client, tmp_path, monkeypatch, source_file, intro_enabled=True)
+    with_silences(e, [])
+    run_job(e)
+    assert "cortinilla" not in e.fx.requests[0] and "outro" in e.fx.requests[0]
+    assert e.clip.render_state is RenderState.DRAFT and e.clip.render_error.startswith("Aviso: no hay un silencio válido")
+
+
+def test_template_values_feed_both_cortinillas_and_are_clamped(client, tmp_path, monkeypatch, source_file):
+    e = setup(client, tmp_path, monkeypatch, source_file, intro_enabled=True)
+    with_silences(e, SILENCE)
+    t = BrandTemplate(user_id=e.user.id, name="m", sfx=False, colors={"primary": "#112233"},
+                      cortinilla={"title": "Spain Facts", "kicker": "ESPAÑA EN DATOS", "duration": 99, "handle": "@micanal",
+                                  "outro_text": "Parte 2 en el canal", "outro_duration": "x", "like": "LIKE", "color": "rojo"})
+    e.db.add(t)
+    e.db.commit()
+    e.clip.template_id = t.id
+    e.db.commit()
+    run_job(e)
+    r = e.fx.requests[0]
+    assert r["cortinilla"] == {"at": 5.5, "duration": 10.0, "color": "#112233", "title": "Spain Facts", "kicker": "ESPAÑA EN DATOS"}
+    assert r["outro"] == {"duration": 2.5, "color": "#112233", "handle": "@micanal", "text": "Parte 2 en el canal", "like": "LIKE", "subscribe": "SUSCRÍBETE"}
+    assert r["sfx"] is False
+
+
+def test_the_logo_orbits_only_if_it_exists_on_disk(client, tmp_path, monkeypatch, source_file):
+    e = setup(client, tmp_path, monkeypatch, source_file, intro_enabled=True)
+    with_silences(e, SILENCE)
+    logo = storage.project_dir(e.user.id, e.project.id) / "logo.png"
+    logo.write_bytes(b"png")
+    t = BrandTemplate(user_id=e.user.id, name="m", logo_path=storage.rel(logo))
+    e.db.add(t)
+    e.db.commit()
+    e.clip.template_id = t.id
+    e.db.commit()
+    run_job(e)
+    assert e.fx.requests[0]["cortinilla"]["orbit"] == storage.rel(logo)
+    logo.unlink()
+    run_job(e)
+    assert "orbit" not in e.fx.requests[1]["cortinilla"]
+
+
+def test_the_thumbnail_never_falls_inside_the_cortinilla(client, tmp_path, monkeypatch, source_file):
+    from app.pipeline import ffops
+
+    e = setup(client, tmp_path, monkeypatch, source_file, intro_enabled=True)
+    with_silences(e, [{"start": 1.0, "end": 1.6}, {"start": 5.6, "end": 6.4}])
+    seen = []
+    real = ffops.make_thumbnail
+    monkeypatch.setattr(ffops, "make_thumbnail", lambda *a, **k: (seen.append(k["at"]), real(*a, **k))[1])
+    run_job(e)
+    at = e.fx.requests[0]["cortinilla"]["at"]
+    assert seen and not (at <= seen[0] < at + 3.6)
+
+
+def test_fallback_says_that_cortinillas_were_left_out(client, tmp_path, monkeypatch, source_file):
+    e = setup(client, tmp_path, monkeypatch, source_file, fx="unavailable", intro_enabled=True)
+    with_silences(e, SILENCE)
+    run_job(e)
+    assert "sin cortinillas" in e.clip.render_error and e.clip.render_error.startswith("Aviso:")

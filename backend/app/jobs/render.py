@@ -15,7 +15,8 @@ from app.jobs import queue
 from app.pipeline import analysis as analysis_mod
 from app.pipeline import ass_fallback, ffops, vertical
 from app.services import clips as clips_service
-from app.services import fx_request, storage, transcription
+from app.services import cortinilla as cortinilla_service
+from app.services import fx_request, silences as silences_mod, storage, transcription
 from app.services.fx_client import FxError, make_fx_client
 
 from .context import Cancelled, JobContext
@@ -52,6 +53,26 @@ def _cancel_check(ctx: JobContext) -> Callable[[], None]:
             ctx.check_cancelled()
 
     return check
+
+
+def _load_silences(project: Project, clip: Clip) -> list[dict]:
+    """Silencios del vídeo entero que tocan el clip, relativos a su inicio. Sin fichero, sin silencios."""
+    if not project.silences_path:
+        return []
+    try:
+        return cortinilla_service.rebase_silences(silences_mod.load_silences(storage.absolute(project.silences_path)), clip.start, clip.end)
+    except (OSError, ValueError):
+        return []
+
+
+def _orbit_path(template: BrandTemplate | None) -> str | None:
+    """Imagen que orbita en la cortinilla: el logo de la plantilla, si existe en el disco."""
+    if not template or not template.logo_path:
+        return None
+    try:
+        return template.logo_path if storage.absolute(template.logo_path).is_file() else None
+    except ValueError:
+        return None
 
 
 def render(ctx: JobContext, payload: dict) -> None:
@@ -112,11 +133,29 @@ def render(ctx: JobContext, payload: dict) -> None:
 
         words = fx_request.clip_words(transcription.load_words(storage.absolute(project.words_path))["words"], clip.start, clip.end)
         template = db.get(BrandTemplate, clip.template_id) if clip.template_id else None
-        preset = template.preset if template and template.user_id == ctx.user_id else DEFAULT_PRESET
+        template = template if template and template.user_id == ctx.user_id else None
+        preset = template.preset if template else DEFAULT_PRESET
+
+        # Cortinilla de inicio (opcional): la posición pedida —o la que elige el programador— se lleva a un silencio.
+        at: float | None = None
+        notes: list[str] = []
+        if clip.intro_enabled:
+            silences = _load_silences(project, clip)
+            at = (cortinilla_service.snap_position(clip.cortinilla_at, words, silences, duration) if clip.cortinilla_at is not None
+                  else cortinilla_service.default_position(words, silences, duration))
+            if at is None:
+                notes.append("no hay un silencio válido donde insertar la cortinilla de inicio; se omitió")
+                ctx.log("Sin cortinilla de inicio: " + notes[-1])
+        config = (template.cortinilla if template else None) or {}
+        colors = template.colors if template else {}
+        start_params = fx_request.cortinilla_params(config, colors, at=at, orbit=_orbit_path(template)) if at is not None else None
+        end_params = fx_request.outro_params(config, colors)
+        out_total = duration + (start_params["duration"] if start_params else 0.0) + end_params["duration"]
+        ctx.log(f"Cortinillas: inicio {'a los %.1f s del clip' % at if at is not None else 'no'}, final {end_params['duration']:.1f} s → vídeo de {out_total:.1f} s")
         request = fx_request.build_fx_request(
             video=storage.rel(vertical_path), output=storage.rel(target if not draft else fx_full), quality=quality,
             duration=duration, top_ratio=clip.top_ratio, words=words, speakers=project.speakers, hook=clip.hook,
-            preset=preset, band=band,
+            preset=preset, band=band, cortinilla=start_params, outro=end_params, sfx=bool(template.sfx) if template else True,
         )
 
         client = make_fx_client()
@@ -130,14 +169,17 @@ def render(ctx: JobContext, payload: dict) -> None:
             except FxError as exc:
                 warning = str(exc)
         if warning:
-            ctx.log(f"{warning}: se usan subtítulos ASS con ffmpeg (sin banda, estilos ni gancho)")
+            ctx.log(f"{warning}: se usan subtítulos ASS con ffmpeg (sin banda, estilos, gancho ni cortinillas)")
             ass_fallback.burn_subtitles(vertical_path, words, target, duration=duration, width=width, height=height,
                                         top_ratio=clip.top_ratio, draft=draft, on_progress=_stage(ctx, 25, 92), cancel_check=cancel)
         elif draft:
-            ffops.downscale(fx_full, target, width=width, height=height, duration=duration, on_progress=_stage(ctx, 92, 97), cancel_check=cancel)
+            ffops.downscale(fx_full, target, width=width, height=height, duration=out_total, on_progress=_stage(ctx, 92, 97), cancel_check=cancel)
 
         thumb = folder / "thumb.jpg"
-        ffops.make_thumbnail(target, thumb, at=min(duration * 0.35, max(0.0, duration - 0.2)))
+        thumb_at = min(duration * 0.35, max(0.0, duration - 0.2))
+        if start_params and thumb_at >= at:
+            thumb_at += start_params["duration"]  # en tiempo de salida: nunca dentro de la cortinilla
+        ffops.make_thumbnail(target, thumb, at=thumb_at)
         ctx.progress(98)
 
         if draft:
@@ -147,7 +189,9 @@ def render(ctx: JobContext, payload: dict) -> None:
         clip.render_state = clips_service.settled_state(clip)  # FINAL si existe el final, aunque lo último que se hizo fuera un borrador
         clip.thumbnail_path = storage.rel(thumb)
         clip.rendered_at = queue.utcnow()
-        clip.render_error = f"Aviso: {warning}; se usaron subtítulos simples" if warning else None
+        if warning:
+            notes.append(f"{warning}; se usaron subtítulos simples, sin cortinillas")
+        clip.render_error = "Aviso: " + "; ".join(notes) if notes else None
         db.commit()
         ctx.log("Render terminado")
     except Cancelled:

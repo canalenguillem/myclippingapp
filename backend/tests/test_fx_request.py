@@ -35,7 +35,7 @@ def request(**kw):
 def test_request_shape_and_quality_mapping():
     r = request()
     assert r == {"video": "u1/p1/clip_3/vertical_draft.mp4", "output": "u1/p1/clip_3/fx_full.mp4", "quality": "draft", "fps": 30,
-                 "duration": 28.333, "layout": {"mode": "split", "top_ratio": 0.5}, "words": [], "speakers": {}, "preset": "editorial"}
+                 "duration": 28.333, "layout": {"mode": "split", "top_ratio": 0.5}, "words": [], "speakers": {}, "preset": "editorial", "sfx": True}
     assert request(quality="final")["quality"] == "standard"
     with pytest.raises(KeyError):
         request(quality="ultra")
@@ -56,3 +56,15 @@ def test_hook_and_band_are_optional():
     assert r["hook"] == {"text": "Nadie se lo esperaba", "duration": HOOK_SECONDS}
     assert r["band"] == {"y0": 1380, "y1": 1470}  # sin `confidence`: el contrato es estricto
     assert len(request(hook="x" * 300)["hook"]["text"]) == 120
+
+
+def test_cortinilla_and_outro_params_clamp_and_default():
+    from app.services import fx_request as fx
+
+    assert fx.cortinilla_params({}, {}, at=5.5, orbit=None) == {"at": 5.5, "duration": 3.6, "color": "#DA2E09", "title": "", "kicker": ""}
+    c = fx.cortinilla_params({"duration": 0, "color": "#abcdef", "title": "x" * 99, "kicker": " k "}, {"primary": "#112233"}, at=5.0, orbit="u1/logo.png")
+    assert c == {"at": 5.0, "duration": 1.0, "color": "#ABCDEF", "title": "x" * 40, "kicker": "k", "orbit": "u1/logo.png"}
+    assert fx.cortinilla_params({"color": "no"}, {"primary": "#112233"}, at=1.0, orbit=None)["color"] == "#112233"
+    o = fx.outro_params({"outro_duration": 50, "handle": "@a", "outro_text": "t", "subscribe": ""}, None)
+    assert o == {"duration": 10.0, "color": "#DA2E09", "handle": "@a", "text": "t", "like": "ME GUSTA", "subscribe": "SUSCRÍBETE"}
+    assert fx.outro_params({"outro_duration": "x"}, {})["duration"] == 2.5

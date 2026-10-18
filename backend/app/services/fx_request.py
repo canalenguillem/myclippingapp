@@ -29,6 +29,46 @@ def clip_words(words: list[dict], start: float, end: float) -> list[dict]:
     return out[:MAX_WORDS]
 
 
+DEFAULT_COLOR = "#DA2E09"
+_HEX = re.compile(r"^#[0-9A-Fa-f]{6}$")
+
+
+def _clamp(value, lo: float, hi: float, default: float) -> float:
+    try:
+        return round(min(hi, max(lo, float(value))), 3)
+    except (TypeError, ValueError):
+        return default
+
+
+def _text(value, limit: int, default: str = "") -> str:
+    return str(value).strip()[:limit] if value not in (None, "") else default
+
+
+def _color(config: dict, colors: dict) -> str:
+    for candidate in (config.get("color"), (colors or {}).get("primary")):
+        if isinstance(candidate, str) and _HEX.match(candidate):
+            return candidate.upper()
+    return DEFAULT_COLOR
+
+
+def cortinilla_params(config: dict | None, colors: dict | None, *, at: float, orbit: str | None) -> dict:
+    """Cortinilla de inicio para el servicio. `config` es `BrandTemplate.cortinilla`; los valores se acotan al contrato."""
+    config = config or {}
+    out = {"at": round(at, 3), "duration": _clamp(config.get("duration"), 1.0, 10.0, 3.6), "color": _color(config, colors or {}),
+           "title": _text(config.get("title"), 40), "kicker": _text(config.get("kicker"), 60)}
+    if orbit:
+        out["orbit"] = orbit
+    return out
+
+
+def outro_params(config: dict | None, colors: dict | None) -> dict:
+    """Cortinilla final (siempre). Sin plantilla sale con los valores por defecto: color de marca y botones."""
+    config = config or {}
+    return {"duration": _clamp(config.get("outro_duration"), 1.0, 10.0, 2.5), "color": _color(config, colors or {}),
+            "handle": _text(config.get("handle"), 40), "text": _text(config.get("outro_text"), 80),
+            "like": _text(config.get("like"), 20, "ME GUSTA"), "subscribe": _text(config.get("subscribe"), 20, "SUSCRÍBETE")}
+
+
 def build_fx_request(
     *,
     video: str,
@@ -41,6 +81,9 @@ def build_fx_request(
     hook: str,
     preset: str,
     band: dict | None,
+    cortinilla: dict | None = None,
+    outro: dict | None = None,
+    sfx: bool = True,
 ) -> dict:
     """`video` y `output` son rutas relativas a MEDIA_DIR. Los speakers solo llevan los campos del contrato."""
     request: dict = {
@@ -62,7 +105,12 @@ def build_fx_request(
             if SPEAKER_LABEL.match(str(label))
         },
         "preset": preset,
+        "sfx": bool(sfx),
     }
+    if cortinilla:
+        request["cortinilla"] = cortinilla
+    if outro:
+        request["outro"] = outro
     hook = (hook or "").strip()
     if hook:
         request["hook"] = {"text": hook[:120], "duration": HOOK_SECONDS}
