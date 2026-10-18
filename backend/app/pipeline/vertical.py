@@ -8,10 +8,10 @@ congelaciones», ver fx_worker/spike/RESULTADOS.md).
 from __future__ import annotations
 
 import os
-import subprocess
-from collections import deque
 from collections.abc import Callable
 from pathlib import Path
+
+from .ffmpeg_run import FfmpegError, progress_args, run_ffmpeg
 
 CANVAS_W, CANVAS_H = 1080, 1920
 DRAFT_W, DRAFT_H = 540, 960
@@ -81,7 +81,7 @@ def make_vertical_clip(
     out_path.parent.mkdir(parents=True, exist_ok=True)
     part = out_path.with_name(out_path.stem + ".part" + out_path.suffix)
     cmd = [
-        ffmpeg, "-y", "-v", "error", "-nostats", "-progress", "pipe:1",
+        *progress_args(ffmpeg),
         "-ss", f"{start:.3f}", "-i", str(video), "-t", f"{duration:.3f}",
         "-filter_complex", build_filter(top_ratio, focus, zoom, width, height),
         "-map", "[v]", "-map", "0:a?",
@@ -91,32 +91,11 @@ def make_vertical_clip(
         "-c:a", "aac", "-b:a", "160k", "-ar", "48000",
         str(part),
     ]
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
-    tail: deque[str] = deque(maxlen=12)  # lo que no es progreso: los mensajes de error de ffmpeg
     try:
-        for line in proc.stdout:
-            line = line.strip()
-            if line.startswith("out_time_us="):
-                try:
-                    done = min(1.0, max(0.0, int(line.split("=", 1)[1]) / 1e6 / duration))
-                except ValueError:
-                    continue
-                if on_progress:
-                    on_progress(done)
-            elif "=" not in line and line:
-                tail.append(line)
-            if cancel_check:
-                cancel_check()
-        proc.wait()
-    except BaseException:
-        proc.kill()
-        proc.wait()
-        part.unlink(missing_ok=True)
-        raise
-    if proc.returncode != 0 or not part.exists():
-        part.unlink(missing_ok=True)
-        raise VerticalError("ffmpeg falló al generar el clip vertical: " + " | ".join(tail)[-600:])
+        run_ffmpeg(cmd, duration=duration, cleanup=[part], on_progress=on_progress, cancel_check=cancel_check)
+    except FfmpegError as exc:
+        raise VerticalError(f"ffmpeg falló al generar el clip vertical: {exc}") from exc
+    if not part.exists():
+        raise VerticalError("ffmpeg no generó ningún fichero")
     os.replace(part, out_path)
-    if on_progress:
-        on_progress(1.0)
     return out_path

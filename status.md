@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Última actualización: 2026-10-17. Plan completo en `~/.claude/plans/analiza-el-md-que-playful-parasol.md`; ajustes de estilo F4–F9 en `FASES.md`; reglas de trabajo en `CLAUDE.md`; conocimiento de motion graphics en `conocimiento_motion_video.md`.
+Última actualización: 2026-10-18. Plan completo en `~/.claude/plans/analiza-el-md-que-playful-parasol.md`; ajustes de estilo F4–F9 en `FASES.md`; reglas de trabajo en `CLAUDE.md`; conocimiento de motion graphics en `conocimiento_motion_video.md`.
 
 ## Objetivo
 
@@ -39,6 +39,13 @@ Tras el ajuste de límites: 15 de 16 cortes caen en silencio y 7 de 8 clips acab
 2. Registrarse (el primero queda como admin).
 3. En Proyectos, pegar un enlace de YouTube. El job descarga, transcribe y detecta clips; el progreso se ve en Jobs.
 4. En el proyecto: poner nombre y cargo a los speakers, corregir la transcripción, revisar los clips y aprobarlos. En el editor de clip se ajusta el inicio y el fin viendo el vídeo.
+
+## F5 en curso (pasos 1–6 de 9)
+
+- Hecho: carril de render global de 1 (paso 1), estado de render del clip (2), clip vertical con ffmpeg (3), servicio `fx_worker` con HyperFrames (4), capas de estilo (5) y, en el paso 6, `fx_client`, el job `render` con fallback a subtítulos ASS, miniatura, borrador 540x960 y detección de subtítulos quemados. 260 tests en verde.
+- Verificado de punta a punta (2026-10-18): job `render` borrador del clip 40 (41,8 s) por `fx_worker`, 71 s de render, `draft.mp4` de 540x960 con audio y banda, subtítulos y gancho.
+- **Hallazgo:** el vídeo de prueba lleva subtítulos quemados **amarillos** y la detección dice «ninguno» (solo mira blanco y verde); la banda no los tapa. Pendiente de ajustar antes de cerrar F5.
+- Faltan: API de render (7), interfaz (8) y cierre con vídeo largo (9).
 
 ## Pendiente
 

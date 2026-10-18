@@ -1,7 +1,7 @@
 FROM python:3.11-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ffmpeg curl unzip ca-certificates \
+      ffmpeg curl unzip ca-certificates fontconfig fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 # yt-dlp descifra firmas de YouTube con un runtime JS; sin deno da HTTP 403.
