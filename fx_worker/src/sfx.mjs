@@ -77,3 +77,22 @@ export function popWav({ seconds = 0.12 } = {}) {
   }
   return wav(shape(out, () => 1));
 }
+
+/** Polvo: ruido agudo que sube y se apaga despacio (la vaporización). */
+export function dustWav({ seconds = 0.8, seed = 21 } = {}) {
+  const samples = bandpassNoise(Math.round(seconds * SAMPLE_RATE), seed, () => 3500, 0.7);
+  return wav(shape(samples, (p) => Math.pow(Math.sin(Math.PI * Math.min(1, p * 0.5 + 0.15)), 1) * Math.exp(-3 * p)));
+}
+
+/** Crujido: 22 clics de ruido de banda ancha repartidos en 0,25 s (§10 del md). */
+export function crackWav({ seconds = 0.3, seed = 31 } = {}) {
+  const n = Math.round(seconds * SAMPLE_RATE);
+  const rand = mulberry32(seed);
+  const out = new Float64Array(n);
+  for (let k = 0; k < 22; k++) {
+    const start = Math.floor(rand() * 0.25 * SAMPLE_RATE);
+    const len = Math.floor((0.004 + rand() * 0.01) * SAMPLE_RATE);
+    for (let i = 0; i < len && start + i < n; i++) out[start + i] += (rand() * 2 - 1) * Math.exp(-i / (len / 4)) * (0.4 + rand() * 0.6);
+  }
+  return wav(shape(out, () => 1));
+}

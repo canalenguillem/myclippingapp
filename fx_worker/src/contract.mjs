@@ -65,7 +65,10 @@ const outro = z
 const graphicBase = { at: z.number().min(0), lead: z.number().min(0).max(1).default(0.5), duration: z.number().min(1).max(6).default(2.5) };
 const emojiText = z.string().min(1).max(16).regex(/^[\p{So}\p{Sk}\p{Cf}\p{Mn}]+$/u, "debe ser un emoji");
 const graphic = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("emoji"), ...graphicBase, emoji: emojiText, target: emojiText.optional() }).strict(),
+  // Imagen de la librería del usuario (ruta relativa de MEDIA_DIR). `style` la viste y `effect` la anima o la deshace.
+  z.object({ type: z.literal("image"), ...graphicBase, image: relPath.refine((v) => /\.png$/i.test(v), { message: "image debe ser png" }),
+    style: z.enum(["original", "card", "silhouette", "red"]).default("original"), effect: z.enum(["pop", "vaporize", "break"]).default("pop") }).strict(),
+  z.object({ type: z.literal("emoji"), ...graphicBase, emoji: emojiText, target: emojiText.optional(), effect: z.enum(["pop", "vaporize"]).default("pop") }).strict(),
   z.object({ type: z.literal("keyword"), ...graphicBase, text: z.string().trim().min(1).max(40), zone: z.enum(["bottom", "top"]).default("bottom") }).strict(),
 ]);
 

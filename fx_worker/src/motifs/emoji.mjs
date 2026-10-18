@@ -4,6 +4,7 @@
 // por encima de las tarjetas (`keyword`), para que no se pisen. Con imágenes recortadas reales llegará con la librería de
 // assets (F7b); mientras, los emojis de color (Noto Color Emoji) hacen de objetos.
 import { escapeHtml } from "../html.mjs";
+import { TILES_CSS, tilesHtml, vaporizeScript } from "./dissolve.mjs";
 
 const fmt = (n) => Number(n.toFixed(3));
 const SIZE = 150;
@@ -14,6 +15,7 @@ const HOP_HEIGHT = 110;
 export function emojiMotif({ id, item, t0, at, t1, zones }) {
   const main = escapeHtml(item.emoji);
   const target = item.target ? escapeHtml(item.target) : null;
+  if (!target && item.effect === "vaporize") return vaporizedEmoji({ id, main, t0, at, t1, zones });
   const html = `<div id="${id}" class="gfx em"><span id="${id}m" class="emj">${main}</span>${target ? `<span id="${id}t" class="emj">${target}</span>` : ""}</div>`;
   const css = `.em{left:0;width:1080px;height:200px}
 .emj{position:absolute;top:20px;font-size:${SIZE}px;line-height:1;font-family:InterX,sans-serif}  /* el emoji cae a la fuente de color del sistema; nombrarla sin @font-face no pasa el linter */`;
@@ -53,4 +55,24 @@ export function emojiMotif({ id, item, t0, at, t1, zones }) {
   }
   parts.push(`tl.to("#${id}",{opacity:0,duration:0.3,ease:"power3.in"},${exit});`, `tl.set("#${id}",{visibility:"hidden"},${fmt(t1)});`);
   return { html, css, cssItem: `#${id}{top:${zones.strip}px}${cssItem}`, script: parts.join("") };
+}
+
+const BOX = 190;   // caja del emoji que se vaporiza (el glifo de 150 px ocupa algo más de su ancho)
+const GRID = 8;
+
+/** Emoji suelto que se descompone en polvo en la palabra (mismo efecto que `image`). */
+function vaporizedEmoji({ id, main, t0, at, t1, zones }) {
+  const inner = `<span class="emj" style="left:0;top:0;width:${BOX}px;height:${BOX}px;display:flex;align-items:center;justify-content:center">${main}</span>`;
+  const html = `<div id="${id}" class="gfx em">${tilesHtml({ id, inner, w: BOX, h: BOX, cols: GRID, rows: GRID })}</div>`;
+  const css = `.emj{position:absolute;font-size:${SIZE}px;line-height:1;font-family:InterX,sans-serif}\n${TILES_CSS}`;
+  const seed = Number(id.replace(/\D/g, "")) || 1;
+  const script =
+    `tl.fromTo("#${id}",{opacity:0,scale:0.4,y:30},{opacity:1,scale:1,y:0,duration:0.42,ease:"back.out(1.9)"},${fmt(t0)});` +
+    vaporizeScript({ id, cols: GRID, rows: GRID, at, seed }) +
+    `tl.to("#${id}",{opacity:0,duration:0.25,ease:"power1.in"},${fmt(Math.max(at + 1.6, t1 - 0.3))});` +
+    `tl.set("#${id}",{visibility:"hidden"},${fmt(t1)});`;
+  return {
+    html, css, cssItem: `#${id}{left:${(1080 - BOX) / 2}px;top:${zones.strip}px;width:${BOX}px;height:${BOX}px}`, script,
+    sfx: [{ kind: "pop", at: t0 }, { kind: "dust", at }],
+  };
 }

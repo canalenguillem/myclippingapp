@@ -54,3 +54,15 @@ test("pop: breve, con pico acotado y decae enseguida", () => {
   const tail = Math.max(...xs.slice(-1000).map(Math.abs));
   assert.ok(head > 0.3 && tail < 0.1 * head, `${head} ${tail}`);
 });
+
+import { crackWav, dustWav } from "../src/sfx.mjs";
+
+test("polvo y crujido: WAV válidos, con pico acotado y envolvente razonable", () => {
+  const dust = samples(dustWav());
+  const crack = samples(crackWav());
+  for (const xs of [dust, crack]) assert.ok(Math.max(...xs.map(Math.abs)) <= 0.55 && Math.max(...xs.map(Math.abs)) > 0.3);
+  assert.equal(dust.length, 0.8 * SAMPLE_RATE);
+  assert.ok(Math.max(...dust.slice(-2000).map(Math.abs)) < 0.15, "el polvo se apaga");
+  assert.ok(crack.slice(0.27 * SAMPLE_RATE).every((x) => Math.abs(x) < 0.05), "los clics caen en los primeros 0,25 s");
+  assert.ok(dustWav({ seed: 1 }).equals(dustWav({ seed: 1 })) && crackWav({ seed: 5 }).equals(crackWav({ seed: 5 })));
+});

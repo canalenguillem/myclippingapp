@@ -23,13 +23,13 @@ export function createApp({ mediaDir, workers = 2, renderer = renderProject, wor
 
   const busy = () => [...records.values()].some((r) => r.status === "queued" || r.status === "running");
 
-  async function run(record, request, videoAbs, outputAbs, orbitAbs) {
+  async function run(record, request, videoAbs, outputAbs, orbitAbs, images) {
     const controller = controllers.get(record.id);
     const workDir = mkdtempSync(join(workRoot, "fx-"));
     try {
       record.status = "running";
       record.startedAt = now();
-      const project = buildProject({ request, video: videoAbs, workDir, orbit: orbitAbs });
+      const project = buildProject({ request, video: videoAbs, workDir, orbit: orbitAbs, images });
       mkdirSync(dirname(outputAbs), { recursive: true });
       const part = outputAbs.replace(/\.mp4$/, ".part.mp4");
       const result = await renderer({
@@ -113,11 +113,18 @@ export function createApp({ mediaDir, workers = 2, renderer = renderProject, wor
         const orbitAbs = request.cortinilla?.orbit ? resolveInMedia(mediaDir, request.cortinilla.orbit) : null;
         if (orbitAbs && !existsSync(orbitAbs)) return send(res, 422, { error: "orbit_not_found", orbit: request.cortinilla.orbit });
         if (busy()) return send(res, 409, { error: "busy" });
+        const images = {};
+        for (const g of request.graphics) {
+          if (g.type !== "image" || images[g.image]) continue;
+          const abs = resolveInMedia(mediaDir, g.image);
+          if (!existsSync(abs)) return send(res, 422, { error: "image_not_found", image: g.image });
+          images[g.image] = abs;
+        }
         const id = randomUUID();
         const record = { id, status: "queued", progress: 0, message: "", error: null, output: request.output, createdAt: now() };
         records.set(id, record);
         controllers.set(id, new AbortController());
-        void run(record, request, videoAbs, outputAbs, orbitAbs);
+        void run(record, request, videoAbs, outputAbs, orbitAbs, images);
         return send(res, 202, { id });
       }
 

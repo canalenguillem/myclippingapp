@@ -11,7 +11,7 @@ import { hookLayer } from "./layers/hook.mjs";
 import { outroLayer } from "./layers/outro.mjs";
 import { sourceIntervals, treatmentLayer } from "./layers/treatment.mjs";
 import { getPreset } from "./presets.mjs";
-import { popWav, shimmerWav, whooshWav } from "./sfx.mjs";
+import { crackWav, dustWav, popWav, shimmerWav, whooshWav } from "./sfx.mjs";
 import { makeTimeMap, mapIntervals } from "./timemap.mjs";
 
 const require = createRequire(import.meta.url);
@@ -25,7 +25,7 @@ function extractFrame(video, at, out) {
 }
 
 /** `video` es la ruta ABSOLUTA ya resuelta (y comprobada) del clip vertical. */
-export function buildProject({ request, video, workDir, orbit = null }) {
+export function buildProject({ request, video, workDir, orbit = null, images = {} }) {
   mkdirSync(join(workDir, "fonts"), { recursive: true });
   try {
     symlinkSync(video, join(workDir, "clip.mp4")); // sin copiar decenas de MB por render
@@ -62,7 +62,14 @@ export function buildProject({ request, video, workDir, orbit = null }) {
   const center = (core.y0 + core.y1) / 2;
   const captions = captionsLayer({ words, speakers, duration: total, preset, center, height: Math.max(90, core.y1 - core.y0), stops: C ? [C.at] : [] });
   const hook = request.hook ? hookLayer({ hook: request.hook, preset }) : null;
-  const graphics = graphicsLayer({ items: request.graphics, map, clipDuration: duration, zones: graphicZones(layout) });
+  // Imágenes de los gráficos: se copian al proyecto de render con un nombre propio (ruta relativa de la petición → fichero local).
+  const gfxFiles = {};
+  Object.entries(images).forEach(([rel, abs], n) => {
+    const name = `gfx_img${n}${extname(abs).toLowerCase() || ".png"}`;
+    copyFileSync(abs, join(workDir, name));
+    gfxFiles[rel] = name;
+  });
+  const graphics = graphicsLayer({ items: request.graphics, map, clipDuration: duration, zones: graphicZones(layout), files: gfxFiles });
   const treatment = treatmentLayer({ intervals: sourceSpans });
   let orbitFile = null;
   if (C && orbit) {
@@ -85,8 +92,9 @@ export function buildProject({ request, video, workDir, orbit = null }) {
     const track = (id, file, start, seconds, volume) =>
       sfx.push(`<audio id="${id}" src="sfx/${file}" data-start="${Number(start.toFixed(3))}" data-duration="${seconds}" data-volume="${volume}"></audio>`);
     if (graphics.sfx.length) {
-      put("pop.wav", popWav());
-      for (const g of graphics.sfx) track(`sfx${g.id}`, "pop.wav", g.at, 0.12, 0.3);
+      const kinds = { pop: { wav: popWav, seconds: 0.12, volume: 0.3 }, dust: { wav: dustWav, seconds: 0.8, volume: 0.14 }, crack: { wav: crackWav, seconds: 0.3, volume: 0.25 } };
+      for (const kind of new Set(graphics.sfx.map((g) => g.kind))) put(`${kind}.wav`, kinds[kind].wav());
+      for (const g of graphics.sfx) track(g.id, `${g.kind}.wav`, g.at, kinds[g.kind].seconds, kinds[g.kind].volume);
     }
     if (C) {
       const k = Math.min(1, C.duration / 3.6);

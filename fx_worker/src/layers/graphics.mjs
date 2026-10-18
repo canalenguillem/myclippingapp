@@ -19,18 +19,18 @@ export function graphicZones(layout) {
   return { card: Math.min(topH + 70, 1632 - 230), strip: Math.min(topH + 85, 1632 - 200) };
 }
 
-export function graphicsLayer({ items, map, clipDuration, zones = graphicZones({ mode: "split" }) }) {
+export function graphicsLayer({ items, map, clipDuration, zones = graphicZones({ mode: "split" }), files = {} }) {
   const parts = { html: [], css: [], cssItem: [], script: [] };
   const sfx = [];
   items.forEach((item, i) => {
     const [s, e] = graphicWindow(item, clipDuration);
     const id = `g${i}`;
-    const out = MOTIFS[item.type]({ id, item, t0: map.out(s), at: map.out(item.at), t1: map.out(e), zones });
+    const out = MOTIFS[item.type]({ id, item, t0: map.out(s), at: map.out(item.at), t1: map.out(e), zones, files });
     parts.html.push(out.html);
     parts.css.push(out.css);
     if (out.cssItem) parts.cssItem.push(out.cssItem);
     parts.script.push(out.script);
-    sfx.push({ id, type: item.type, at: map.out(s) });
+    (out.sfx ?? [{ kind: "pop", at: map.out(s) }]).forEach((fx, n) => sfx.push({ id: n === 0 ? `sfx${id}` : `sfx${id}_${n}`, kind: fx.kind, at: fx.at }));
   });
   const css = `.gfx{position:absolute;opacity:0}\n${[...new Set(parts.css)].join("\n")}\n${parts.cssItem.join("\n")}`;
   return { html: parts.html.join("\n  "), css: items.length ? css : "", script: parts.script.join("\n"), sfx };

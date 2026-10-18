@@ -199,3 +199,24 @@ test("gráficos: la tarjeta entra en su ventana, no antes ni después, y se desp
   const ink = pixels(out, 2.6, { x: 340, y: 1360, w: 400, h: 90 }).count((r, g, b) => r < 90 && g < 90 && b < 90);
   assert.ok(ink >= 300, `texto «INDULTOS» visible (${ink} px)`);
 });
+
+test("imagen con efecto: la tarjeta se ve antes de la palabra y se vaporiza después, y el estilo rojo usa el color de marca", { skip, timeout: 240000 }, async () => {
+  const mediaDir = tmp("media-");
+  makeRedVideo(join(mediaDir, "u1/p1/clip.mp4"), 8, { y: 100, h: 20 });
+  mkdirSync(join(mediaDir, "u1/assets"), { recursive: true });
+  const mk = spawnSync("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "color=c=0x2040C0:s=300x300:d=1,format=rgba", "-frames:v", "1", join(mediaDir, "u1/assets/1.png")]);
+  assert.equal(mk.status, 0, String(mk.stderr));
+  const out = await render(mediaDir, {
+    video: "u1/p1/clip.mp4", output: "u1/p1/img.mp4", duration: 8, quality: "draft",
+    graphics: [{ type: "image", at: 2.5, image: "u1/assets/1.png", style: "card", effect: "vaporize" }, { type: "image", at: 6, image: "u1/assets/1.png", style: "red" }],
+  });
+  const region = { x: 370, y: 1250, w: 340, h: 380 };                   // la tarjeta (340x380) con su inclinación
+  const cream = (t) => pixels(out, t, region).count((r, g, b) => isCream(r, g, b));
+  const blue = (t) => pixels(out, t, region).count((r, g, b) => isBlue(r, g, b));
+  assert.ok(cream(2.4) > 20000, `tarjeta de papel visible antes de la palabra (${cream(2.4)} px)`);
+  assert.ok(blue(2.4) > 8000, "con la imagen dentro");
+  assert.ok(cream(2.4) - cream(4.6) > 18000 && cream(4.6) < 3000, `vaporizada pasado un rato (${cream(4.6)} px)`);
+  // estilo rojo: la silueta de una imagen azul sale del color de marca (máscara), no azul
+  const px = pixels(out, 6.6, { x: 540, y: 1450, w: 1, h: 1 }).at(0, 0);
+  assert.ok(isRed(...px) && !isBlue(...px), `silueta en rojo de marca: ${px}`);
+});

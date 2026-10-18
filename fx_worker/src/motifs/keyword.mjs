@@ -29,5 +29,5 @@ export function keywordMotif({ id, item, t0, at, t1, zones }) {
     `tl.fromTo("#${id}",{scale:1},{scale:1.06,duration:0.1,yoyo:true,repeat:1,ease:"power2.out"},${fmt(at)});` +
     `tl.to("#${id}",{opacity:0,scale:0.7,duration:0.3,ease:"power3.in"},${exit});` +
     `tl.set("#${id}",{visibility:"hidden"},${fmt(t1)});`;
-  return { html, css, cssItem: `#${id}{top:${top}px}`, script };
+  return { sfx: [{ kind: "pop", at: t0 }], html, css, cssItem: `#${id}{top:${top}px}`, script };
 }
