@@ -1,0 +1,19 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Prueba de vista previa</title>
+<style>body{margin:16px;background:#111;color:#eee;font:14px system-ui}hyperframes-player{display:block;width:360px;aspect-ratio:1080/1920}button{margin:4px}pre{white-space:pre-wrap}</style>
+<script src="/node_modules/@hyperframes/player/dist/hyperframes-player.global.js"></script>
+<hyperframes-player id="p" src="/spike/project/index.html" width="1080" height="1920" controls muted></hyperframes-player>
+<div>
+  <button onclick="p.seek(2)">2 s (subtítulos)</button>
+  <button onclick="p.seek(4.3)">4,3 s (barrido)</button>
+  <button onclick="p.seek(5.8)">5,8 s (cortinilla)</button>
+  <button onclick="p.seek(13.9)">13,9 s (tarjeta)</button>
+  <button onclick="p.seek(37)">37 s (final)</button>
+</div>
+<pre id="log"></pre>
+<script>
+  const log = (m) => { document.getElementById("log").textContent += m + "\n"; };
+  const p = document.getElementById("p");
+  for (const ev of ["ready", "error", "durationchange"]) p.addEventListener(ev, (e) => log(ev + " " + (e.detail ? JSON.stringify(e.detail) : "")));
+</script>

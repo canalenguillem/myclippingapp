@@ -44,7 +44,7 @@ Tras el ajuste de límites: 15 de 16 cortes caen en silencio y 7 de 8 clips acab
 
 | Fase | Contenido |
 |---|---|
-| **F5 Render vertical** | Experimento técnico con HyperFrames (go/no-go); portar `make_vertical_clip`, `render_clip` y `fx_client`; `fx_worker` nuevo en HTML + GSAP; carril de render global de 1; análisis por clip; draft 540x960 y final tras aprobar; stills ; capas de estilo: banda de papel, dos estilos de subtítulo, blanco y negro para el clip citado y preset `editorial` (decisión C2) |
+| **F5 Render vertical** | Experimento técnico con HyperFrames: **hecho, GO** (`fx_worker/spike/RESULTADOS.md`). Falta: portar `make_vertical_clip` (con fotogramas clave densos), `render_clip` y `fx_client`; `fx_worker` real en HTML + GSAP; carril de render global de 1; análisis por clip; draft 540x960 y final tras aprobar; stills; capas de estilo (banda de papel, dos estilos de subtítulo, blanco y negro para el clip citado) y preset `editorial` (decisión C2) |
 | **F6 Cortinillas** | Intro corta del clip; cortinilla de inicio opcional (pausa el clip); cortinilla final siempre; plantillas de marca por usuario; editor de plantilla con vista previa (decisión C3) |
 | **F7 Gráficos por transcripción** | Librería de assets; motivos con objeto; `graphics_planner` |
 | **F8 YouTube por usuario** | Canales con su propio `client_secret.json` cifrado; OAuth con `state` firmado; SEO; subida |
@@ -72,10 +72,10 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 
 ## Riesgos y avisos
 
-- **HyperFrames:** Apache 2.0, sin cuotas por render. Es anterior a 1.0 (0.7.x): fijar la versión y vigilar los cambios incompatibles. Su documentación pública no cubre fps, vídeo de origen, subtítulos por palabra, Docker ni recursos; F5 empieza con un experimento técnico y deja Remotion como plan B (de pago a partir de 4 personas); está en `myMoviPyTests`, carpeta `fx_worker/`, commit `5321d57`.
+- **HyperFrames:** Apache 2.0, sin cuotas por render. Es anterior a 1.0 (0.8.169): fijar la versión y vigilar los cambios incompatibles. El experimento de F5 resolvió los huecos de su documentación (vídeo de origen, subtítulos por palabra, Docker, rendimiento). Remotion queda como plan B (de pago a partir de 4 personas); está en `myMoviPyTests`, carpeta `fx_worker/`, commit `5321d57`.
 - **Derechos de autor:** clipear vídeos de terceros requiere permiso del autor o un uso permitido. La app no debe prometer esquivar Content ID.
 - **Cuota de YouTube:** ~6 subidas al día por proyecto de Google (cada usuario usa el suyo).
-- **CPU:** el tiempo por clip con HyperFrames está por medir en el experimento de F5; el carril global de 1 serializa los renders.
+- **CPU y memoria:** con 2 workers y calidad estándar, un vídeo vertical de 38 s tarda ~98 s y usa ~2,6 GB (medido en una máquina de 12 núcleos); el carril global de 1 serializa los renders.
 - **Costes de API:** AssemblyAI (con diarización) por minuto de audio y OpenAI por detección y SEO; se pagan con las claves del `.env`. El modelo de detección se cambia con `OPENAI_CLIP_MODEL` (por defecto `gpt-4o`).
 - **La calidad de los clips depende del modelo:** algunos empiezan sin el contexto necesario («esta institución…»). La revisión humana en el editor es parte del flujo.
 
@@ -96,4 +96,4 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 - **Vista previa en F6 (C3):** el editor de plantilla de cortinilla tiene vista previa sin renderizar (iframe sobre la composición HTML, a validar en F5).
 - **Reglas de estilo por usuario (C4):** tabla `style_rules` en la BD; `rules/` del repo queda como guía de desarrollo.
 - **Sin `FX_PARALLEL` (C5):** rige solo el carril global de 1; no hay escalado por réplicas del servicio de render.
-- **Motor de animación: HyperFrames de HeyGen (HTML + GSAP)**, en lugar de Remotion. Remotion queda como plan B si falla el experimento de F5.
+- **Motor de animación: HyperFrames de HeyGen (HTML + GSAP)**, en lugar de Remotion; el experimento de F5 salió bien (GO). Remotion queda como plan B.
