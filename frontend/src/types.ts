@@ -23,7 +23,7 @@ export type Clip = {
   status: string; created_at: string | null;
   /** Estado del render, aparte del editorial: none | rendering | draft | final | failed. */
   render_state: "none" | "rendering" | "draft" | "final" | "failed";
-  has_draft: boolean; has_final: boolean; render_error: string | null; render_job_id: number | null; template_id: number | null;
+  has_draft: boolean; has_final: boolean; render_error: string | null; render_job_id: number | null; template_id: number | null; graphics: Graphic[];
 };
 
 export const EDITABLE_CLIP = new Set(["detected", "approved"]);
@@ -48,4 +48,12 @@ export type Template = {
 };
 export const EMPTY_CORTINILLA: TemplateCortinilla = {
   title: "", kicker: "", duration: 3.6, handle: "", outro_text: "", outro_duration: 2.5, like: "ME GUSTA", subscribe: "SUSCRÍBETE",
+};
+
+/** Gráfico ligado a la transcripción; `at` son segundos DEL CLIP (inicio de la palabra gancho). */
+export type Graphic = { type: "keyword" | "emoji"; at: number; text?: string; emoji?: string; target?: string };
+export type GraphicsPlan = {
+  duration: number; cortinilla_at: number | null; hook_seconds: number;
+  beats: (Graphic & { lead: number; duration: number; start: number; end: number })[];
+  dropped: { beat: Graphic; reason: string }[];
 };
