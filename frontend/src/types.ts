@@ -18,7 +18,7 @@ export type Clip = {
   title: string; reason: string; score: number; transcript: string; hook: string;
   emphasis: { start: number; text: string }[]; parts: string[];
   layout: "split" | "full" | "facecam"; focus: "left" | "center" | "right";
-  zoom: number; top_ratio: number; intro_enabled: boolean; outro_enabled: boolean;
+  zoom: number; top_ratio: number; intro_enabled: boolean; cortinilla_at: number | null;
   status: string; created_at: string | null;
   /** Estado del render, aparte del editorial: none | rendering | draft | final | failed. */
   render_state: "none" | "rendering" | "draft" | "final" | "failed";

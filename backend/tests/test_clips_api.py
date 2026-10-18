@@ -145,3 +145,33 @@ def test_detect_endpoint_defaults_and_validation(client, tmp_path, monkeypatch):
 def test_detect_endpoint_needs_a_transcript(client, tmp_path, monkeypatch):
     h, db, p = _project(client, tmp_path, monkeypatch, words=False)
     assert client.post(f"/api/projects/{p.id}/detect", json={}, headers=h).status_code == 409
+
+
+def test_cortinilla_at_is_validated_and_reset_when_the_trim_changes(client, tmp_path, monkeypatch):
+    h, db, p = _project(client, tmp_path, monkeypatch)
+    c = _clip(db, p, 10.0, 40.0)
+    assert client.get(f"/api/clips/{c.id}").json()["cortinilla_at"] is None
+    assert "outro_enabled" not in client.get(f"/api/clips/{c.id}").json()
+    assert client.patch(f"/api/clips/{c.id}", json={"cortinilla_at": 12.5}, headers=h).json()["cortinilla_at"] == 12.5
+    assert client.patch(f"/api/clips/{c.id}", json={"cortinilla_at": 29.5}, headers=h).status_code == 422  # último segundo
+    assert client.patch(f"/api/clips/{c.id}", json={"cortinilla_at": 0}, headers=h).status_code == 422
+    assert client.patch(f"/api/clips/{c.id}", json={"outro_enabled": False}, headers=h).status_code == 422  # ya no existe
+    assert client.patch(f"/api/clips/{c.id}", json={"end": 45.0}, headers=h).json()["cortinilla_at"] is None
+    assert client.patch(f"/api/clips/{c.id}", json={"end": 50.0, "cortinilla_at": 8.0}, headers=h).json()["cortinilla_at"] == 8.0
+
+
+def test_new_clips_take_the_cortinilla_default_from_the_template(client, tmp_path, monkeypatch):
+    from app.db.models import BrandTemplate
+    from app.services import clips as clips_service
+    from app.services.clip_detector import ClipCandidate
+    h, db, p = _project(client, tmp_path, monkeypatch)
+    cand = ClipCandidate(start=10.0, end=40.0, title="t", reason="", score=5, transcript="x", hook="h", emphasis=[], parts=[])
+    clips_service.replace_detected_clips(db, p, [cand])
+    assert db.query(Clip).one().intro_enabled is False
+    t = BrandTemplate(user_id=p.user_id, name="m", cortinilla_default=True)
+    db.add(t)
+    db.commit()
+    p.default_template_id = t.id
+    db.commit()
+    clips_service.replace_detected_clips(db, p, [cand])
+    assert db.query(Clip).one().intro_enabled is True

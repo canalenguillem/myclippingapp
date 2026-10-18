@@ -71,7 +71,7 @@ def test_migration_0003_adds_render_columns_with_none_default(tmp_path, monkeypa
         command.downgrade(cfg, "0002")
         with eng.begin() as c:
             cols = {r[1] for r in c.execute(text("PRAGMA table_info(clips)"))}
-        assert "render_state" not in cols and "draft_path" not in cols
+        assert "render_state" not in cols and "draft_path" not in cols and "outro_enabled" in cols
     finally:
         get_settings.cache_clear()
 
@@ -172,3 +172,32 @@ def test_speaker_cards_cannot_change_while_a_job_runs_for_the_project(client, tm
     h, db, p, path = _project(client, tmp_path, monkeypatch)
     queue.enqueue(db, p.user_id, "render", {"project_id": p.id, "clip_id": 1})
     assert client.put(f"/api/projects/{p.id}/speakers", json=p.speakers, headers=h).status_code == 409
+
+
+def test_migration_0004_drops_outro_and_adds_cortinilla_columns(tmp_path, monkeypatch):
+    db_file = tmp_path / "mig4.db"
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{db_file}")
+    get_settings.cache_clear()
+    root = Path(__file__).resolve().parents[1]
+    cfg = Config(str(root / "alembic.ini"))
+    cfg.set_main_option("script_location", str(root / "app" / "migrations"))
+    try:
+        command.upgrade(cfg, "0003")
+        eng = create_engine(f"sqlite:///{db_file}")
+        with eng.begin() as c:
+            c.execute(text("INSERT INTO users (id, email, password_hash, name, role, is_active, max_concurrent_jobs, max_video_minutes, created_at) VALUES (1,'a@x.com','x','','user',1,1,180,'2026-01-01')"))
+            c.execute(text("INSERT INTO brand_templates (id, user_id, name, preset, colors, fonts, intro, outro, sfx, created_at) VALUES (1,1,'m','editorial','{}','{}','{}','{}',1,'2026-01-01')"))
+        command.upgrade(cfg, "head")
+        with eng.begin() as c:
+            clip_cols = {r[1] for r in c.execute(text("PRAGMA table_info(clips)"))}
+            tpl_cols = {r[1] for r in c.execute(text("PRAGMA table_info(brand_templates)"))}
+            row = c.execute(text("SELECT cortinilla, cortinilla_default FROM brand_templates WHERE id = 1")).one()
+        assert "outro_enabled" not in clip_cols and "cortinilla_at" in clip_cols
+        assert {"cortinilla", "cortinilla_default"} <= tpl_cols and not {"intro", "outro"} & tpl_cols
+        assert tuple(row) == ("{}", 0)
+        command.downgrade(cfg, "0003")
+        with eng.begin() as c:
+            clip_cols = {r[1] for r in c.execute(text("PRAGMA table_info(clips)"))}
+        assert "outro_enabled" in clip_cols and "cortinilla_at" not in clip_cols
+    finally:
+        get_settings.cache_clear()

@@ -15,6 +15,7 @@ from app.db import get_db
 from app.jobs import queue
 from app.pipeline import ffops
 from app.services import clips as clips_service
+from app.services import cortinilla as cortinilla_service
 from app.services import media_sign, storage, transcription
 
 router = APIRouter(tags=["clips"])
@@ -43,7 +44,7 @@ class ClipOut(BaseModel):
     zoom: float
     top_ratio: float
     intro_enabled: bool
-    outro_enabled: bool
+    cortinilla_at: float | None
     status: str
     render_state: str
     has_draft: bool
@@ -58,7 +59,7 @@ def _out(c: Clip, render_job_id: int | None = None) -> ClipOut:
         id=c.id, project_id=c.project_id, start=c.start, end=c.end, duration=round(c.end - c.start, 3),
         title=c.title, reason=c.reason, score=c.score, transcript=c.transcript, hook=c.hook,
         emphasis=c.emphasis_json or [], parts=c.parts or [], layout=c.layout, focus=c.focus, zoom=c.zoom,
-        top_ratio=c.top_ratio, intro_enabled=c.intro_enabled, outro_enabled=c.outro_enabled,
+        top_ratio=c.top_ratio, intro_enabled=c.intro_enabled, cortinilla_at=c.cortinilla_at,
         status=c.status, render_state=c.render_state.value, has_draft=bool(c.draft_path),
         has_final=bool(c.rendered_path), render_error=c.render_error, render_job_id=render_job_id, created_at=c.created_at,
     )
@@ -78,7 +79,7 @@ class ClipPatch(BaseModel):
     zoom: float | None = Field(default=None, ge=1.0, le=3.0)
     top_ratio: float | None = Field(default=None, ge=0.2, le=0.9)
     intro_enabled: bool | None = None
-    outro_enabled: bool | None = None
+    cortinilla_at: float | None = Field(default=None, gt=0)
 
 
 class DetectIn(BaseModel):
@@ -146,9 +147,13 @@ def patch_clip(clip_id: int, body: ClipPatch, user: User = Depends(current_user)
             raise HTTPException(422, f"La duración debe estar entre {MIN_CLIP_SECONDS:.0f} y {MAX_CLIP_SECONDS:.0f} s")
         if project.duration and end > project.duration + 0.05:
             raise HTTPException(422, "El fin está fuera de la duración del vídeo")
+    if changes.get("cortinilla_at") is not None and changes["cortinilla_at"] > end - start - cortinilla_service.END_MARGIN:
+        raise HTTPException(422, "La cortinilla de inicio no puede entrar en el último segundo del clip")
     for field, value in changes.items():
         if value is not None:
             setattr(clip, field, value)
+    if ("start" in changes or "end" in changes) and "cortinilla_at" not in changes:
+        clip.cortinilla_at = None  # es relativa al inicio del clip: con otro recorte ya no apunta al mismo sitio
     if "start" in changes or "end" in changes:
         project = db.get(Project, clip.project_id)
         if project.words_path:

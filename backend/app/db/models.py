@@ -93,8 +93,9 @@ class BrandTemplate(Base):
     colors: Mapped[dict] = mapped_column(JSON, default=dict)
     fonts: Mapped[dict] = mapped_column(JSON, default=dict)
     logo_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    intro: Mapped[dict] = mapped_column(JSON, default=dict)
-    outro: Mapped[dict] = mapped_column(JSON, default=dict)
+    # Plantilla de cortinilla (inicio y final): título, antetítulo, color, asset que orbita, handle, texto de la final…
+    cortinilla: Mapped[dict] = mapped_column(JSON, default=dict)
+    cortinilla_default: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")  # valor inicial de `intro_enabled` en los clips nuevos
     sfx: Mapped[bool] = mapped_column(Boolean, default=True)
     music: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=_now())
@@ -143,10 +144,9 @@ class Clip(Base):
     # Partes tematicas del clip, una frase cada una (§4.1 del md).
     parts: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
     graphics_json: Mapped[list] = mapped_column(JSON, default=list)
-    # intro_enabled = cortinilla de inicio: opcional, apagada por defecto.
-    # outro_enabled se elimina en F6: la cortinilla final es siempre, sin interruptor.
+    # intro_enabled = cortinilla de inicio: opcional, apagada por defecto. La final es siempre, sin interruptor.
     intro_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
-    outro_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    cortinilla_at: Mapped[float | None] = mapped_column(Float, nullable=True)  # segundo del clip donde entra; None = automático
     template_id: Mapped[int | None] = mapped_column(
         ForeignKey("brand_templates.id", ondelete="SET NULL"), nullable=True
     )

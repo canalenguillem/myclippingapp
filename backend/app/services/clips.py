@@ -4,7 +4,7 @@ from __future__ import annotations
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app.db.models import Clip, Project, RenderState
+from app.db.models import BrandTemplate, Clip, Project, RenderState
 from app.services import storage
 from app.services.clip_detector import ClipCandidate
 
@@ -20,6 +20,8 @@ def replace_detected_clips(db: Session, project: Project, candidates: list[ClipC
     db.execute(delete(Clip).where(Clip.project_id == project.id, Clip.user_id == project.user_id, Clip.status == "detected"))
     kept = db.scalars(select(Clip).where(Clip.project_id == project.id, Clip.user_id == project.user_id)).all()
     inserted = skipped = 0
+    template = db.get(BrandTemplate, project.default_template_id) if project.default_template_id else None
+    intro_default = bool(template and template.user_id == project.user_id and template.cortinilla_default)
     for c in candidates:
         if any(_overlaps(c.start, c.end, k.start, k.end) for k in kept):
             skipped += 1
@@ -27,7 +29,7 @@ def replace_detected_clips(db: Session, project: Project, candidates: list[ClipC
         db.add(Clip(
             project_id=project.id, user_id=project.user_id, start=c.start, end=c.end, title=c.title,
             reason=c.reason, score=c.score, transcript=c.transcript, hook=c.hook, emphasis_json=c.emphasis,
-            parts=c.parts, template_id=project.default_template_id, channel_id=project.default_channel_id,
+            parts=c.parts, intro_enabled=intro_default, template_id=project.default_template_id, channel_id=project.default_channel_id,
         ))
         inserted += 1
     db.commit()
@@ -40,7 +42,7 @@ def text_between(words: list[dict], start: float, end: float) -> str:
 
 
 # Campos del clip que cambian el vídeo renderizado: editarlos deja obsoletos el borrador y el final.
-RENDER_AFFECTING = frozenset({"start", "end", "hook", "layout", "focus", "zoom", "top_ratio", "intro_enabled"})
+RENDER_AFFECTING = frozenset({"start", "end", "hook", "layout", "focus", "zoom", "top_ratio", "intro_enabled", "cortinilla_at"})
 
 
 def drop_render_files(clip: Clip) -> None:

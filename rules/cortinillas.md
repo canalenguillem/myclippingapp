@@ -6,3 +6,4 @@
 - La **cortinilla final es siempre**, sin interruptor. Su barrido tapa el último fotograma compuesto y no vuelve a destapar el clip.
 - Ninguna cortinilla pisa una palabra: la de inicio cae en un silencio tras una frase completa.
 - Todo lo posterior a la cortinilla de inicio se desplaza con un único mapa de tiempos: `t_salida = t_origen + Σ duración de las cortinillas anteriores`. Se calcula en un solo sitio.
+- La posición de la cortinilla de inicio se guarda en `clips.cortinilla_at` (segundo del clip, `NULL` = la elige el programador); al cambiar el recorte se resetea, porque es relativa al inicio. Los textos y colores de las cortinillas dependen del canal: viven en `brand_templates.cortinilla` y el usuario los edita en Plantillas.
