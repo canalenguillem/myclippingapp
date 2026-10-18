@@ -1,10 +1,12 @@
 // Render REAL de las capas de estilo, comprobado sobre píxeles. Se activa con FX_INTEGRATION=1.
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdirSync } from "node:fs";
 import { createServer } from "node:http";
 import { join } from "node:path";
 import { after, test } from "node:test";
 import { createApp } from "../../src/server.mjs";
-import { makeRedVideo, pixels, tmp } from "../helpers.mjs";
+import { makeRedVideo, pixels, probe, tmp } from "../helpers.mjs";
 
 const skip = process.env.FX_INTEGRATION !== "1" && "ponga FX_INTEGRATION=1 para ejecutar el render real";
 const servers = [];
@@ -33,6 +35,8 @@ const isCream = (r, g, b) => Math.abs(r - 243) < 26 && Math.abs(g - 238) < 26 &&
 // Las fibras de la textura oscurecen el crema hasta ~(217,213,201), por eso no se compara con un color exacto.
 const isPaper = (r, g, b) => r > 170 && g > 165 && b > 150 && b < 246 && r - g < 40;
 const isRed = (r, g, b) => r > 150 && g < 90 && b < 80;
+const isBlue = (r, g, b) => b > 150 && r < 90 && g < 110;
+const isGreen = (r, g, b) => g > 120 && r < 60 && b < 60;
 const isGray = (r, g, b) => Math.abs(r - g) < 30 && Math.abs(g - b) < 30;
 
 test("la banda tapa al 100 % las filas de los subtítulos quemados (con 10 px de margen)", { skip, timeout: 240000 }, async () => {
@@ -78,4 +82,37 @@ test("blanco y negro del clip citado, subtítulos, gancho y banda en color", { s
   const hookZone = (t) => pixels(out, t, { x: 80, y: 130, w: 920, h: 300 }).count((r, g, b) => r > 235 && g > 235 && b > 235);
   assert.ok(hookZone(1.0) >= 300, "gancho visible");
   assert.ok(hookZone(3.0) < 40, "gancho desaparece");
+});
+
+
+test("cortinilla de inicio: pausa el clip, tapa todo con el color de marca y reanuda", { skip, timeout: 240000 }, async () => {
+  const mediaDir = tmp("media-");
+  const src = join(mediaDir, "u1/p1/clip.mp4");
+  mkdirSync(join(src, ".."), { recursive: true });
+  // 2 s rojo + 2 s azul con audio: el rojo es el tramo 1 y el azul el 2 (la cortinilla entra en el segundo 2)
+  const r = spawnSync("ffmpeg", ["-y", "-v", "error",
+    "-f", "lavfi", "-i", "color=c=0xC03020:s=1080x1920:r=30:d=2", "-f", "lavfi", "-i", "color=c=0x2040C0:s=1080x1920:r=30:d=2",
+    "-f", "lavfi", "-i", "sine=frequency=440:duration=4",
+    "-filter_complex", "[0:v][1:v]concat=n=2:v=1:a=0[v]", "-map", "[v]", "-map", "2:a",
+    "-c:v", "libx264", "-pix_fmt", "yuv420p", "-g", "30", "-keyint_min", "30", "-c:a", "aac", "-shortest", src]);
+  assert.equal(r.status, 0, String(r.stderr));
+  const out = await render(mediaDir, {
+    video: "u1/p1/clip.mp4", output: "u1/p1/cort.mp4", duration: 4, quality: "draft",
+    cortinilla: { at: 2, duration: 3.6, color: "#00AA00" },
+    words: [{ text: "antes", start: 0.5, end: 1.0 }, { text: "despues", start: 2.6, end: 3.2 }],
+  });
+  const info = probe(out, "stream=codec_type:format=duration");
+  assert.ok(Math.abs(Number(info.format.duration) - 7.6) < 0.2, `duración ${info.format.duration}`);
+  const px = (t, x, y) => pixels(out, t, { x, y, w: 1, h: 1 }).at(0, 0);
+  assert.ok(isRed(...px(1.0, 540, 400)), `tramo 1 en rojo: ${px(1.0, 540, 400)}`);
+  assert.ok(isBlue(...px(7.0, 540, 400)), `tramo 2 en azul tras la cortinilla: ${px(7.0, 540, 400)}`);
+  // en pleno color de marca (entre los barridos): ni un píxel del clip en todo el fotograma
+  const mid = pixels(out, 3.8, {});
+  const leaked = mid.count((r, g, b) => isRed(r, g, b) || isBlue(r, g, b));
+  assert.equal(leaked, 0, `${leaked} píxeles del clip asoman bajo la cortinilla`);
+  assert.ok(isGreen(...px(3.8, 540, 960)) && isGreen(...px(3.8, 5, 5)) && isGreen(...px(3.8, 1075, 1915)), "color de marca a pantalla completa");
+  // subtítulos: la palabra de después de la cortinilla aparece a los 2,6 + 3,6 = 6,2 s, no antes
+  const ink = (t) => pixels(out, t, { x: 0, y: 915, w: 1080, h: 90 }).count((r, g, b) => (r < 90 && g < 90 && b < 90) || isRed(r, g, b)); // tinta o palabra activa en rojo
+  assert.ok(ink(6.4) >= 150, "«despues» se pinta tras la cortinilla");
+  assert.equal(ink(3.8), 0, "ningún subtítulo bajo la cortinilla");
 });

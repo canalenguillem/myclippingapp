@@ -1,16 +1,25 @@
 // Genera el proyecto HyperFrames de un render: index.html + medios, en un directorio de trabajo propio.
-import { copyFileSync, cpSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { copyFileSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import { bandLayer, ROOM } from "./layers/band.mjs";
 import { captionsLayer } from "./layers/captions.mjs";
+import { cortinillaLayer, SWEEP } from "./layers/cortinilla.mjs";
 import { hookLayer } from "./layers/hook.mjs";
 import { sourceIntervals, treatmentLayer } from "./layers/treatment.mjs";
 import { getPreset } from "./presets.mjs";
+import { makeTimeMap, mapIntervals } from "./timemap.mjs";
 
 const require = createRequire(import.meta.url);
 
 const assetPath = (spec) => require.resolve(spec);
+
+/** Un fotograma del clip vertical en `at` segundos, como PNG (el que se ve bajo los barridos de la cortinilla). */
+function extractFrame(video, at, out) {
+  const r = spawnSync("ffmpeg", ["-v", "error", "-y", "-ss", String(Math.max(0, at)), "-i", video, "-frames:v", "1", out]);
+  if (r.status !== 0) throw new Error(`ffmpeg no pudo extraer el fotograma en ${at} s: ${r.stderr}`);
+}
 
 /** `video` es la ruta ABSOLUTA ya resuelta (y comprobada) del clip vertical. */
 export function buildProject({ request, video, workDir }) {
@@ -26,9 +35,14 @@ export function buildProject({ request, video, workDir }) {
   const serifDir = join(assetPath("@fontsource/cormorant/package.json"), "..", "files");
   copyFileSync(join(serifDir, "cormorant-latin-600-italic.woff2"), join(workDir, "fonts", "cormorant-600i.woff2"));
 
-  const { duration, layout, words, speakers } = request;
+  const { duration, layout, speakers } = request;
   const preset = getPreset(request.preset);
-  const total = Number(duration.toFixed(3));
+  const C = request.cortinilla;
+  const map = makeTimeMap(C);
+  const total = map.total(duration);
+  // Todo lo posterior a la cortinilla se desplaza con el mapa de tiempos; las palabras no la cruzan (lo valida el contrato).
+  const words = request.words.map((w) => ({ ...w, start: map.out(w.start), end: map.out(w.end) }));
+  const sourceSpans = mapIntervals(sourceIntervals(request.words, speakers, duration), map);
 
   // Zona que la banda debe cubrir: la que pide el backend (subtítulos quemados, con 10 px de margen) o, si no, una
   // franja centrada en el corte entre el plano corto y la escena completa.
@@ -39,9 +53,26 @@ export function buildProject({ request, video, workDir }) {
     : { y0: clampRow(topH - 45), y1: clampRow(topH + 45) };
   const band = preset.band ? bandLayer({ core, paper: preset.paper }) : null;
   const center = (core.y0 + core.y1) / 2;
-  const captions = captionsLayer({ words, speakers, duration, preset, center, height: Math.max(90, core.y1 - core.y0) });
+  const captions = captionsLayer({ words, speakers, duration: total, preset, center, height: Math.max(90, core.y1 - core.y0), stops: C ? [C.at] : [] });
   const hook = request.hook ? hookLayer({ hook: request.hook, preset }) : null;
-  const treatment = treatmentLayer({ intervals: sourceIntervals(words, speakers, duration) });
+  const treatment = treatmentLayer({ intervals: sourceSpans });
+  const cortinilla = C ? cortinillaLayer(C) : null;
+
+  // Sin cortinilla, un solo vídeo. Con ella, dos tramos del mismo fichero y dos fotogramas congelados que se ven bajo
+  // los barridos: el último del tramo 1 al entrar y el primero del tramo 2 al salir.
+  let media;
+  if (C) {
+    const fps = request.fps;
+    extractFrame(join(workDir, "clip.mp4"), C.at - 1 / fps, join(workDir, "freezeA.png"));
+    extractFrame(join(workDir, "clip.mp4"), C.at, join(workDir, "freezeB.png"));
+    const resume = map.out(C.at);
+    media = `<video id="clipA" class="clip vid" src="clip.mp4" data-start="0" data-duration="${C.at}" data-media-start="0" data-track-index="0" data-has-audio="true" playsinline></video>
+    <img id="freezeA" class="clip vid" src="freezeA.png" data-start="${C.at}" data-duration="${SWEEP}" data-track-index="0"/>
+    <img id="freezeB" class="clip vid" src="freezeB.png" data-start="${Number((resume - SWEEP).toFixed(3))}" data-duration="${SWEEP}" data-track-index="0"/>
+    <video id="clipB" class="clip vid" src="clip.mp4" data-start="${resume}" data-duration="${Number((duration - C.at).toFixed(3))}" data-media-start="${C.at}" data-track-index="0" data-has-audio="true" playsinline></video>`;
+  } else {
+    media = `<video id="clip" class="clip vid" src="clip.mp4" data-start="0" data-duration="${total}" data-media-start="0" data-track-index="0" data-has-audio="true" playsinline></video>`;
+  }
 
   const html = `<!doctype html>
 <html lang="es"><head><meta charset="UTF-8"/><meta name="viewport" content="width=1080, height=1920"/>
@@ -57,19 +88,22 @@ html,body{width:1080px;height:1920px;overflow:hidden;background:#000}
 ${band?.css ?? ""}
 ${captions.css}
 ${hook?.css ?? ""}
+${cortinilla?.css ?? ""}
 </style></head>
 <body>
 <div id="root" data-composition-id="root" data-start="0" data-duration="${total}" data-width="1080" data-height="1920">
-  <div id="vwrap"><video id="clip" class="clip vid" src="clip.mp4" data-start="0" data-duration="${total}" data-media-start="0" data-track-index="0" data-has-audio="true" playsinline></video></div>
+  <div id="vwrap">${media}</div>
   ${band?.html ?? ""}
   ${captions.html}
   ${hook?.html ?? ""}
+  ${cortinilla?.html ?? ""}
 </div>
 <script>
 const tl = gsap.timeline({ paused: true });
 ${treatment.script}
 ${captions.script}
 ${hook?.script ?? ""}
+${cortinilla?.script ?? ""}
 tl.set({}, {}, ${total});
 window.__timelines = window.__timelines || {};
 window.__timelines["root"] = tl;

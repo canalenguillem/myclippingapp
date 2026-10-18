@@ -33,6 +33,15 @@ const speaker = z
   })
   .strict();
 
+// Cortinilla de inicio: se inserta en `at` (segundos del clip, sin cortinilla) y pausa el clip `duration` segundos.
+const cortinilla = z
+  .object({
+    at: z.number().positive(),
+    duration: z.number().min(1).max(10).default(3.6),
+    color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default("#DA2E09"),
+  })
+  .strict();
+
 export const renderRequest = z
   .object({
     video: relPath.refine((v) => v.endsWith(".mp4"), { message: "video debe ser .mp4" }),
@@ -58,8 +67,15 @@ export const renderRequest = z
       .strict()
       .optional(),
     preset: z.enum(["editorial", "hormozi", "minimal"]).default("editorial"),
+    cortinilla: cortinilla.optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((r, ctx) => {
+    if (!r.cortinilla) return;
+    const { at } = r.cortinilla;
+    if (at > r.duration - 1) ctx.addIssue({ code: "custom", path: ["cortinilla", "at"], message: "la cortinilla no puede entrar en el último segundo del clip" });
+    if (r.words.some((w) => w.start < at && w.end > at)) ctx.addIssue({ code: "custom", path: ["cortinilla", "at"], message: "la cortinilla no puede pisar una palabra" });
+  });
 
 /** Valida y devuelve la petición con los valores por defecto; lanza ContractError con los detalles. */
 export function parseRequest(input) {

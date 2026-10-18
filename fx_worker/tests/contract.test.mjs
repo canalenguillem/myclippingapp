@@ -73,3 +73,17 @@ test("band: filas válidas y límites", () => {
   assert.equal(parseRequest(base).band, undefined);
 });
 
+
+
+test("cortinilla: valores por defecto y validaciones", () => {
+  const base = { video: "a.mp4", output: "b.mp4", duration: 20, words: [{ text: "hola", start: 4, end: 4.6 }] };
+  const ok = parseRequest({ ...base, cortinilla: { at: 8 } });
+  assert.deepEqual(ok.cortinilla, { at: 8, duration: 3.6, color: "#DA2E09" });
+  assert.equal(parseRequest(base).cortinilla, undefined);
+  assert.throws(() => parseRequest({ ...base, cortinilla: { at: 19.5 } }), /último segundo/);
+  assert.throws(() => parseRequest({ ...base, cortinilla: { at: 4.3 } }), /pisar una palabra/);
+  assert.throws(() => parseRequest({ ...base, cortinilla: { at: 0 } }), ContractError);
+  assert.throws(() => parseRequest({ ...base, cortinilla: { at: 8, color: "rojo" } }), ContractError);
+  assert.throws(() => parseRequest({ ...base, cortinilla: { at: 8, duration: 30 } }), ContractError);
+  assert.throws(() => parseRequest({ ...base, cortinilla: { at: 8, otra: 1 } }), ContractError);
+});

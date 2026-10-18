@@ -46,7 +46,7 @@ export function fitFontSize(text, style, base) {
 
 const fmt = (n) => Number(n.toFixed(3));
 
-export function captionsLayer({ words, speakers, duration, preset, center, height }) {
+export function captionsLayer({ words, speakers, duration, preset, center, height, stops = [] }) {
   const groups = groupPhrases(words, duration);
   const inactive = `rgba(${preset.ink === "#1D1A17" ? "29,26,23" : "255,255,255"},${preset.inactiveAlpha})`;
   const html = groups
@@ -74,7 +74,8 @@ export function captionsLayer({ words, speakers, duration, preset, center, heigh
       const next = groups[gi + 1];
       const last = g[g.length - 1];
       const show = fmt(Math.max(0, g[0].start - 0.04));
-      const hideAt = Math.min(duration, last.end + 0.25, next ? Math.max(last.end, next[0].start - 0.04) : Infinity);
+      const stop = stops.find((t) => t >= last.end - 1e-6) ?? Infinity; // p. ej. el inicio de una cortinilla: la frase no la cruza
+      const hideAt = Math.min(duration, last.end + 0.25, next ? Math.max(last.end, next[0].start - 0.04) : Infinity, stop);
       const perWord = g
         .map((w, wi) => {
           const nextStart = g[wi + 1]?.start ?? w.end;

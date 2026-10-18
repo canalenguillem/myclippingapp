@@ -116,3 +116,44 @@ test("todas las combinaciones de capas pasan el linter de HyperFrames", async ()
   }
 });
 
+
+
+test("con cortinilla: dos tramos del clip, fotogramas congelados, duración total y palabras desplazadas", async () => {
+  const dir = tmp();
+  const video = makeVideo(join(dir, "src.mp4"), 6);
+  const request = parseRequest({
+    video: "a.mp4", output: "b.mp4", duration: 6, cortinilla: { at: 3, duration: 3.6 },
+    words: [{ text: "antes", start: 1, end: 1.4 }, { text: "despues", start: 3.5, end: 4 }],
+  });
+  const work = join(dir, "work");
+  const r = buildProject({ request, video, workDir: work });
+  const html = readFileSync(join(work, "index.html"), "utf8");
+  assert.equal(r.total, 9.6);
+  assert.match(html, /id="clipA"[^>]*data-start="0" data-duration="3" data-media-start="0"/);
+  assert.match(html, /id="clipB"[^>]*data-start="6.6" data-duration="3" data-media-start="3"/);
+  assert.match(html, /id="freezeA"[^>]*data-start="3" data-duration="0.42"/);
+  assert.match(html, /id="freezeB"[^>]*data-start="6.18" data-duration="0.42"/);
+  assert.match(html, /id="cort" class="clip" data-start="3" data-duration="3.6"/);
+  assert.ok(html.includes('data-duration="9.6" data-width="1080"') && html.includes("tl.set({}, {}, 9.6)"));
+  for (const f of ["freezeA.png", "freezeB.png"]) assert.ok(existsSync(join(work, f)), f);
+  assert.ok(html.includes('tl.set("#w1_0",{color:"#DA2E09"},7.1)'), "«despues» (3,5 s del clip) suena a los 7,1 s de salida");
+  assert.ok(!html.includes('id="clip"'), "con cortinilla no hay un único vídeo");
+  const ids = [...html.matchAll(/ id="([^"]+)"/g)].map((m) => m[1]);
+  assert.equal(new Set(ids).size, ids.length, "ids duplicados");
+  assert.equal((await checkProject(work)).totalErrors, 0);
+});
+
+test("la frase anterior a la cortinilla se oculta al empezar y el blanco y negro no la cruza", () => {
+  const dir = tmp();
+  const video = makeVideo(join(dir, "src.mp4"), 6);
+  const request = parseRequest({
+    video: "a.mp4", output: "b.mp4", duration: 6, cortinilla: { at: 2.1, duration: 3.6 },
+    speakers: { B: { caption_style: "serif_italic", is_source: true } },
+    words: [{ text: "cita", start: 1.0, end: 2.0, speaker: "B" }, { text: "larga", start: 2.2, end: 3.0, speaker: "B" }],
+  });
+  const work = join(dir, "work");
+  buildProject({ request, video, workDir: work });
+  const html = readFileSync(join(work, "index.html"), "utf8");
+  assert.ok(html.includes('tl.set("#p0",{opacity:0},2.1)'), "la frase 0 se oculta cuando entra la cortinilla (no a los 2,25 s)");
+  assert.equal((html.match(/grayscale\(1\)/g) ?? []).length, 2, "el tramo en B/N se parte en dos, sin cubrir la cortinilla");
+});
