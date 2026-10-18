@@ -1,0 +1,66 @@
+// Efectos de sonido sintetizados (§10 del md): sin bancos de sonido de terceros y deterministas (misma semilla, mismos
+// bytes). Mono, 16 bits, 48 kHz. Los niveles son bajos a propósito: los efectos van SIEMPRE por debajo de la voz.
+import { mulberry32 } from "./rng.mjs";
+
+export const SAMPLE_RATE = 48000;
+const PEAK = 0.5; // pico del fichero; el volumen final lo fija `data-volume` en la composición
+
+/** Cabecera RIFF/WAVE de PCM de 16 bits, mono. */
+function wav(samples) {
+  const data = Buffer.alloc(samples.length * 2);
+  for (let i = 0; i < samples.length; i++) data.writeInt16LE(Math.max(-32768, Math.min(32767, Math.round(samples[i] * 32767))), i * 2);
+  const head = Buffer.alloc(44);
+  head.write("RIFF", 0);
+  head.writeUInt32LE(36 + data.length, 4);
+  head.write("WAVEfmt ", 8);
+  head.writeUInt32LE(16, 16);
+  head.writeUInt16LE(1, 20); // PCM
+  head.writeUInt16LE(1, 22); // mono
+  head.writeUInt32LE(SAMPLE_RATE, 24);
+  head.writeUInt32LE(SAMPLE_RATE * 2, 28);
+  head.writeUInt16LE(2, 32);
+  head.writeUInt16LE(16, 34);
+  head.write("data", 36);
+  head.writeUInt32LE(data.length, 40);
+  return Buffer.concat([head, data]);
+}
+
+/** Filtro de paso banda de variable de estado (Chamberlin) con frecuencia central variable en el tiempo. */
+function bandpassNoise(count, seed, centerAt, q) {
+  const rand = mulberry32(seed);
+  const out = new Float64Array(count);
+  let low = 0;
+  let band = 0;
+  for (let i = 0; i < count; i++) {
+    const noise = rand() * 2 - 1;
+    const f = 2 * Math.sin((Math.PI * Math.min(centerAt(i / count), SAMPLE_RATE / 6)) / SAMPLE_RATE);
+    low += f * band;
+    const high = noise - low - band / q;
+    band += f * high;
+    out[i] = band;
+  }
+  return out;
+}
+
+function shape(samples, envelope) {
+  let peak = 1e-9;
+  for (let i = 0; i < samples.length; i++) {
+    samples[i] *= envelope(i / samples.length);
+    peak = Math.max(peak, Math.abs(samples[i]));
+  }
+  for (let i = 0; i < samples.length; i++) samples[i] = (samples[i] / peak) * PEAK;
+  return samples;
+}
+
+/** Whoosh: ruido con paso banda que barre de 400 a 6000 Hz (sube) o de 6000 a 400 Hz (baja); envolvente sen^1,5. */
+export function whooshWav({ seconds = 0.6, rising = true, seed = 1 } = {}) {
+  const [a, b] = rising ? [400, 6000] : [6000, 400];
+  const samples = bandpassNoise(Math.round(seconds * SAMPLE_RATE), seed, (p) => a * Math.pow(b / a, p), 2.5);
+  return wav(shape(samples, (p) => Math.pow(Math.sin(Math.PI * p), 1.5)));
+}
+
+/** Brillo del trazo: ruido agudo (3–9 kHz) muy tenue mientras se dibuja una línea; entra y sale suave. */
+export function shimmerWav({ seconds = 0.95, seed = 7 } = {}) {
+  const samples = bandpassNoise(Math.round(seconds * SAMPLE_RATE), seed, () => 5500, 0.9);
+  return wav(shape(samples, (p) => Math.sin(Math.PI * p)));
+}

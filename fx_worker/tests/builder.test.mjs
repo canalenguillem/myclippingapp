@@ -209,3 +209,27 @@ test("con cortinilla final: el clip acaba donde empieza, fotograma congelado baj
   const html3 = readFileSync(join(buildProject({ request: parseRequest({ video: "a.mp4", output: "b.mp4", duration: 6 }), video, workDir: join(dir, "w3") }).projectDir, "index.html"), "utf8");
   assert.ok(!html3.includes('id="outro"') && !html3.includes("freezeEnd"));
 });
+
+
+test("efectos de sonido: whoosh en cada barrido y brillo en la píldora, con id, por debajo de la voz y sin red", async () => {
+  const dir = tmp();
+  const video = makeVideo(join(dir, "src.mp4"), 6);
+  const req = (extra) => parseRequest({ video: "a.mp4", output: "b.mp4", duration: 6, cortinilla: { at: 3, duration: 3.6 }, outro: {}, ...extra });
+  const work = join(dir, "work");
+  buildProject({ request: req({}), video, workDir: work });
+  const html = readFileSync(join(work, "index.html"), "utf8");
+  assert.match(html, /<audio id="sfxIn" src="sfx\/whoosh_up.wav" data-start="3" data-duration="0.42" data-volume="0.3">/);
+  assert.match(html, /<audio id="sfxShimmer" src="sfx\/shimmer.wav" data-start="3.55" data-duration="0.95" data-volume="0.08">/);
+  assert.match(html, /<audio id="sfxOut" src="sfx\/whoosh_down.wav" data-start="6.18" data-duration="0.42" data-volume="0.3">/);
+  assert.match(html, /<audio id="sfxEnd" src="sfx\/whoosh_end.wav" data-start="9.6" data-duration="0.42" data-volume="0.3">/);
+  for (const f of ["whoosh_up.wav", "whoosh_down.wav", "shimmer.wav", "whoosh_end.wav"]) assert.ok(existsSync(join(work, "sfx", f)), f);
+  assert.equal((await checkProject(work)).totalErrors, 0);
+  // sfx: false → ni ficheros ni elementos <audio>
+  const work2 = join(dir, "work2");
+  buildProject({ request: req({ sfx: false }), video, workDir: work2 });
+  assert.ok(!readFileSync(join(work2, "index.html"), "utf8").includes("<audio") && !existsSync(join(work2, "sfx")));
+  // sin cortinillas tampoco hay efectos
+  const work3 = join(dir, "work3");
+  buildProject({ request: parseRequest({ video: "a.mp4", output: "b.mp4", duration: 6 }), video, workDir: work3 });
+  assert.ok(!readFileSync(join(work3, "index.html"), "utf8").includes("<audio"));
+});

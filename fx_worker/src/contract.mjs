@@ -87,6 +87,7 @@ export const renderRequest = z
     preset: z.enum(["editorial", "hormozi", "minimal"]).default("editorial"),
     cortinilla: cortinilla.optional(),
     outro: outro.optional(),
+    sfx: z.boolean().default(true), // whoosh en cada barrido y brillo mientras se dibuja la píldora
   })
   .strict()
   .superRefine((r, ctx) => {

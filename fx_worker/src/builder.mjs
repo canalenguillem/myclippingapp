@@ -10,6 +10,7 @@ import { hookLayer } from "./layers/hook.mjs";
 import { outroLayer } from "./layers/outro.mjs";
 import { sourceIntervals, treatmentLayer } from "./layers/treatment.mjs";
 import { getPreset } from "./presets.mjs";
+import { shimmerWav, whooshWav } from "./sfx.mjs";
 import { makeTimeMap, mapIntervals } from "./timemap.mjs";
 
 const require = createRequire(import.meta.url);
@@ -73,6 +74,28 @@ export function buildProject({ request, video, workDir, orbit = null }) {
   // los barridos: el último del tramo 1 al entrar y el primero del tramo 2 al salir.
   if (O) extractFrame(join(workDir, "clip.mp4"), duration - 1 / request.fps, join(workDir, "freezeEnd.png"));
   const endImg = O ? `\n    <img id="freezeEnd" class="clip vid" src="freezeEnd.png" data-start="${clipEnd}" data-duration="${SWEEP}" data-track-index="0"/>` : "";
+  // Efectos: whoosh en cada barrido (sube al entrar y baja al salir) y brillo mientras se dibuja la píldora. Van muy por
+  // debajo de la voz (0,30 y 0,08 de volumen), y los cortes caen en silencios, así que no se pisa ninguna palabra.
+  const sfx = [];
+  if (request.sfx && (C || O)) {
+    mkdirSync(join(workDir, "sfx"), { recursive: true });
+    const put = (name, buf) => writeFileSync(join(workDir, "sfx", name), buf);
+    const track = (id, file, start, seconds, volume) =>
+      sfx.push(`<audio id="${id}" src="sfx/${file}" data-start="${Number(start.toFixed(3))}" data-duration="${seconds}" data-volume="${volume}"></audio>`);
+    if (C) {
+      const k = Math.min(1, C.duration / 3.6);
+      put("whoosh_up.wav", whooshWav({ seconds: SWEEP, rising: true, seed: 11 }));
+      put("whoosh_down.wav", whooshWav({ seconds: SWEEP, rising: false, seed: 12 }));
+      put("shimmer.wav", shimmerWav({ seconds: Number((0.95 * k).toFixed(3)), seed: 7 }));
+      track("sfxIn", "whoosh_up.wav", C.at, SWEEP, 0.3);
+      track("sfxShimmer", "shimmer.wav", C.at + 0.55 * k, Number((0.95 * k).toFixed(3)), 0.08);
+      track("sfxOut", "whoosh_down.wav", C.at + C.duration - SWEEP, SWEEP, 0.3);
+    }
+    if (O) {
+      put("whoosh_end.wav", whooshWav({ seconds: SWEEP, rising: true, seed: 13 }));
+      track("sfxEnd", "whoosh_end.wav", clipEnd, SWEEP, 0.3);
+    }
+  }
   let media;
   if (C) {
     const fps = request.fps;
@@ -113,6 +136,7 @@ ${outro?.css ?? ""}
   ${hook?.html ?? ""}
   ${cortinilla?.html ?? ""}
   ${outro?.html ?? ""}
+  ${sfx.join("\n  ")}
 </div>
 <script>
 const tl = gsap.timeline({ paused: true });

@@ -6,7 +6,7 @@ import { createServer } from "node:http";
 import { join } from "node:path";
 import { after, test } from "node:test";
 import { createApp } from "../../src/server.mjs";
-import { makeRedVideo, pixels, probe, tmp } from "../helpers.mjs";
+import { makeRedVideo, pixels, probe, rmsDb, tmp } from "../helpers.mjs";
 
 const skip = process.env.FX_INTEGRATION !== "1" && "ponga FX_INTEGRATION=1 para ejecutar el render real";
 const servers = [];
@@ -157,4 +157,24 @@ test("cortinilla final: tapa el último fotograma, termina en el color de marca 
   assert.ok(white(5.0, { x: 100, y: 620, w: 880, h: 300 }) >= 400, "llamada a la acción visible");
   const cream = pixels(out, 5.0, { x: 100, y: 1100, w: 880, h: 200 }).count((r, g, b) => Math.abs(r - 243) < 12 && Math.abs(g - 238) < 12 && Math.abs(b - 226) < 14);
   assert.ok(cream >= 5000, `botones crema visibles (${cream} px)`);
+});
+
+
+test("efectos de sonido: suenan en los barridos, por debajo de la voz, y no pisan el clip", { skip, timeout: 240000 }, async () => {
+  const mediaDir = tmp("media-");
+  makeRedVideo(join(mediaDir, "u1/p1/clip.mp4"), 4);   // pitido continuo de 440 Hz como «voz»
+  const base = { video: "u1/p1/clip.mp4", duration: 4, quality: "draft", cortinilla: { at: 2, duration: 3.6, color: "#2040C0" }, outro: { color: "#2040C0" } };
+  const withSfx = await render(mediaDir, { ...base, output: "u1/p1/sfx.mp4" });
+  const without = await render(mediaDir, { ...base, output: "u1/p1/nosfx.mp4", sfx: false });
+  const voice = rmsDb(withSfx, 0.5, 1.0);
+  assert.ok(voice > -30, `la «voz» suena: ${voice} dB`);
+  assert.ok(rmsDb(without, 2.1, 0.3) < -80, "sin efectos la cortinilla es silencio");
+  const whoosh = rmsDb(withSfx, 2.0, 0.42);
+  assert.ok(whoosh > -50 && whoosh < voice - 6, `whoosh audible pero 6 dB o más por debajo de la voz: ${whoosh} vs ${voice} dB`);
+  assert.ok(rmsDb(withSfx, 2.7, 0.7) > -70 && rmsDb(without, 2.7, 0.7) < -80, "brillo mientras se dibuja la píldora (2,55–3,5 s)");
+  assert.ok(rmsDb(withSfx, 5.2, 0.4) > -50, "whoosh de salida de la cortinilla de inicio");
+  assert.ok(rmsDb(withSfx, 7.6, 0.4) > -50 && rmsDb(without, 7.6, 0.4) < -80, "whoosh de la cortinilla final");
+  // el clip no se ve afectado: la «voz» del tramo 1 y la del tramo 2 son idénticas con y sin efectos
+  assert.ok(Math.abs(rmsDb(withSfx, 0.5, 1.0) - rmsDb(without, 0.5, 1.0)) < 0.3, "tramo 1 igual");
+  assert.ok(Math.abs(rmsDb(withSfx, 6.3, 0.8) - rmsDb(without, 6.3, 0.8)) < 0.3, "tramo 2 igual");
 });

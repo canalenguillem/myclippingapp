@@ -59,3 +59,11 @@ export function pixels(path, t, { x = 0, y = 0, w = 1080, h = 1920 } = {}) {
     },
   };
 }
+
+/** Nivel RMS (dBFS) del audio de `path` entre `t` y `t + d` segundos. */
+export function rmsDb(path, t, d) {
+  const r = spawnSync("ffmpeg", ["-v", "info", "-ss", String(t), "-t", String(d), "-i", path, "-vn", "-af", "astats=measure_perchannel=none:measure_overall=RMS_level", "-f", "null", "-"], { encoding: "utf8" });
+  const m = r.stderr.match(/RMS level dB:\s*(-?[\d.]+|-inf)/);
+  if (!m) throw new Error(`sin nivel de audio: ${r.stderr}`);
+  return m[1] === "-inf" ? -120 : Number(m[1]);
+}
