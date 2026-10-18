@@ -373,3 +373,26 @@ def test_fallback_says_that_cortinillas_were_left_out(client, tmp_path, monkeypa
     with_silences(e, SILENCE)
     run_job(e)
     assert "sin cortinillas" in e.clip.render_error and e.clip.render_error.startswith("Aviso:")
+
+
+def test_graphics_are_scheduled_and_sent_to_the_service(client, tmp_path, monkeypatch, source_file):
+    e = setup(client, tmp_path, monkeypatch, source_file, intro_enabled=True)
+    with_silences(e, SILENCE)  # cortinilla de inicio a 5,5 s del clip
+    e.clip.graphics_json = [{"type": "keyword", "at": 3.0, "text": "Indultos"},
+                            {"type": "keyword", "at": 5.0, "text": "Pisa la cortinilla"},   # ventana 4,5–7,0 cruza los 5,5 s: se recorta
+                            {"type": "keyword", "at": 1.0, "text": "Choca con el gancho"},
+                            {"type": "foo", "at": 4.0}]
+    e.db.commit()
+    run_job(e)
+    sent = e.fx.requests[0]["graphics"]
+    assert [(g["text"], g["at"]) for g in sent] == [("Indultos", 3.0), ("Pisa la cortinilla", 5.0)] or [g["text"] for g in sent] == ["Indultos"]
+    assert all(g["lead"] >= 0.3 for g in sent)
+    text = log(e)
+    assert "Gráfico descartado (choca con el gancho)" in text and "motivo desconocido" in text
+    assert e.clip.render_state is RenderState.DRAFT
+
+
+def test_no_graphics_means_no_graphics_key(client, tmp_path, monkeypatch, source_file):
+    e = setup(client, tmp_path, monkeypatch, source_file)
+    run_job(e)
+    assert "graphics" not in e.fx.requests[0]

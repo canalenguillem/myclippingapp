@@ -64,3 +64,16 @@ export function shimmerWav({ seconds = 0.95, seed = 7 } = {}) {
   const samples = bandpassNoise(Math.round(seconds * SAMPLE_RATE), seed, () => 5500, 0.9);
   return wav(shape(samples, (p) => Math.sin(Math.PI * p)));
 }
+
+/** Pop: seno con una leve caída de tono y decaimiento de ~25 ms (§10 del md). */
+export function popWav({ seconds = 0.12 } = {}) {
+  const n = Math.round(seconds * SAMPLE_RATE);
+  const out = new Float64Array(n);
+  let phase = 0;
+  for (let i = 0; i < n; i++) {
+    const t = i / SAMPLE_RATE;
+    phase += (2 * Math.PI * (900 - 3500 * t)) / SAMPLE_RATE; // de 900 Hz hacia abajo
+    out[i] = Math.sin(phase) * Math.exp(-t / 0.025);
+  }
+  return wav(shape(out, () => 1));
+}

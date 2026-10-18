@@ -178,3 +178,24 @@ test("efectos de sonido: suenan en los barridos, por debajo de la voz, y no pisa
   assert.ok(Math.abs(rmsDb(withSfx, 0.5, 1.0) - rmsDb(without, 0.5, 1.0)) < 0.3, "tramo 1 igual");
   assert.ok(Math.abs(rmsDb(withSfx, 6.3, 0.8) - rmsDb(without, 6.3, 0.8)) < 0.3, "tramo 2 igual");
 });
+
+test("gráficos: la tarjeta entra en su ventana, no antes ni después, y se desplaza con la cortinilla de inicio", { skip, timeout: 240000 }, async () => {
+  const mediaDir = tmp("media-");
+  makeRedVideo(join(mediaDir, "u1/p1/clip.mp4"), 8);
+  const out = await render(mediaDir, {
+    video: "u1/p1/clip.mp4", output: "u1/p1/gfx.mp4", duration: 8, quality: "draft",
+    cortinilla: { at: 4, duration: 3.6, color: "#2040C0" },
+    graphics: [{ type: "keyword", at: 2, text: "Indultos" }, { type: "keyword", at: 6, text: "España" }],
+  });
+  const px = (t, x, y) => pixels(out, t, { x, y, w: 1, h: 1 }).at(0, 0);
+  const card = (t) => isCream(...px(t, 700, 625));
+  assert.ok(!card(1.0), "antes de la ventana (entra a 1,5 s) se ve el vídeo");
+  assert.ok(card(2.4) && card(3.4), "tarjeta visible mientras dura");
+  assert.ok(!card(8.5), "tras reanudar el clip (7,6 s) y antes del segundo gráfico se ve el vídeo");
+  assert.ok(card(9.8), "el segundo gráfico (ancla a 6 s del clip) sale a 9,6 s: 6 + 3,6 de la cortinilla");
+  const info = probe(out, "format=duration");
+  assert.ok(Math.abs(Number(info.format.duration) - 11.6) < 0.2);
+  // texto de la tarjeta: tinta oscura en el centro
+  const ink = pixels(out, 2.6, { x: 340, y: 690, w: 400, h: 100 }).count((r, g, b) => r < 90 && g < 90 && b < 90);
+  assert.ok(ink >= 300, `texto «INDULTOS» visible (${ink} px)`);
+});

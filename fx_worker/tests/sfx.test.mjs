@@ -43,3 +43,14 @@ test("el brillo es agudo (muchos más cruces por cero que un whoosh grave)", () 
   const lowStart = samples(whooshWav({ rising: true })).slice(0, 8000);
   assert.ok(zcr(shimmer) > 3 * zcr(lowStart));
 });
+
+import { popWav } from "../src/sfx.mjs";
+
+test("pop: breve, con pico acotado y decae enseguida", () => {
+  const xs = samples(popWav());
+  assert.equal(xs.length, 0.12 * SAMPLE_RATE);
+  assert.ok(Math.max(...xs.map(Math.abs)) <= 0.55);
+  const head = Math.max(...xs.slice(0, 400).map(Math.abs));
+  const tail = Math.max(...xs.slice(-1000).map(Math.abs));
+  assert.ok(head > 0.3 && tail < 0.1 * head, `${head} ${tail}`);
+});

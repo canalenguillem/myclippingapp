@@ -6,11 +6,12 @@ import { extname, join } from "node:path";
 import { bandLayer, ROOM } from "./layers/band.mjs";
 import { captionsLayer } from "./layers/captions.mjs";
 import { cortinillaLayer, SWEEP } from "./layers/cortinilla.mjs";
+import { graphicsLayer } from "./layers/graphics.mjs";
 import { hookLayer } from "./layers/hook.mjs";
 import { outroLayer } from "./layers/outro.mjs";
 import { sourceIntervals, treatmentLayer } from "./layers/treatment.mjs";
 import { getPreset } from "./presets.mjs";
-import { shimmerWav, whooshWav } from "./sfx.mjs";
+import { popWav, shimmerWav, whooshWav } from "./sfx.mjs";
 import { makeTimeMap, mapIntervals } from "./timemap.mjs";
 
 const require = createRequire(import.meta.url);
@@ -61,6 +62,7 @@ export function buildProject({ request, video, workDir, orbit = null }) {
   const center = (core.y0 + core.y1) / 2;
   const captions = captionsLayer({ words, speakers, duration: total, preset, center, height: Math.max(90, core.y1 - core.y0), stops: C ? [C.at] : [] });
   const hook = request.hook ? hookLayer({ hook: request.hook, preset }) : null;
+  const graphics = graphicsLayer({ items: request.graphics, map, clipDuration: duration });
   const treatment = treatmentLayer({ intervals: sourceSpans });
   let orbitFile = null;
   if (C && orbit) {
@@ -77,11 +79,15 @@ export function buildProject({ request, video, workDir, orbit = null }) {
   // Efectos: whoosh en cada barrido (sube al entrar y baja al salir) y brillo mientras se dibuja la píldora. Van muy por
   // debajo de la voz (0,30 y 0,08 de volumen), y los cortes caen en silencios, así que no se pisa ninguna palabra.
   const sfx = [];
-  if (request.sfx && (C || O)) {
+  if (request.sfx && (C || O || graphics.sfx.length)) {
     mkdirSync(join(workDir, "sfx"), { recursive: true });
     const put = (name, buf) => writeFileSync(join(workDir, "sfx", name), buf);
     const track = (id, file, start, seconds, volume) =>
       sfx.push(`<audio id="${id}" src="sfx/${file}" data-start="${Number(start.toFixed(3))}" data-duration="${seconds}" data-volume="${volume}"></audio>`);
+    if (graphics.sfx.length) {
+      put("pop.wav", popWav());
+      for (const g of graphics.sfx) track(`sfx${g.id}`, "pop.wav", g.at, 0.12, 0.3);
+    }
     if (C) {
       const k = Math.min(1, C.duration / 3.6);
       put("whoosh_up.wav", whooshWav({ seconds: SWEEP, rising: true, seed: 11 }));
@@ -125,6 +131,7 @@ html,body{width:1080px;height:1920px;overflow:hidden;background:#000}
 ${band?.css ?? ""}
 ${captions.css}
 ${hook?.css ?? ""}
+${graphics.css}
 ${cortinilla?.css ?? ""}
 ${outro?.css ?? ""}
 </style></head>
@@ -134,6 +141,7 @@ ${outro?.css ?? ""}
   ${band?.html ?? ""}
   ${captions.html}
   ${hook?.html ?? ""}
+  ${graphics.html}
   ${cortinilla?.html ?? ""}
   ${outro?.html ?? ""}
   ${sfx.join("\n  ")}
@@ -143,6 +151,7 @@ const tl = gsap.timeline({ paused: true });
 ${treatment.script}
 ${captions.script}
 ${hook?.script ?? ""}
+${graphics.script}
 ${cortinilla?.script ?? ""}
 ${outro?.script ?? ""}
 tl.set({}, {}, ${total});

@@ -16,7 +16,7 @@ from app.pipeline import analysis as analysis_mod
 from app.pipeline import ass_fallback, ffops, vertical
 from app.services import clips as clips_service
 from app.services import cortinilla as cortinilla_service
-from app.services import fx_request, silences as silences_mod, storage, transcription
+from app.services import fx_request, graphics_schedule, silences as silences_mod, storage, transcription
 from app.services.fx_client import FxError, make_fx_client
 
 from .context import Cancelled, JobContext
@@ -150,12 +150,16 @@ def render(ctx: JobContext, payload: dict) -> None:
         colors = template.colors if template else {}
         start_params = fx_request.cortinilla_params(config, colors, at=at, orbit=_orbit_path(template)) if at is not None else None
         end_params = fx_request.outro_params(config, colors)
+        # Gráficos ligados a la transcripción: el programador deja solo los que caben (sin cruzar la cortinilla ni el gancho).
+        plan = graphics_schedule.schedule(clip.graphics_json, duration, cortinilla_at=at)
+        for d in plan.dropped:
+            ctx.log(f"Gráfico descartado ({d['reason']}): {d['beat'].get('type')} «{d['beat'].get('text', '')}» a {d['beat'].get('at')} s")
         out_total = duration + (start_params["duration"] if start_params else 0.0) + end_params["duration"]
         ctx.log(f"Cortinillas: inicio {'a los %.1f s del clip' % at if at is not None else 'no'}, final {end_params['duration']:.1f} s → vídeo de {out_total:.1f} s")
         request = fx_request.build_fx_request(
             video=storage.rel(vertical_path), output=storage.rel(target if not draft else fx_full), quality=quality,
             duration=duration, top_ratio=clip.top_ratio, words=words, speakers=project.speakers, hook=clip.hook,
-            preset=preset, band=band, cortinilla=start_params, outro=end_params, sfx=bool(template.sfx) if template else True,
+            preset=preset, band=band, cortinilla=start_params, outro=end_params, graphics=plan.beats, sfx=bool(template.sfx) if template else True,
         )
 
         client = make_fx_client()

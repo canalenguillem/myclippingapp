@@ -60,6 +60,13 @@ const outro = z
   })
   .strict();
 
+// Gráficos ligados a la transcripción. `at` es el inicio de la palabra gancho (segundos del clip sin cortinillas); el gráfico
+// entra `lead` s antes y vive `duration` s en total (2–4 s en la práctica; el programador del backend lo impone).
+const graphicBase = { at: z.number().min(0), lead: z.number().min(0).max(1).default(0.5), duration: z.number().min(1).max(6).default(2.5) };
+const graphic = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("keyword"), ...graphicBase, text: z.string().trim().min(1).max(40) }).strict(),
+]);
+
 export const renderRequest = z
   .object({
     video: relPath.refine((v) => v.endsWith(".mp4"), { message: "video debe ser .mp4" }),
@@ -87,10 +94,19 @@ export const renderRequest = z
     preset: z.enum(["editorial", "hormozi", "minimal"]).default("editorial"),
     cortinilla: cortinilla.optional(),
     outro: outro.optional(),
+    graphics: z.array(graphic).max(60).default([]),
     sfx: z.boolean().default(true), // whoosh en cada barrido y brillo mientras se dibuja la píldora
   })
   .strict()
   .superRefine((r, ctx) => {
+    r.graphics.forEach((g, i) => {
+      const start = Math.max(0, g.at - g.lead);
+      const end = Math.min(r.duration, start + g.duration);
+      const path = ["graphics", i, "at"];
+      if (g.at > r.duration) ctx.addIssue({ code: "custom", path, message: "el gráfico se ancla fuera del clip" });
+      if (r.cortinilla && start < r.cortinilla.at && end > r.cortinilla.at)
+        ctx.addIssue({ code: "custom", path, message: "un gráfico no puede cruzar la cortinilla de inicio" });
+    });
     if (!r.cortinilla) return;
     const { at } = r.cortinilla;
     if (at > r.duration - 1) ctx.addIssue({ code: "custom", path: ["cortinilla", "at"], message: "la cortinilla no puede entrar en el último segundo del clip" });

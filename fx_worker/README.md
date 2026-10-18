@@ -73,3 +73,7 @@ npm run test:integration    # render real con Chrome; tarda ~10 s
 ## Vista previa de plantillas
 
 `POST /previews` con `{cortinilla, outro}` (sin `at` ni `orbit`) devuelve `{html, duration}`: un HTML autocontenido (gsap y fuentes en línea) con un clip de relleno, la cortinilla de inicio a 1,2 s y la final, con las mismas capas que el render real. El navegador lo reproduce con `<hyperframes-player srcdoc>` sin renderizar nada. No ocupa el carril de render.
+
+## Gráficos ligados a la transcripción (`graphics`)
+
+Cada gráfico es `{type, at, lead, duration, ...parámetros}`: `at` es el inicio de la palabra gancho (segundos del clip sin cortinillas), entra `lead` s antes y vive `duration` s en total. Pasan por el mapa de tiempos; el contrato rechaza uno que cruce la cortinilla de inicio (el programador del backend, `graphics_schedule.py`, ya lo evita). Motivos en `src/motifs/` (registro en `index.mjs`): `keyword` (tarjeta de papel con la palabra clave, pop al entrar y golpe de énfasis en la palabra). Cada gráfico lleva un pop sintetizado (`sfx`).
