@@ -59,6 +59,23 @@ def test_green_subtitles_are_detected_too():
     assert analysis.detect_in_frames(f, 0.5) is not None
 
 
+def test_yellow_subtitles_are_detected_too():
+    f = frames(text_rows=None)
+    for i in range(len(f)):
+        if i % 4 < 2:
+            f[i, 170:180, 40:230] = (245, 210, 40)
+    r = analysis.detect_in_frames(f, 0.5)
+    assert r and r["y0"] <= 170 * 4 and r["y1"] >= 180 * 4
+
+
+def test_skin_and_warm_backgrounds_are_not_yellow_subtitles():
+    f = frames(text_rows=None)
+    for i in range(len(f)):
+        if i % 4 < 2:
+            f[i, 170:180, 40:230] = (200, 150, 120)
+    assert analysis.detect_in_frames(f, 0.5) is None
+
+
 def test_tall_blocks_are_rejected_and_close_rows_are_merged():
     assert analysis.detect_in_frames(frames(text_rows=(100, 200)), 0.6) is None          # 100 filas = 400 px: no es un subtítulo
     f = frames()

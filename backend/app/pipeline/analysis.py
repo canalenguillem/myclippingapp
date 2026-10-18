@@ -2,7 +2,7 @@
 
 Si los lleva, la banda de papel debe cubrir esas filas al 100 %; si no, va centrada en el corte. Se mira solo la
 zona del plano corto (donde actúa la banda). Una fila «parece de subtítulo» si tiene píxeles de texto (blanco puro o
-verde) que aparecen y desaparecen con frecuencia: un fondo blanco estático, un logo fijo o un objeto que se mueve
+verde o amarillo) que aparecen y desaparecen con frecuencia: un fondo blanco estático, un logo fijo o un objeto que se mueve
 no cumplen las dos condiciones a la vez.
 """
 from __future__ import annotations
@@ -49,7 +49,8 @@ def detect_in_frames(frames: np.ndarray, top_ratio: float) -> dict | None:
     r, g, b = region[..., 0], region[..., 1], region[..., 2]
     white = np.minimum(np.minimum(r, g), b) > 235
     green = (g > 200) & (r < 90) & (b < 90)
-    row_frac = (white | green).mean(axis=2)                      # (n, top_rows)
+    yellow = (r > 200) & (g > 160) & (b < 110) & (r - b > 110)
+    row_frac = (white | green | yellow).mean(axis=2)                      # (n, top_rows)
     persistence = (row_frac > PRESENT).mean(axis=0)
     change = np.abs(np.diff(row_frac, axis=0)).mean(axis=0)
     candidate = (persistence >= MIN_PERSISTENCE) & (change >= MIN_CHANGE)

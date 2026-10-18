@@ -44,7 +44,7 @@ Tras el ajuste de límites: 15 de 16 cortes caen en silencio y 7 de 8 clips acab
 
 - Hecho: carril de render global de 1 (paso 1), estado de render del clip (2), clip vertical con ffmpeg (3), servicio `fx_worker` con HyperFrames (4), capas de estilo (5) y, en el paso 6, `fx_client`, el job `render` con fallback a subtítulos ASS, miniatura, borrador 540x960 y detección de subtítulos quemados. 260 tests en verde.
 - Verificado de punta a punta (2026-10-18): job `render` borrador del clip 40 (41,8 s) por `fx_worker`, 71 s de render, `draft.mp4` de 540x960 con audio y banda, subtítulos y gancho.
-- **Hallazgo:** el vídeo de prueba lleva subtítulos quemados **amarillos** y la detección dice «ninguno» (solo mira blanco y verde); la banda no los tapa. Pendiente de ajustar antes de cerrar F5.
+- **Subtítulos quemados amarillos:** la detección ya los reconoce (test nuevo). En el clip 40 los subtítulos de la fuente solo salen ~10 % del clip (los primeros segundos), por debajo del umbral de persistencia del 25 %, así que sigue sin banda obligatoria; es decisión de diseño, no fallo. Si se quiere cubrirlos también cuando son esporádicos, bajar `MIN_PERSISTENCE`.
 - Faltan: API de render (7), interfaz (8) y cierre con vídeo largo (9).
 
 ## Pendiente
