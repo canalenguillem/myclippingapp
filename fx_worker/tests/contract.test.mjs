@@ -99,3 +99,17 @@ test("cortinilla: plantilla, título, antetítulo y objeto", () => {
   assert.throws(() => parseRequest({ ...base, cortinilla: { at: 5, orbit: "u1/x.exe" } }), /png, jpg o webp/);
   assert.throws(() => parseRequest({ ...base, cortinilla: { at: 5, title: "x".repeat(41) } }), ContractError);
 });
+
+
+test("outro (cortinilla final): valores por defecto y validaciones", () => {
+  const base = { video: "a.mp4", output: "b.mp4", duration: 20 };
+  assert.equal(parseRequest(base).outro, undefined);
+  assert.deepEqual(parseRequest({ ...base, outro: {} }).outro, { template: "cta_subscribe", duration: 2.5, color: "#DA2E09", handle: "", text: "", like: "ME GUSTA", subscribe: "SUSCRÍBETE" });
+  const o = parseRequest({ ...base, outro: { handle: "@micanal", text: "Parte 2 en el canal", duration: 4 } }).outro;
+  assert.deepEqual([o.handle, o.text, o.duration], ["@micanal", "Parte 2 en el canal", 4]);
+  assert.throws(() => parseRequest({ ...base, outro: { template: "otra" } }), ContractError);
+  assert.throws(() => parseRequest({ ...base, outro: { duration: 0.5 } }), ContractError);
+  assert.throws(() => parseRequest({ ...base, outro: { handle: "x".repeat(41) } }), ContractError);
+  assert.throws(() => parseRequest({ ...base, outro: { color: "azul" } }), ContractError);
+  assert.throws(() => parseRequest({ ...base, outro: { like: "" } }), ContractError);
+});

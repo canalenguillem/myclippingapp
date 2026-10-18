@@ -7,6 +7,7 @@ import { bandLayer, ROOM } from "./layers/band.mjs";
 import { captionsLayer } from "./layers/captions.mjs";
 import { cortinillaLayer, SWEEP } from "./layers/cortinilla.mjs";
 import { hookLayer } from "./layers/hook.mjs";
+import { outroLayer } from "./layers/outro.mjs";
 import { sourceIntervals, treatmentLayer } from "./layers/treatment.mjs";
 import { getPreset } from "./presets.mjs";
 import { makeTimeMap, mapIntervals } from "./timemap.mjs";
@@ -41,7 +42,9 @@ export function buildProject({ request, video, workDir, orbit = null }) {
   const preset = getPreset(request.preset);
   const C = request.cortinilla;
   const map = makeTimeMap(C);
-  const total = map.total(duration);
+  const O = request.outro;
+  const clipEnd = map.total(duration); // donde acaba el clip en el vídeo final; ahí empieza la cortinilla final
+  const total = Number((clipEnd + (O?.duration ?? 0)).toFixed(3));
   // Todo lo posterior a la cortinilla se desplaza con el mapa de tiempos; las palabras no la cruzan (lo valida el contrato).
   const words = request.words.map((w) => ({ ...w, start: map.out(w.start), end: map.out(w.end) }));
   const sourceSpans = mapIntervals(sourceIntervals(request.words, speakers, duration), map);
@@ -64,9 +67,12 @@ export function buildProject({ request, video, workDir, orbit = null }) {
     copyFileSync(orbit, join(workDir, orbitFile));
   }
   const cortinilla = C ? cortinillaLayer({ ...C, orbit: orbitFile, fps: request.fps }) : null;
+  const outro = O ? outroLayer({ ...O, start: clipEnd }) : null;
 
   // Sin cortinilla, un solo vídeo. Con ella, dos tramos del mismo fichero y dos fotogramas congelados que se ven bajo
   // los barridos: el último del tramo 1 al entrar y el primero del tramo 2 al salir.
+  if (O) extractFrame(join(workDir, "clip.mp4"), duration - 1 / request.fps, join(workDir, "freezeEnd.png"));
+  const endImg = O ? `\n    <img id="freezeEnd" class="clip vid" src="freezeEnd.png" data-start="${clipEnd}" data-duration="${SWEEP}" data-track-index="0"/>` : "";
   let media;
   if (C) {
     const fps = request.fps;
@@ -76,9 +82,9 @@ export function buildProject({ request, video, workDir, orbit = null }) {
     media = `<video id="clipA" class="clip vid" src="clip.mp4" data-start="0" data-duration="${C.at}" data-media-start="0" data-track-index="0" data-has-audio="true" playsinline></video>
     <img id="freezeA" class="clip vid" src="freezeA.png" data-start="${C.at}" data-duration="${SWEEP}" data-track-index="0"/>
     <img id="freezeB" class="clip vid" src="freezeB.png" data-start="${Number((resume - SWEEP).toFixed(3))}" data-duration="${SWEEP}" data-track-index="0"/>
-    <video id="clipB" class="clip vid" src="clip.mp4" data-start="${resume}" data-duration="${Number((duration - C.at).toFixed(3))}" data-media-start="${C.at}" data-track-index="0" data-has-audio="true" playsinline></video>`;
+    <video id="clipB" class="clip vid" src="clip.mp4" data-start="${resume}" data-duration="${Number((duration - C.at).toFixed(3))}" data-media-start="${C.at}" data-track-index="0" data-has-audio="true" playsinline></video>${endImg}`;
   } else {
-    media = `<video id="clip" class="clip vid" src="clip.mp4" data-start="0" data-duration="${total}" data-media-start="0" data-track-index="0" data-has-audio="true" playsinline></video>`;
+    media = `<video id="clip" class="clip vid" src="clip.mp4" data-start="0" data-duration="${clipEnd}" data-media-start="0" data-track-index="0" data-has-audio="true" playsinline></video>${endImg}`;
   }
 
   const html = `<!doctype html>
@@ -97,6 +103,7 @@ ${band?.css ?? ""}
 ${captions.css}
 ${hook?.css ?? ""}
 ${cortinilla?.css ?? ""}
+${outro?.css ?? ""}
 </style></head>
 <body>
 <div id="root" data-composition-id="root" data-start="0" data-duration="${total}" data-width="1080" data-height="1920">
@@ -105,6 +112,7 @@ ${cortinilla?.css ?? ""}
   ${captions.html}
   ${hook?.html ?? ""}
   ${cortinilla?.html ?? ""}
+  ${outro?.html ?? ""}
 </div>
 <script>
 const tl = gsap.timeline({ paused: true });
@@ -112,6 +120,7 @@ ${treatment.script}
 ${captions.script}
 ${hook?.script ?? ""}
 ${cortinilla?.script ?? ""}
+${outro?.script ?? ""}
 tl.set({}, {}, ${total});
 window.__timelines = window.__timelines || {};
 window.__timelines["root"] = tl;

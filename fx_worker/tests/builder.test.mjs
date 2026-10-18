@@ -182,3 +182,30 @@ test("cortinilla con título, antetítulo y objeto que orbita: copia la imagen, 
   assert.ok(html2.includes('<div id="corbit"><i></i></div>') && !html2.includes("orbit.png"));
   assert.equal((await checkProject(work2)).totalErrors, 0);
 });
+
+
+test("con cortinilla final: el clip acaba donde empieza, fotograma congelado bajo el barrido y duración total", async () => {
+  const dir = tmp();
+  const video = makeVideo(join(dir, "src.mp4"), 6);
+  const mk = (extra) => parseRequest({ video: "a.mp4", output: "b.mp4", duration: 6, outro: { handle: "@micanal", text: "Parte 2 en el canal", duration: 2.5 }, ...extra });
+  const work = join(dir, "work");
+  const r = buildProject({ request: mk({}), video, workDir: work });
+  const html = readFileSync(join(work, "index.html"), "utf8");
+  assert.equal(r.total, 8.5);
+  assert.match(html, /id="clip"[^>]*data-start="0" data-duration="6"/);
+  assert.match(html, /id="freezeEnd"[^>]*data-start="6" data-duration="0.42"/);
+  assert.match(html, /id="outro" class="clip" data-start="6" data-duration="2.5"/);
+  assert.ok(existsSync(join(work, "freezeEnd.png")) && html.includes("tl.set({}, {}, 8.5)"));
+  assert.equal((await checkProject(work)).totalErrors, 0);
+  // junto a la cortinilla de inicio: la final empieza tras clip + cortinilla de inicio
+  const work2 = join(dir, "work2");
+  const r2 = buildProject({ request: mk({ cortinilla: { at: 3, duration: 3.6 } }), video, workDir: work2 });
+  const html2 = readFileSync(join(work2, "index.html"), "utf8");
+  assert.equal(r2.total, 12.1);
+  assert.match(html2, /id="outro" class="clip" data-start="9.6" data-duration="2.5"/);
+  assert.match(html2, /id="freezeEnd"[^>]*data-start="9.6"/);
+  assert.equal((await checkProject(work2)).totalErrors, 0);
+  // sin outro no hay nada de eso
+  const html3 = readFileSync(join(buildProject({ request: parseRequest({ video: "a.mp4", output: "b.mp4", duration: 6 }), video, workDir: join(dir, "w3") }).projectDir, "index.html"), "utf8");
+  assert.ok(!html3.includes('id="outro"') && !html3.includes("freezeEnd"));
+});

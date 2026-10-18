@@ -166,3 +166,23 @@ test("cortinilla: los tiempos de §6 para 3,6 s y la salida anclada al final par
   const short = cortinillaLayer({ at: 10, duration: 1.8, color: "#DA2E09", title: "A B" }).script;
   assert.ok(short.includes("},10.15);") && short.includes("},11.375);"), "una cortinilla corta comprime la entrada y ancla la salida");
 });
+
+
+import { callSize, handleSize, outroLayer } from "../src/layers/outro.mjs";
+
+test("outro: textos escapados, sin handle/texto no hay esos elementos y el barrido solo entra", () => {
+  const full = outroLayer({ start: 20, duration: 2.5, color: "#DA2E09", handle: "@<b>x</b>", text: "Parte 2 & más", like: "<i>", subscribe: "Sub" });
+  assert.ok(!full.html.includes("<b>") && !full.html.includes("<i>") && full.html.includes("@&lt;b&gt;x&lt;/b&gt;") && full.html.includes("Parte 2 &amp; más"));
+  const bare = outroLayer({ start: 20, duration: 2.5, color: "#DA2E09" });
+  assert.ok(!bare.html.includes('id="otext"') && !bare.html.includes('id="ohandle"') && bare.html.includes("ME GUSTA") && bare.html.includes("SUSCRÍBETE"));
+  assert.equal((full.script.match(/"#osweep"/g) ?? []).length, 1, "un solo barrido: el de entrada; no vuelve a destapar el clip");
+  assert.ok(full.script.includes("},20);") && full.script.includes("},20.55);") && full.script.includes("},20.8);") && full.script.includes("},21);") && full.script.includes("},21.15);"));
+});
+
+test("outro: tamaños según la longitud", () => {
+  assert.equal(callSize("Suscríbete"), 110);
+  assert.equal(callSize("Parte 2 en el canal"), 84);
+  assert.equal(callSize("Una llamada a la acción bastante más larga que las demás"), 64);
+  assert.equal(handleSize("@micanal"), 72);
+  assert.ok(handleSize("@un_canal_con_un_nombre_larguisimo_de_verdad") < 72 && handleSize("x".repeat(200)) === 36);
+});

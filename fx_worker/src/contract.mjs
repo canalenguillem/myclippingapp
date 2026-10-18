@@ -47,6 +47,19 @@ const cortinilla = z
   })
   .strict();
 
+// Cortinilla final: va siempre al final y NO vuelve a destapar el clip. Termina en el color de marca.
+const outro = z
+  .object({
+    template: z.literal("cta_subscribe").default("cta_subscribe"),
+    duration: z.number().min(1).max(10).default(2.5),
+    color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default("#DA2E09"),
+    handle: z.string().max(40).default(""),
+    text: z.string().max(80).default(""),
+    like: z.string().min(1).max(20).default("ME GUSTA"),
+    subscribe: z.string().min(1).max(20).default("SUSCRÍBETE"),
+  })
+  .strict();
+
 export const renderRequest = z
   .object({
     video: relPath.refine((v) => v.endsWith(".mp4"), { message: "video debe ser .mp4" }),
@@ -73,6 +86,7 @@ export const renderRequest = z
       .optional(),
     preset: z.enum(["editorial", "hormozi", "minimal"]).default("editorial"),
     cortinilla: cortinilla.optional(),
+    outro: outro.optional(),
   })
   .strict()
   .superRefine((r, ctx) => {

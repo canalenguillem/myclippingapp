@@ -137,3 +137,24 @@ test("cortinilla pill_draw: título blanco, píldora dibujada y antetítulo sobr
   assert.ok(white(3.9, pillTop) - base.pill >= 100, "la píldora está dibujada a la mitad de la cortinilla");
   assert.ok(white(5.5, titleZone) - base.title <= 60, "tras la cortinilla no queda nada");
 });
+
+
+test("cortinilla final: tapa el último fotograma, termina en el color de marca y no vuelve a destapar el clip", { skip, timeout: 240000 }, async () => {
+  const mediaDir = tmp("media-");
+  makeRedVideo(join(mediaDir, "u1/p1/clip.mp4"), 3);
+  const out = await render(mediaDir, {
+    video: "u1/p1/clip.mp4", output: "u1/p1/outro.mp4", duration: 3, quality: "draft",
+    outro: { duration: 2.5, color: "#2040C0", handle: "@micanal", text: "Parte 2 en el canal" },
+  });
+  const info = probe(out, "format=duration");
+  assert.ok(Math.abs(Number(info.format.duration) - 5.5) < 0.2, `duración ${info.format.duration}`);
+  const redIn = (t) => pixels(out, t, {}).count((r, g, b) => isRed(r, g, b));
+  assert.ok(redIn(2.5) > 100000, "antes de la cortinilla final se ve el clip");
+  // desde que el barrido termina (3,42 s) hasta el último fotograma: ni un píxel rojo del clip
+  for (const t of [3.6, 4.2, 5.0, 5.45]) assert.equal(redIn(t), 0, `el clip asoma a los ${t} s`);
+  assert.ok(isBlue(...pixels(out, 5.45, { x: 5, y: 5, w: 1, h: 1 }).at(0, 0)), "termina en el color de marca");
+  const white = (t, region) => pixels(out, t, region).count((r, g, b) => r > 247 && g > 247 && b > 247);
+  assert.ok(white(5.0, { x: 100, y: 620, w: 880, h: 300 }) >= 400, "llamada a la acción visible");
+  const cream = pixels(out, 5.0, { x: 100, y: 1100, w: 880, h: 200 }).count((r, g, b) => Math.abs(r - 243) < 12 && Math.abs(g - 238) < 12 && Math.abs(b - 226) < 14);
+  assert.ok(cream >= 5000, `botones crema visibles (${cream} px)`);
+});
