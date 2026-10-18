@@ -8,7 +8,7 @@ App web multiusuario para clipear vídeos largos de YouTube: detectar los mejore
 
 Stack: FastAPI + MariaDB (SQLAlchemy + Alembic), worker con cola en MariaDB, React + Vite, HyperFrames de HeyGen (`fx_worker`) y ffmpeg, todo en Docker Compose.
 
-## Hecho (F0–F5)
+## Hecho (F0–F6)
 
 | Fase | Contenido | Verificado |
 |---|---|---|
@@ -18,6 +18,7 @@ Stack: FastAPI + MariaDB (SQLAlchemy + Alembic), worker con cola en MariaDB, Rea
 | F3 Ingesta | Proyecto desde URL de YouTube (solo `youtube.com` / `youtu.be`); descarga a 1080p con yt-dlp + deno; audio mono 16 kHz; límite de duración por usuario | Tests + importación real |
 | **F4 Detección y revisión** | Ver detalle abajo | 160 tests + vídeo real de 14 min + interfaz probada en Chrome |
 | **F5 Render vertical** | Carril de render global de 1; clip vertical con ffmpeg (diseño `split`, fotogramas clave densos); `fx_worker` con HyperFrames (HTML + GSAP, banda de papel, subtítulos karaoke en dos estilos, gancho, blanco y negro del clip citado, presets editorial/hormozi/minimal); job `render` con borrador 540x960 y final 1080x1920 (solo aprobado), miniatura, análisis de subtítulos quemados (blanco, verde, amarillo) y fallback a subtítulos ASS si el servicio cae; API (render, cancelar, URLs firmadas, stills); panel de render en el editor | 271 tests + `fx_worker` (43 unitarios y 3 de integración) + clip real de 41,8 s: final 1080x1920 en ~3 min, dos renders seguidos de dos jobs corren uno tras otro, fallback con `fx_worker` parado probado |
+| **F6 Cortinillas** | Mapa de tiempos único (backend y `fx_worker`) y posición en un silencio tras frase completa (`cortinilla_at`, automática o elegida en el editor); migración 0004 (sin `outro_enabled`, plantilla `cortinilla` JSON, `cortinilla_default`); `fx_worker` monta el clip en dos tramos con fotogramas congelados bajo los barridos; plantilla `pill_draw` (título con última palabra en serif cursiva, píldora que se dibuja, objeto que orbita, antetítulo) y cortinilla final `cta_subscribe` (siempre, termina en el color de marca); efectos sintetizados (whoosh y brillo); API y página de Plantillas con vista previa sin renderizar (`@hyperframes/player`), plantilla por clip y por proyecto | 303 tests + `fx_worker` (68 unitarios y 6 de integración con Chrome real) + final real del clip 40: 1080x1920, 47,9 s = 41,8 + 3,6 + 2,5, en 157 s; sincronía tras la cortinilla comprobada con la transcripción |
 
 ### Detalle de F4
 
@@ -45,7 +46,6 @@ Tras el ajuste de límites: 15 de 16 cortes caen en silencio y 7 de 8 clips acab
 
 | Fase | Contenido |
 |---|---|
-| **F6 Cortinillas** (pasos 1–8 de 9 hechos: el editor elige la posición de la cortinilla de inicio y la plantilla; página Plantillas con vista previa sin renderizar (`@hyperframes/player` + `POST /previews` de `fx_worker`); el job `render` ya manda `cortinilla` y `outro`: probado de punta a punta con el clip 40, 47,9 s = 41,8 + 3,6 + 2,5; mapa de tiempos y posición; `fx_worker` monta el clip en dos tramos con la cortinilla `pill_draw` y cierra con la final `cta_subscribe`; efectos de sonido sintetizados; migración 0004 sin `outro_enabled`, con `cortinilla_at`, `cortinilla` y `cortinilla_default`) | Intro corta del clip; cortinilla de inicio opcional (pausa el clip); cortinilla final siempre; plantillas de marca por usuario; editor de plantilla con vista previa (decisión C3) |
 | **F7 Gráficos por transcripción** | Librería de assets; motivos con objeto; `graphics_planner` |
 | **F8 YouTube por usuario** | Canales con su propio `client_secret.json` cifrado; OAuth con `state` firmado; SEO; subida |
 | **F9 QA y pulido** | Checks automáticos; bucle notas → reglas por usuario (`style_rules`, decisión C4); hoja de contactos; limpieza de media |
@@ -105,3 +105,8 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 - **Medido el 2026-10-18** (clip 40, 41,8 s, 107 palabras, máquina de 12 núcleos): borrador ~72 s; final ~3 min. Dos jobs `render` lanzados a la vez: el segundo esperó en cola a que acabara el primero.
 - **Fallback ASS:** con `fx_worker` parado el borrador sale con subtítulos simples (sin banda, estilos ni gancho) y `render_error` empieza por «Aviso:». Arreglado en el cierre: las frases ya no se solapan en el tiempo.
 - **Deuda:** subtítulos quemados esporádicos (<25 % del clip) no activan la banda obligatoria; si un render agota sus intentos fuera del handler, el clip se queda en `rendering`; sin probar en el navegador el render final ni el aviso del fallback.
+
+## Cierre de F6: datos y deuda
+
+- **Medido el 2026-10-18** (clip 40, 41,8 s, plantilla «Spain Facts», cortinilla de inicio a los 14,3 s): render final en 157 s. Con cortinilla el vídeo dura clip + 3,6 + 2,5 s.
+- **Deuda:** el objeto que orbita es un cuadrado de color hasta que haya subida de logo (librería de assets, F7a); no hay selector de la posición de la cortinilla sobre una forma de onda (solo lista de silencios); un clip con `intro_enabled` sin silencio válido se renderiza sin cortinilla de inicio y solo lo dice `render_error`.
