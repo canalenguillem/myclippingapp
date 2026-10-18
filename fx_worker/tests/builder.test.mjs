@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { buildProject } from "../src/builder.mjs";
@@ -156,4 +156,29 @@ test("la frase anterior a la cortinilla se oculta al empezar y el blanco y negro
   const html = readFileSync(join(work, "index.html"), "utf8");
   assert.ok(html.includes('tl.set("#p0",{opacity:0},2.1)'), "la frase 0 se oculta cuando entra la cortinilla (no a los 2,25 s)");
   assert.equal((html.match(/grayscale\(1\)/g) ?? []).length, 2, "el tramo en B/N se parte en dos, sin cubrir la cortinilla");
+});
+
+
+test("cortinilla con título, antetítulo y objeto que orbita: copia la imagen, carga la fuente mono y pasa el linter", async () => {
+  const dir = tmp();
+  const video = makeVideo(join(dir, "src.mp4"), 6);
+  const orbit = join(dir, "logo.png");
+  writeFileSync(orbit, Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64"));
+  const request = parseRequest({
+    video: "a.mp4", output: "b.mp4", duration: 6,
+    cortinilla: { at: 3, title: "Spain Facts", kicker: "España en datos", orbit: "u1/logo.png" },
+  });
+  const work = join(dir, "work");
+  buildProject({ request, video, workDir: work, orbit });
+  const html = readFileSync(join(work, "index.html"), "utf8");
+  assert.ok(existsSync(join(work, "orbit.png")) && html.includes('<img src="orbit.png"'));
+  assert.ok(existsSync(join(work, "fonts", "jetbrains-500.woff2")) && html.includes("JetBrainsX"));
+  assert.ok(html.includes('id="t1">Spain</span>') && html.includes('id="t2">Facts</span>') && html.includes("ESPAÑA EN DATOS"));
+  assert.equal((await checkProject(work)).totalErrors, 0);
+  // sin objeto: tarjeta geométrica, sin <img>
+  const work2 = join(dir, "work2");
+  buildProject({ request: parseRequest({ video: "a.mp4", output: "b.mp4", duration: 6, cortinilla: { at: 3 } }), video, workDir: work2 });
+  const html2 = readFileSync(join(work2, "index.html"), "utf8");
+  assert.ok(html2.includes('<div id="corbit"><i></i></div>') && !html2.includes("orbit.png"));
+  assert.equal((await checkProject(work2)).totalErrors, 0);
 });

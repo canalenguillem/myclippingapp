@@ -78,7 +78,7 @@ test("band: filas válidas y límites", () => {
 test("cortinilla: valores por defecto y validaciones", () => {
   const base = { video: "a.mp4", output: "b.mp4", duration: 20, words: [{ text: "hola", start: 4, end: 4.6 }] };
   const ok = parseRequest({ ...base, cortinilla: { at: 8 } });
-  assert.deepEqual(ok.cortinilla, { at: 8, duration: 3.6, color: "#DA2E09" });
+  assert.deepEqual(ok.cortinilla, { at: 8, duration: 3.6, color: "#DA2E09", template: "pill_draw", title: "", kicker: "" });
   assert.equal(parseRequest(base).cortinilla, undefined);
   assert.throws(() => parseRequest({ ...base, cortinilla: { at: 19.5 } }), /último segundo/);
   assert.throws(() => parseRequest({ ...base, cortinilla: { at: 4.3 } }), /pisar una palabra/);
@@ -86,4 +86,16 @@ test("cortinilla: valores por defecto y validaciones", () => {
   assert.throws(() => parseRequest({ ...base, cortinilla: { at: 8, color: "rojo" } }), ContractError);
   assert.throws(() => parseRequest({ ...base, cortinilla: { at: 8, duration: 30 } }), ContractError);
   assert.throws(() => parseRequest({ ...base, cortinilla: { at: 8, otra: 1 } }), ContractError);
+});
+
+
+test("cortinilla: plantilla, título, antetítulo y objeto", () => {
+  const base = { video: "a.mp4", output: "b.mp4", duration: 20 };
+  const c = parseRequest({ ...base, cortinilla: { at: 5, title: "Spain Facts", kicker: "España en datos", orbit: "u1/p1/logo.png" } }).cortinilla;
+  assert.deepEqual([c.template, c.title, c.kicker, c.orbit], ["pill_draw", "Spain Facts", "España en datos", "u1/p1/logo.png"]);
+  assert.equal(parseRequest({ ...base, cortinilla: { at: 5 } }).cortinilla.title, "");
+  assert.throws(() => parseRequest({ ...base, cortinilla: { at: 5, template: "otra" } }), ContractError);
+  assert.throws(() => parseRequest({ ...base, cortinilla: { at: 5, orbit: "../x.png" } }), ContractError);
+  assert.throws(() => parseRequest({ ...base, cortinilla: { at: 5, orbit: "u1/x.exe" } }), /png, jpg o webp/);
+  assert.throws(() => parseRequest({ ...base, cortinilla: { at: 5, title: "x".repeat(41) } }), ContractError);
 });

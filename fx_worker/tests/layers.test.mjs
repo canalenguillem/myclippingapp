@@ -123,3 +123,46 @@ test("mulberry32 es determinista", () => {
   const a = mulberry32(5), b = mulberry32(5);
   assert.deepEqual([a(), a(), a()], [b(), b(), b()]);
 });
+
+
+import { cortinillaLayer, pillPoint, PERIMETER, splitTitle, titleSizes } from "../src/layers/cortinilla.mjs";
+
+test("la píldora: arranca arriba-centro y gira en sentido horario por longitud de arco", () => {
+  const near = (a, b) => Math.abs(a - b) < 0.5;
+  const [x0, y0] = pillPoint(0);
+  assert.ok(near(x0, 540) && near(y0, 810), `arranque ${x0},${y0}`);
+  const [x1, y1] = pillPoint(PERIMETER / 4);   // un cuarto: en el lado derecho
+  assert.ok(x1 > 540 + 300 && y1 > 810 && y1 < 1110, `${x1},${y1}`);
+  const [x2, y2] = pillPoint(PERIMETER / 2);   // la mitad: abajo-centro
+  assert.ok(near(x2, 540) && near(y2, 1110), `${x2},${y2}`);
+  const [x3, y3] = pillPoint(PERIMETER * 0.75); // tres cuartos: lado izquierdo
+  assert.ok(x3 < 540 - 300, `${x3},${y3}`);
+  const [x4, y4] = pillPoint(PERIMETER);
+  assert.ok(near(x4, 540) && near(y4, 810));
+});
+
+test("el título se parte en sans + última palabra en serif y encoge si no cabe", () => {
+  assert.deepEqual(splitTitle("  Spain   Facts "), { lead: "Spain", accent: "Facts" });
+  assert.deepEqual(splitTitle("Datos"), { lead: "", accent: "Datos" });
+  assert.deepEqual(splitTitle(""), { lead: "", accent: "" });
+  assert.deepEqual(titleSizes(splitTitle("Spain Facts")), { sans: 116, serif: 138 });
+  const long = titleSizes(splitTitle("Los datos que nadie te cuenta Verdad"));
+  assert.ok(long.sans < 116 && long.sans >= 48 && long.serif < 138);
+});
+
+test("cortinilla: el texto del usuario se escapa y sin título/antetítulo no hay esos elementos", () => {
+  const full = cortinillaLayer({ at: 2, duration: 3.6, color: "#DA2E09", title: "<b>Hola</b> Mundo", kicker: "a & b" });
+  assert.ok(!full.html.includes("<b>") && full.html.includes("&lt;b&gt;Hola&lt;/b&gt;") && full.html.includes("A &amp; B"));
+  const bare = cortinillaLayer({ at: 2, duration: 3.6, color: "#DA2E09" });
+  assert.ok(!bare.html.includes('id="ctitle"') && !bare.html.includes('id="ckicker"'));
+  assert.ok(!bare.script.includes('"#t1"') && !bare.script.includes('"#ckicker"'));
+});
+
+test("cortinilla: los tiempos de §6 para 3,6 s y la salida anclada al final para otras duraciones", () => {
+  const a = cortinillaLayer({ at: 10, duration: 3.6, color: "#DA2E09", title: "A B", kicker: "k" }).script;
+  for (const needle of ['"#t1"', "},10.3);", "},10.48);", "},10.55);", "},10.95);", "},11.55);", "},12.75);", "},13.18);"]) assert.ok(a.includes(needle), needle);
+  const long = cortinillaLayer({ at: 10, duration: 6, color: "#DA2E09", title: "A B" }).script;
+  assert.ok(long.includes("},10.3);") && long.includes("},15.15);") && long.includes("},15.58);"), "entrada igual y salida pegada al final");
+  const short = cortinillaLayer({ at: 10, duration: 1.8, color: "#DA2E09", title: "A B" }).script;
+  assert.ok(short.includes("},10.15);") && short.includes("},11.375);"), "una cortinilla corta comprime la entrada y ancla la salida");
+});

@@ -45,7 +45,7 @@ Tras el ajuste de límites: 15 de 16 cortes caen en silencio y 7 de 8 clips acab
 
 | Fase | Contenido |
 |---|---|
-| **F6 Cortinillas** (pasos 1–3 de 9 hechos: mapa de tiempos y posición; `fx_worker` monta el clip en dos tramos con cortinilla de color (sin contenido aún); migración 0004 sin `outro_enabled`, con `cortinilla_at`, `cortinilla` y `cortinilla_default`) | Intro corta del clip; cortinilla de inicio opcional (pausa el clip); cortinilla final siempre; plantillas de marca por usuario; editor de plantilla con vista previa (decisión C3) |
+| **F6 Cortinillas** (pasos 1–4 de 9 hechos: mapa de tiempos y posición; `fx_worker` monta el clip en dos tramos con la cortinilla `pill_draw`; migración 0004 sin `outro_enabled`, con `cortinilla_at`, `cortinilla` y `cortinilla_default`) | Intro corta del clip; cortinilla de inicio opcional (pausa el clip); cortinilla final siempre; plantillas de marca por usuario; editor de plantilla con vista previa (decisión C3) |
 | **F7 Gráficos por transcripción** | Librería de assets; motivos con objeto; `graphics_planner` |
 | **F8 YouTube por usuario** | Canales con su propio `client_secret.json` cifrado; OAuth con `state` firmado; SEO; subida |
 | **F9 QA y pulido** | Checks automáticos; bucle notas → reglas por usuario (`style_rules`, decisión C4); hoja de contactos; limpieza de media |

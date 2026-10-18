@@ -2,7 +2,7 @@
 import { spawnSync } from "node:child_process";
 import { copyFileSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { join } from "node:path";
+import { extname, join } from "node:path";
 import { bandLayer, ROOM } from "./layers/band.mjs";
 import { captionsLayer } from "./layers/captions.mjs";
 import { cortinillaLayer, SWEEP } from "./layers/cortinilla.mjs";
@@ -22,7 +22,7 @@ function extractFrame(video, at, out) {
 }
 
 /** `video` es la ruta ABSOLUTA ya resuelta (y comprobada) del clip vertical. */
-export function buildProject({ request, video, workDir }) {
+export function buildProject({ request, video, workDir, orbit = null }) {
   mkdirSync(join(workDir, "fonts"), { recursive: true });
   try {
     symlinkSync(video, join(workDir, "clip.mp4")); // sin copiar decenas de MB por render
@@ -34,6 +34,8 @@ export function buildProject({ request, video, workDir }) {
   copyFileSync(join(fontsDir, "inter-latin-800-normal.woff2"), join(workDir, "fonts", "inter-800.woff2"));
   const serifDir = join(assetPath("@fontsource/cormorant/package.json"), "..", "files");
   copyFileSync(join(serifDir, "cormorant-latin-600-italic.woff2"), join(workDir, "fonts", "cormorant-600i.woff2"));
+  const monoDir = join(assetPath("@fontsource/jetbrains-mono/package.json"), "..", "files");
+  copyFileSync(join(monoDir, "jetbrains-mono-latin-500-normal.woff2"), join(workDir, "fonts", "jetbrains-500.woff2"));
 
   const { duration, layout, speakers } = request;
   const preset = getPreset(request.preset);
@@ -56,7 +58,12 @@ export function buildProject({ request, video, workDir }) {
   const captions = captionsLayer({ words, speakers, duration: total, preset, center, height: Math.max(90, core.y1 - core.y0), stops: C ? [C.at] : [] });
   const hook = request.hook ? hookLayer({ hook: request.hook, preset }) : null;
   const treatment = treatmentLayer({ intervals: sourceSpans });
-  const cortinilla = C ? cortinillaLayer(C) : null;
+  let orbitFile = null;
+  if (C && orbit) {
+    orbitFile = `orbit${extname(orbit).toLowerCase()}`;
+    copyFileSync(orbit, join(workDir, orbitFile));
+  }
+  const cortinilla = C ? cortinillaLayer({ ...C, orbit: orbitFile, fps: request.fps }) : null;
 
   // Sin cortinilla, un solo vídeo. Con ella, dos tramos del mismo fichero y dos fotogramas congelados que se ven bajo
   // los barridos: el último del tramo 1 al entrar y el primero del tramo 2 al salir.
@@ -80,6 +87,7 @@ export function buildProject({ request, video, workDir }) {
 <style>
 @font-face{font-family:"InterX";font-weight:800;src:url(fonts/inter-800.woff2) format("woff2")}
 @font-face{font-family:"CormorantX";font-weight:600;font-style:italic;src:url(fonts/cormorant-600i.woff2) format("woff2")}
+@font-face{font-family:"JetBrainsX";font-weight:500;src:url(fonts/jetbrains-500.woff2) format("woff2")}
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:1080px;height:1920px;overflow:hidden;background:#000}
 #root{position:relative;width:1080px;height:1920px;overflow:hidden}

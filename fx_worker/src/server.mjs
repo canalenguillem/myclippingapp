@@ -22,13 +22,13 @@ export function createApp({ mediaDir, workers = 2, renderer = renderProject, wor
 
   const busy = () => [...records.values()].some((r) => r.status === "queued" || r.status === "running");
 
-  async function run(record, request, videoAbs, outputAbs) {
+  async function run(record, request, videoAbs, outputAbs, orbitAbs) {
     const controller = controllers.get(record.id);
     const workDir = mkdtempSync(join(workRoot, "fx-"));
     try {
       record.status = "running";
       record.startedAt = now();
-      const project = buildProject({ request, video: videoAbs, workDir });
+      const project = buildProject({ request, video: videoAbs, workDir, orbit: orbitAbs });
       mkdirSync(dirname(outputAbs), { recursive: true });
       const part = outputAbs.replace(/\.mp4$/, ".part.mp4");
       const result = await renderer({
@@ -104,12 +104,14 @@ export function createApp({ mediaDir, workers = 2, renderer = renderProject, wor
         const videoAbs = resolveInMedia(mediaDir, request.video);
         const outputAbs = resolveInMedia(mediaDir, request.output);
         if (!existsSync(videoAbs)) return send(res, 422, { error: "video_not_found", video: request.video });
+        const orbitAbs = request.cortinilla?.orbit ? resolveInMedia(mediaDir, request.cortinilla.orbit) : null;
+        if (orbitAbs && !existsSync(orbitAbs)) return send(res, 422, { error: "orbit_not_found", orbit: request.cortinilla.orbit });
         if (busy()) return send(res, 409, { error: "busy" });
         const id = randomUUID();
         const record = { id, status: "queued", progress: 0, message: "", error: null, output: request.output, createdAt: now() };
         records.set(id, record);
         controllers.set(id, new AbortController());
-        void run(record, request, videoAbs, outputAbs);
+        void run(record, request, videoAbs, outputAbs, orbitAbs);
         return send(res, 202, { id });
       }
 

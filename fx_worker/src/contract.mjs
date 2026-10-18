@@ -39,6 +39,11 @@ const cortinilla = z
     at: z.number().positive(),
     duration: z.number().min(1).max(10).default(3.6),
     color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default("#DA2E09"),
+    template: z.literal("pill_draw").default("pill_draw"),
+    // Título (la última palabra va en serif cursiva), antetítulo en mono y objeto que orbita (imagen del volumen).
+    title: z.string().max(40).default(""),
+    kicker: z.string().max(60).default(""),
+    orbit: relPath.refine((v) => /\.(png|jpe?g|webp)$/i.test(v), { message: "orbit debe ser png, jpg o webp" }).optional(),
   })
   .strict();
 

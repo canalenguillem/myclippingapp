@@ -76,6 +76,10 @@ test("peticiones no válidas", async () => {
   assert.equal(r.status, 400);
   r = await call("POST", "/renders", { ...valid, video: "u1/p1/no_existe.mp4" });
   assert.deepEqual([r.status, r.body.error], [422, "video_not_found"]);
+  r = await call("POST", "/renders", { ...valid, duration: 10, cortinilla: { at: 4, orbit: "u1/p1/no_existe.png" } });
+  assert.deepEqual([r.status, r.body.error], [422, "orbit_not_found"]);
+  r = await call("POST", "/renders", { ...valid, duration: 10, cortinilla: { at: 4, orbit: "../../etc/x.png" } });
+  assert.equal(r.status, 400);
   r = await call("POST", "/renders", "esto no es json");
   assert.equal(r.status, 400);
   r = await call("POST", "/renders", { ...valid, words: Array.from({ length: 100000 }, () => ({ text: "a", start: 0, end: 1 })) });

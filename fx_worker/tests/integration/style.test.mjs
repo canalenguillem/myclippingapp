@@ -116,3 +116,24 @@ test("cortinilla de inicio: pausa el clip, tapa todo con el color de marca y rea
   assert.ok(ink(6.4) >= 150, "«despues» se pinta tras la cortinilla");
   assert.equal(ink(3.8), 0, "ningún subtítulo bajo la cortinilla");
 });
+
+
+test("cortinilla pill_draw: título blanco, píldora dibujada y antetítulo sobre el color de marca", { skip, timeout: 240000 }, async () => {
+  const mediaDir = tmp("media-");
+  makeRedVideo(join(mediaDir, "u1/p1/clip.mp4"), 6);
+  const out = await render(mediaDir, {
+    video: "u1/p1/clip.mp4", output: "u1/p1/pill.mp4", duration: 6, quality: "draft",
+    cortinilla: { at: 2, duration: 3.6, color: "#2040C0", title: "Spain Facts", kicker: "España en datos" },
+  });
+  const white = (t, region) => pixels(out, t, region).count((r, g, b) => r > 247 && g > 247 && b > 247); // blanco puro: el crema de la banda no cuenta
+  const titleZone = { x: 150, y: 900, w: 780, h: 120 };
+  const pillTop = { x: 140, y: 804, w: 800, h: 12 };   // lado superior de la píldora (y = 810)
+  const kickerZone = { x: 200, y: 1150, w: 680, h: 60 };
+  // la banda de papel (fuera de la cortinilla) tiene fibras casi blancas: se compara con el fotograma de antes
+  const base = { title: white(1.5, titleZone), pill: white(1.5, pillTop), kicker: white(1.5, kickerZone) };
+  assert.ok(white(3.3, titleZone) - base.title >= 300, "título visible");
+  assert.ok(white(3.3, pillTop) - base.pill >= 20, "la línea de la píldora ya dibuja el lado superior");
+  assert.ok(white(3.9, kickerZone) - base.kicker >= 40, "antetítulo visible");
+  assert.ok(white(3.9, pillTop) - base.pill >= 100, "la píldora está dibujada a la mitad de la cortinilla");
+  assert.ok(white(5.5, titleZone) - base.title <= 60, "tras la cortinilla no queda nada");
+});
