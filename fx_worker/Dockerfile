@@ -18,4 +18,6 @@ RUN npm install --omit=dev --no-audit --no-fund
 RUN npx --no-install hyperframes browser ensure || npx --yes hyperframes@0.8.169 browser ensure
 
 COPY . .
-CMD ["node", "spike/run.mjs"]
+EXPOSE 3000
+ENV MEDIA_DIR=/media FX_WORKERS=2 PORT=3000
+CMD ["node", "src/server.mjs"]

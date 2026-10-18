@@ -65,5 +65,25 @@ services:
       - "5074:80"
     restart: unless-stopped
 
+  # Render de motion graphics (HyperFrames). Solo atiende un render a la vez; el backend aplica el carril global.
+  fx_worker:
+    build: ./fx_worker
+    container_name: clip_fx
+    shm_size: "1gb"                 # Chrome headless se cae a mitad del render con los 64 MB por defecto
+    environment:
+      MEDIA_DIR: /media
+      FX_WORKERS: "2"               # workers de captura por render: 2 = 98 s y 2,6 GB, 4 apenas mejora y duplica la memoria
+      HYPERFRAMES_TELEMETRY: "0"
+    volumes:
+      - ./media:/media
+    ports:
+      - "127.0.0.1:8910:3000"       # solo para depurar desde esta máquina; el backend usa http://fx_worker:3000
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
 volumes:
   db_data:
