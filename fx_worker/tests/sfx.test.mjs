@@ -66,3 +66,13 @@ test("polvo y crujido: WAV válidos, con pico acotado y envolvente razonable", (
   assert.ok(crack.slice(0.27 * SAMPLE_RATE).every((x) => Math.abs(x) < 0.05), "los clics caen en los primeros 0,25 s");
   assert.ok(dustWav({ seed: 1 }).equals(dustWav({ seed: 1 })) && crackWav({ seed: 5 }).equals(crackWav({ seed: 5 })));
 });
+
+import { thudWav } from "../src/sfx.mjs";
+
+test("golpe sordo: grave, corto y determinista", () => {
+  const xs = samples(thudWav());
+  assert.equal(xs.length, 0.25 * SAMPLE_RATE);
+  assert.ok(Math.max(...xs.map(Math.abs)) > 0.3 && Math.max(...xs.map(Math.abs)) <= 0.55);
+  assert.ok(zcr(xs.slice(0, 4000)) < 0.02, "casi todo grave (pocos cruces por cero)");
+  assert.ok(Math.max(...xs.slice(-1500).map(Math.abs)) < 0.1 && thudWav({ seed: 3 }).equals(thudWav({ seed: 3 })));
+});

@@ -96,3 +96,18 @@ export function crackWav({ seconds = 0.3, seed = 31 } = {}) {
   }
   return wav(shape(out, () => 1));
 }
+
+/** Golpe sordo: ruido de paso bajo (180 Hz) con decaimiento de 70 ms + seno de 55 Hz (§10 del md). */
+export function thudWav({ seconds = 0.25, seed = 41 } = {}) {
+  const n = Math.round(seconds * SAMPLE_RATE);
+  const rand = mulberry32(seed);
+  const out = new Float64Array(n);
+  const a = (2 * Math.PI * 180) / SAMPLE_RATE;
+  let y = 0;
+  for (let i = 0; i < n; i++) {
+    const t = i / SAMPLE_RATE;
+    y += a * ((rand() * 2 - 1) - y);
+    out[i] = y * 6 * Math.exp(-t / 0.07) + Math.sin(2 * Math.PI * 55 * t) * Math.exp(-t / 0.12);
+  }
+  return wav(shape(out, () => 1));
+}

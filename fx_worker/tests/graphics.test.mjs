@@ -201,3 +201,70 @@ test("builder: imagen en la composición con su fichero copiado, sonidos por tip
   assert.match(html, /<audio id="sfxg0_1" src="sfx\/dust.wav" data-start="3" data-duration="0.8" data-volume="0.14">/);
   assert.equal((await checkProject(work)).totalErrors, 0);
 });
+
+
+import { entryScript, shakeScript } from "../src/motifs/entry.mjs";
+import { explodeScript } from "../src/motifs/dissolve.mjs";
+
+test("contrato: entradas y el efecto explotar", () => {
+  const g = (extra) => parseRequest({ ...base, graphics: [{ type: "image", at: 6, image: "u1/assets/7.png", ...extra }] }).graphics[0];
+  assert.equal(g({}).entry, "pop");
+  for (const entry of ["punch", "slide_left", "slide_right", "slide_top", "drop"]) assert.equal(g({ entry }).entry, entry);
+  assert.equal(g({ effect: "explode" }).effect, "explode");
+  assert.throws(() => g({ entry: "volar" }), ContractError);
+  assert.equal(parseRequest({ ...base, graphics: [{ type: "emoji", at: 6, emoji: "💣", effect: "explode" }] }).graphics[0].effect, "explode");
+});
+
+test("golpe: llega acelerando EN la palabra, rebota, tiembla el plano y suenan whoosh y golpe", () => {
+  const e = entryScript({ id: "g0", entry: "punch", t0: 5, at: 5.6, box: { w: 270, h: 310 }, left: 405, top: 1290, tilt: -5 });
+  assert.ok(e.script.includes('ease:"power3.in"},5);') && e.script.includes("duration:0.6"), "dura hasta la palabra (0,6 s)");
+  assert.ok(e.script.includes("x:-45,scale:1.12,duration:0.09") && e.script.includes('"#vwrap"'));
+  assert.deepEqual(e.sfx, [{ kind: "whoosh", at: 5 }, { kind: "thud", at: 5.6 }]);
+  assert.equal(shakeScript({ at: 5.6, seed: 2 }), shakeScript({ at: 5.6, seed: 2 }));
+  assert.ok(shakeScript({ at: 5.6, seed: 2 }).includes('x:0,y:0,scale:1,duration:0.06'));
+});
+
+test("deslizar y caer: desde fuera del cuadro hasta su sitio", () => {
+  const box = { w: 270, h: 310 };
+  const left = entryScript({ id: "g0", entry: "slide_left", t0: 5, at: 5.6, box, left: 405, top: 1290, tilt: 0 });
+  assert.ok(left.script.includes("x:-755") && left.script.includes("x:0,rotation:0,duration:0.45"));   // −(405 + 270 + 80)
+  assert.ok(entryScript({ id: "g0", entry: "slide_right", t0: 5, at: 5.6, box, left: 405, top: 1290, tilt: 0 }).script.includes("x:755"));
+  assert.ok(entryScript({ id: "g0", entry: "slide_top", t0: 5, at: 5.6, box, left: 405, top: 1290, tilt: 0 }).script.includes("y:-1680"));
+  const drop = entryScript({ id: "g0", entry: "drop", t0: 5, at: 5.6, box, left: 405, top: 1290, tilt: 0 });
+  assert.ok(drop.script.includes('ease:"power2.in"},5);') && drop.sfx.some((s) => s.kind === "thud" && s.at === 5.6));
+  assert.deepEqual(entryScript({ id: "g0", entry: "pop", t0: 5, at: 5.6, box, left: 405, top: 1290, tilt: 0 }).sfx, [{ kind: "pop", at: 5 }]);
+});
+
+test("explotar: 100 fragmentos radiales con gravedad que empiezan en la palabra, más el anillo de onda", () => {
+  const s = explodeScript({ id: "g0", cols: 10, rows: 10, w: 270, h: 310, at: 5.6, seed: 4 });
+  assert.equal(s, explodeScript({ id: "g0", cols: 10, rows: 10, w: 270, h: 310, at: 5.6, seed: 4 }));
+  assert.equal((s.match(/ease:"power2.out"\},5.6\);/g) ?? []).length, 100 + 1);        // 100 teselas + el anillo
+  assert.ok(s.includes('#g0r",{opacity:1,scale:0.2},{opacity:0,scale:3.4') && !/NaN|undefined/.test(s));
+  const m = imageMotif({ ...IMG, item: { ...IMG.item, entry: "punch", effect: "explode" } });
+  assert.ok(m.html.includes('id="g3r"') && (m.html.match(/class="vt"/g) ?? []).length === 100);
+  assert.equal(m.sfx.filter((x) => x.kind === "thud").length, 2, "el motivo declara el golpe del impacto y el de la explosión");
+});
+
+test("la capa no repite un mismo sonido en el mismo instante (golpear y explotar = un solo golpe)", () => {
+  const items = [{ type: "image", at: 5.6, lead: 0.6, duration: 3, image: "u1/assets/7.png", style: "card", effect: "explode", entry: "punch" }];
+  const out = graphicsLayer({ items, map: makeTimeMap(undefined), clipDuration: 20, files: { "u1/assets/7.png": "g.png" } });
+  assert.equal(out.sfx.filter((x) => x.kind === "thud").length, 1);
+  assert.deepEqual(out.sfx.map((x) => x.id), ["sfxg0", "sfxg0_1", "sfxg0_2"]);
+});
+
+test("builder: golpe + explotar compone, copia los sonidos nuevos y pasa el linter", async () => {
+  const dir = tmp();
+  const video = makeVideo(join(dir, "src.mp4"), 12);
+  const asset = join(dir, "g.png");
+  writeFileSync(asset, Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64"));
+  const rel = "u1/assets/7.png";
+  const request = parseRequest({ video: "a.mp4", output: "b.mp4", duration: 12, graphics: [
+    { type: "image", at: 4, lead: 0.7, image: rel, style: "card", entry: "punch", effect: "explode" },
+    { type: "image", at: 8, image: rel, entry: "drop", effect: "break" },
+    { type: "emoji", at: 10.5, emoji: "💣", effect: "explode" },
+  ] });
+  const work = join(dir, "work");
+  buildProject({ request, video, workDir: work, images: { [rel]: asset } });
+  for (const f of ["whoosh.wav", "thud.wav", "crack.wav", "pop.wav"]) assert.ok(existsSync(join(work, "sfx", f)), f);
+  assert.equal((await checkProject(work)).totalErrors, 0);
+});

@@ -81,3 +81,37 @@ export function sparksHtml({ id, w, h }) {
 }
 
 export const SPARKS_CSS = `.sp{position:absolute;width:8px;height:8px;border-radius:50%;background:#DA2E09;opacity:0}`;
+
+/** Explotar: cada tesela sale en línea recta desde el centro (con algo de azar), gira, cae con la gravedad y se desvanece. */
+export function explodeScript({ id, cols, rows, w, h, at, seed = 1 }) {
+  const rand = mulberry32(seed * 3571 + 17);
+  const tw = w / cols;
+  const th = h / rows;
+  const parts = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const idx = r * cols + c;
+      const cx = (c + 0.5) * tw - w / 2;
+      const cy = (r + 0.5) * th - h / 2;
+      const angle = Math.atan2(cy, cx) + (rand() - 0.5) * 0.7;
+      const dist = 260 + rand() * 520;
+      const dur = 0.7 + rand() * 0.4;
+      const x = Math.cos(angle) * dist;
+      const y = Math.sin(angle) * dist + 0.5 * 900 * dur * dur * 0.5;   // + algo de caída por gravedad
+      const rot = (rand() - 0.5) * 720;
+      parts.push(
+        `tl.to("#${id}v${idx}",{x:${fmt(x)},y:${fmt(y)},rotation:${fmt(rot)},duration:${fmt(dur)},ease:"power2.out"},${fmt(at)});`,
+        `tl.to("#${id}v${idx}",{opacity:0,duration:${fmt(dur * 0.45)},ease:"power1.in"},${fmt(at + dur * 0.55)});`,
+      );
+    }
+  }
+  // anillo de onda expansiva (0,18–0,4 s)
+  parts.push(`tl.fromTo("#${id}r",{opacity:1,scale:0.2},{opacity:0,scale:3.4,duration:0.4,ease:"power2.out"},${fmt(at)});`);
+  return parts.join("");
+}
+
+export function ringHtml({ id, w, h }) {
+  return `<i id="${id}r" class="rg" style="left:${w / 2 - 70}px;top:${h / 2 - 70}px"></i>`;
+}
+
+export const RING_CSS = `.rg{position:absolute;width:140px;height:140px;border-radius:50%;border:10px solid #F3EEE2;box-sizing:border-box;opacity:0}`;

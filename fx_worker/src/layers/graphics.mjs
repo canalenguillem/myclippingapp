@@ -30,7 +30,9 @@ export function graphicsLayer({ items, map, clipDuration, zones = graphicZones({
     parts.css.push(out.css);
     if (out.cssItem) parts.cssItem.push(out.cssItem);
     parts.script.push(out.script);
-    (out.sfx ?? [{ kind: "pop", at: map.out(s) }]).forEach((fx, n) => sfx.push({ id: n === 0 ? `sfx${id}` : `sfx${id}_${n}`, kind: fx.kind, at: fx.at }));
+    // sin sonidos repetidos: golpear y explotar en la misma palabra suena UN golpe, no dos encima
+    const own = (out.sfx ?? [{ kind: "pop", at: map.out(s) }]).filter((fx, n, all) => all.findIndex((o) => o.kind === fx.kind && Math.abs(o.at - fx.at) < 0.01) === n);
+    own.forEach((fx, n) => sfx.push({ id: n === 0 ? `sfx${id}` : `sfx${id}_${n}`, kind: fx.kind, at: fx.at }));
   });
   const css = `.gfx{position:absolute;opacity:0}\n${[...new Set(parts.css)].join("\n")}\n${parts.cssItem.join("\n")}`;
   return { html: parts.html.join("\n  "), css: items.length ? css : "", script: parts.script.join("\n"), sfx };

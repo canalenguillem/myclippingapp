@@ -67,8 +67,9 @@ const emojiText = z.string().min(1).max(16).regex(/^[\p{So}\p{Sk}\p{Cf}\p{Mn}]+$
 const graphic = z.discriminatedUnion("type", [
   // Imagen de la librería del usuario (ruta relativa de MEDIA_DIR). `style` la viste y `effect` la anima o la deshace.
   z.object({ type: z.literal("image"), ...graphicBase, image: relPath.refine((v) => /\.png$/i.test(v), { message: "image debe ser png" }),
-    style: z.enum(["original", "card", "silhouette", "red"]).default("original"), effect: z.enum(["pop", "vaporize", "break"]).default("pop") }).strict(),
-  z.object({ type: z.literal("emoji"), ...graphicBase, emoji: emojiText, target: emojiText.optional(), effect: z.enum(["pop", "vaporize"]).default("pop") }).strict(),
+    style: z.enum(["original", "card", "silhouette", "red"]).default("original"), effect: z.enum(["pop", "vaporize", "break", "explode"]).default("pop"),
+    entry: z.enum(["pop", "punch", "slide_left", "slide_right", "slide_top", "drop"]).default("pop") }).strict(),
+  z.object({ type: z.literal("emoji"), ...graphicBase, emoji: emojiText, target: emojiText.optional(), effect: z.enum(["pop", "vaporize", "explode"]).default("pop") }).strict(),
   z.object({ type: z.literal("keyword"), ...graphicBase, text: z.string().trim().min(1).max(40), zone: z.enum(["bottom", "top"]).default("bottom") }).strict(),
 ]);
 

@@ -11,7 +11,7 @@ import { hookLayer } from "./layers/hook.mjs";
 import { outroLayer } from "./layers/outro.mjs";
 import { sourceIntervals, treatmentLayer } from "./layers/treatment.mjs";
 import { getPreset } from "./presets.mjs";
-import { crackWav, dustWav, popWav, shimmerWav, whooshWav } from "./sfx.mjs";
+import { crackWav, dustWav, popWav, shimmerWav, thudWav, whooshWav } from "./sfx.mjs";
 import { makeTimeMap, mapIntervals } from "./timemap.mjs";
 
 const require = createRequire(import.meta.url);
@@ -92,7 +92,8 @@ export function buildProject({ request, video, workDir, orbit = null, images = {
     const track = (id, file, start, seconds, volume) =>
       sfx.push(`<audio id="${id}" src="sfx/${file}" data-start="${Number(start.toFixed(3))}" data-duration="${seconds}" data-volume="${volume}"></audio>`);
     if (graphics.sfx.length) {
-      const kinds = { pop: { wav: popWav, seconds: 0.12, volume: 0.3 }, dust: { wav: dustWav, seconds: 0.8, volume: 0.14 }, crack: { wav: crackWav, seconds: 0.3, volume: 0.25 } };
+      const kinds = { pop: { wav: popWav, seconds: 0.12, volume: 0.3 }, dust: { wav: dustWav, seconds: 0.8, volume: 0.14 }, crack: { wav: crackWav, seconds: 0.3, volume: 0.25 },
+        thud: { wav: thudWav, seconds: 0.25, volume: 0.45 }, whoosh: { wav: () => whooshWav({ seconds: 0.35, rising: true, seed: 41 }), seconds: 0.35, volume: 0.25 } };
       for (const kind of new Set(graphics.sfx.map((g) => g.kind))) put(`${kind}.wav`, kinds[kind].wav());
       for (const g of graphics.sfx) track(g.id, `${g.kind}.wav`, g.at, kinds[g.kind].seconds, kinds[g.kind].volume);
     }
