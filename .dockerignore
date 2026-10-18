@@ -1,0 +1,9 @@
+# El contexto de build de backend y frontend es la raíz del repo: nada de medios (GB), secretos ni dependencias del host.
+media/
+videos_ejemplo/
+.git/
+.env
+**/node_modules/
+**/__pycache__/
+**/.pytest_cache/
+fx_worker/spike/assets/

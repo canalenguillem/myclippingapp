@@ -88,3 +88,5 @@ input[type="range"] { padding: 0; }
 .stills figcaption { text-align: center; font-size: .8rem; }
 
 .pw { display: flex; gap: 6px; } .pw input { flex: 1; } .pw button { padding: 6px 10px; }
+
+.cort-pos { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; } .cort-pos label { align-self: stretch; }

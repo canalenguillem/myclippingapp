@@ -5,12 +5,14 @@ import RenderPanel from "../components/RenderPanel";
 import type { Clip, Project, Transcript } from "../types";
 import { EDITABLE_CLIP, fmtTime } from "../types";
 
-type Draft = Pick<Clip, "start" | "end" | "title" | "hook" | "layout" | "focus" | "zoom" | "top_ratio" | "intro_enabled">;
+type Draft = Pick<Clip, "start" | "end" | "title" | "hook" | "layout" | "focus" | "zoom" | "top_ratio" | "intro_enabled" | "cortinilla_at">;
 
 const draftOf = (c: Clip): Draft => ({
   start: c.start, end: c.end, title: c.title, hook: c.hook, layout: c.layout, focus: c.focus,
-  zoom: c.zoom, top_ratio: c.top_ratio, intro_enabled: c.intro_enabled,
+  zoom: c.zoom, top_ratio: c.top_ratio, intro_enabled: c.intro_enabled, cortinilla_at: c.cortinilla_at,
 });
+
+type CortinillaOptions = { duration: number; intro: number; default: number | null; positions: { at: number; sentence: boolean }[] };
 
 const round = (n: number) => Math.round(n * 100) / 100;
 const CONTEXT = 15; // segundos de transcripción visibles antes y después del clip
@@ -29,6 +31,7 @@ export default function ClipEditor() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
+  const [options, setOptions] = useState<CortinillaOptions | null>(null);
   const video = useRef<HTMLVideoElement>(null);
   const seeked = useRef(false);
 
@@ -60,6 +63,17 @@ export default function ClipEditor() {
     return () => clearInterval(timer);
   }, [loadUrl]);
 
+  // Posibles posiciones de la cortinilla de inicio para el recorte que se ve en el formulario (guardado o no).
+  const wantOptions = Boolean(clip && draft?.intro_enabled);
+  const optStart = draft?.start, optEnd = draft?.end;
+  useEffect(() => {
+    if (!clip || !wantOptions || optStart === undefined || optEnd === undefined || optEnd - optStart < 1) { setOptions(null); return; }
+    const timer = setTimeout(() => {
+      api<CortinillaOptions>(`/api/clips/${clip.id}/cortinilla-options?start=${optStart}&end=${optEnd}`).then(setOptions).catch(() => setOptions(null));
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [clip?.id, wantOptions, optStart, optEnd]);  // eslint-disable-line react-hooks/exhaustive-deps
+
   const editable = clip ? EDITABLE_CLIP.has(clip.status) : false;
   const dirty = clip && draft ? JSON.stringify(draft) !== JSON.stringify(draftOf(clip)) : false;
   const duration = draft ? draft.end - draft.start : 0;
@@ -67,7 +81,8 @@ export default function ClipEditor() {
     : duration < 5 || duration > 180 ? "La duración debe estar entre 5 y 180 s"
     : project?.duration && draft.end > project.duration + 0.05 ? "El fin está fuera del vídeo" : "";
 
-  const set = (patch: Partial<Draft>) => setDraft((d) => d && { ...d, ...patch });
+  const set = (patch: Partial<Draft>) =>
+    setDraft((d) => d && { ...d, ...patch, ...(("start" in patch || "end" in patch) && !("cortinilla_at" in patch) ? { cortinilla_at: null } : {}) });
   const seek = (s: number) => { if (video.current) video.current.currentTime = Math.max(0, s); };
 
   const onLoaded = () => {
@@ -215,6 +230,25 @@ export default function ClipEditor() {
             Cortinilla de inicio (opcional)
           </label>
           <p className="muted hint">Si la activas, entra tras la intro del clip y lo pausa 3,6 s. La cortinilla final se añade siempre.</p>
+          {draft.intro_enabled && (
+            <div className="cort-pos">
+              <label>Posición de la cortinilla de inicio
+                <select disabled={!editable} value={draft.cortinilla_at === null ? "auto" : String(draft.cortinilla_at)}
+                  onChange={(e) => set({ cortinilla_at: e.target.value === "auto" ? null : Number(e.target.value) })}>
+                  <option value="auto">Automática{options?.default != null ? ` (a los ${options.default.toFixed(1)} s)` : ""}</option>
+                  {draft.cortinilla_at !== null && !options?.positions.some((p) => p.at === draft.cortinilla_at) && (
+                    <option value={String(draft.cortinilla_at)}>{draft.cortinilla_at.toFixed(1)} s (guardada; se ajustará al silencio más cercano)</option>
+                  )}
+                  {options?.positions.map((p) => (
+                    <option key={p.at} value={String(p.at)}>{p.at.toFixed(1)} s · {p.sentence ? "fin de frase" : "pausa"}{p.at < options.intro ? " · dentro de la intro" : ""}</option>
+                  ))}
+                </select>
+              </label>
+              <button type="button" className="ghost" disabled={draft.cortinilla_at === null && options?.default == null}
+                onClick={() => seek(draft.start + (draft.cortinilla_at ?? options?.default ?? 0))}>Ver ese punto en el vídeo</button>
+              {options && options.positions.length === 0 && <p className="error">No hay un silencio válido en este recorte: la cortinilla de inicio no entrará.</p>}
+            </div>
+          )}
 
           <div className="clip-actions">
             <button onClick={save} disabled={!editable || !dirty || !!problem || saving}>{saving ? "Guardando…" : "Guardar cambios"}</button>

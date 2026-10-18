@@ -175,3 +175,16 @@ def test_new_clips_take_the_cortinilla_default_from_the_template(client, tmp_pat
     db.commit()
     clips_service.replace_detected_clips(db, p, [cand])
     assert db.query(Clip).one().intro_enabled is True
+
+
+def test_cortinilla_at_null_goes_back_to_automatic_and_invalidates_the_render(client, tmp_path, monkeypatch):
+    from app.db.models import RenderState
+    h, db, p = _project(client, tmp_path, monkeypatch)
+    c = _clip(db, p, 10.0, 40.0, cortinilla_at=12.5, intro_enabled=True)
+    assert client.patch(f"/api/clips/{c.id}", json={"cortinilla_at": None}, headers=h).json()["cortinilla_at"] is None
+    c.cortinilla_at = 12.5
+    c.render_state = RenderState.DRAFT
+    c.draft_path = "u1/p1/clip_1/draft.mp4"
+    db.commit()
+    out = client.patch(f"/api/clips/{c.id}", json={"cortinilla_at": None}, headers=h).json()
+    assert out["cortinilla_at"] is None and out["render_state"] == "none"  # el borrador ya no corresponde

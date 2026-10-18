@@ -121,3 +121,37 @@ def test_render_endpoints_are_isolated_between_users(client, tmp_path, monkeypat
                  other.get(f"/api/clips/{c.id}/render-urls"), other.get(f"/api/clips/{c.id}/still", params={"t": 1})):
         assert call.status_code == 404
     assert other.get("/api/jobs").json() == []
+
+
+def _with_silences(db, p, silences):
+    from app.services import silences as silences_service
+    path = storage.project_dir(p.user_id, p.id) / "silences.json"
+    silences_service.save_silences(silences, path)
+    p.silences_path = storage.rel(path)
+    db.commit()
+
+
+def test_cortinilla_options_lists_valid_silences_and_the_default(client, tmp_path, monkeypatch):
+    h, db, p = _project(client, tmp_path, monkeypatch)   # palabras p0..p99, cada una de i a i+0,5 s, sin puntuación
+    c = _clip(db, p, 10.0, 40.0)
+    _with_silences(db, p, [{"start": 12.5, "end": 12.95}, {"start": 20.5, "end": 20.95}, {"start": 35.0, "end": 36.0}, {"start": 39.6, "end": 40.0}])
+    r = client.get(f"/api/clips/{c.id}/cortinilla-options")
+    assert r.status_code == 200
+    body = r.json()
+    # relativos al clip; sin puntuación ninguna cierra frase; el del segundo 29,6 cae en el último segundo (30 s de clip)
+    assert body["duration"] == 30.0 and body["intro"] == 4.0
+    assert body["positions"] == [{"at": 2.725, "sentence": False}, {"at": 10.725, "sentence": False}, {"at": 25.5, "sentence": False}]
+    assert body["default"] == 10.725            # primer silencio pasada la intro de 4 s
+    r2 = client.get(f"/api/clips/{c.id}/cortinilla-options", params={"start": 20.0, "end": 40.0})
+    assert [x["at"] for x in r2.json()["positions"]] == [0.725, 15.5]
+    assert client.get(f"/api/clips/{c.id}/cortinilla-options", params={"start": 20.0, "end": 20.5}).status_code == 422
+
+
+def test_cortinilla_options_without_silences_and_isolation(client, tmp_path, monkeypatch):
+    h, db, p = _project(client, tmp_path, monkeypatch)
+    c = _clip(db, p, 10.0, 40.0)
+    body = client.get(f"/api/clips/{c.id}/cortinilla-options").json()
+    assert body["positions"] == [] and body["default"] is None
+    other = TestClient(client.app)
+    _login(other, "b@x.com")
+    assert other.get(f"/api/clips/{c.id}/cortinilla-options").status_code == 404
