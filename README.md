@@ -2,7 +2,7 @@
 
 App web multiusuario para clipear vídeos largos de YouTube y convertirlos en shorts con motion graphics.
 
-Stack: FastAPI + MariaDB, worker con cola en MariaDB, React + Vite, Remotion (fx_worker) y ffmpeg. Docker Compose.
+Stack: FastAPI + MariaDB, worker con cola en MariaDB, React + Vite, HyperFrames (fx_worker) y ffmpeg. Docker Compose.
 
 ## Arranque
 

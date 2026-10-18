@@ -19,7 +19,6 @@ class Settings(BaseSettings):
 
     worker_concurrency: int = 2
     fx_worker_url: str = ""
-    fx_parallel: int = 1
     media_dir: Path = Path("/media")
 
 

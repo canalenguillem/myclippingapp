@@ -6,7 +6,7 @@
 
 App web multiusuario para clipear vídeos largos de YouTube: detectar los mejores momentos, convertirlos en shorts verticales con motion graphics (cortinilla de entrada, cortinilla de salida y gráficos ligados a lo que se dice) y subirlos al canal de YouTube que cada usuario configure.
 
-Stack: FastAPI + MariaDB (SQLAlchemy + Alembic), worker con cola en MariaDB, React + Vite, Remotion (`fx_worker`) y ffmpeg, todo en Docker Compose.
+Stack: FastAPI + MariaDB (SQLAlchemy + Alembic), worker con cola en MariaDB, React + Vite, HyperFrames de HeyGen (`fx_worker`) y ffmpeg, todo en Docker Compose.
 
 ## Hecho (F0–F4)
 
@@ -44,21 +44,17 @@ Tras el ajuste de límites: 15 de 16 cortes caen en silencio y 7 de 8 clips acab
 
 | Fase | Contenido |
 |---|---|
-| **F5 Render vertical** | Portar `make_vertical_clip`, `render_clip`, `fx_client` y `fx_worker`; carril de render global de 1; análisis por clip; draft 540x960 y final tras aprobar; stills (ajustes de FASES.md; ver conflictos) |
-| **F6 Cortinillas** | Intro corta del clip; cortinilla de inicio opcional (pausa el clip); cortinilla final siempre; plantillas de marca por usuario |
+| **F5 Render vertical** | Experimento técnico con HyperFrames (go/no-go); portar `make_vertical_clip`, `render_clip` y `fx_client`; `fx_worker` nuevo en HTML + GSAP; carril de render global de 1; análisis por clip; draft 540x960 y final tras aprobar; stills ; capas de estilo: banda de papel, dos estilos de subtítulo, blanco y negro para el clip citado y preset `editorial` (decisión C2) |
+| **F6 Cortinillas** | Intro corta del clip; cortinilla de inicio opcional (pausa el clip); cortinilla final siempre; plantillas de marca por usuario; editor de plantilla con vista previa (decisión C3) |
 | **F7 Gráficos por transcripción** | Librería de assets; motivos con objeto; `graphics_planner` |
 | **F8 YouTube por usuario** | Canales con su propio `client_secret.json` cifrado; OAuth con `state` firmado; SEO; subida |
-| **F9 QA y pulido** | Checks automáticos; bucle notas → reglas; hoja de contactos; limpieza de media |
+| **F9 QA y pulido** | Checks automáticos; bucle notas → reglas por usuario (`style_rules`, decisión C4); hoja de contactos; limpieza de media |
 
-### Decisiones sin tomar (C2–C5 bloquean F5/F6, no F4)
+### Decisiones sin tomar
 
 Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 
-- **C2** Si `PaperBand`, los dos estilos de subtítulo, `Grayscale` y el preset `editorial` van en F5 (FASES) o F6 (plan).
-- **C3** Si `@remotion/player` va en F6 (FASES) o F9 (plan).
-- **C4** Si `rules/` es global o por usuario (F9).
-- **C5** Si se elimina `FX_PARALLEL` y se reescribe el aviso de escalado tras fijar el carril global de 1.
-- **O1** `v1725` usa pantalla completa + banda inferior, que no es el layout `split`.
+- **O1** Los ejemplos usan tres diseños de pantalla: `split`, pantalla completa + banda inferior (`v1725`) y escenario de papel arriba + vídeo abajo (el del amigo). Cuáles se soportan se decide en F5. Los vídeos de ejemplo están descritos en la sección «Vídeos de referencia» del plan.
 
 ## Deuda técnica y problemas conocidos
 
@@ -76,10 +72,10 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 
 ## Riesgos y avisos
 
-- **Licencia de Remotion:** gratis para particulares y empresas pequeñas; una app multiusuario comercial con más gente necesita licencia de empresa.
+- **HyperFrames:** Apache 2.0, sin cuotas por render. Es anterior a 1.0 (0.7.x): fijar la versión y vigilar los cambios incompatibles. Su documentación pública no cubre fps, vídeo de origen, subtítulos por palabra, Docker ni recursos; F5 empieza con un experimento técnico y deja Remotion como plan B (de pago a partir de 4 personas); está en `myMoviPyTests`, carpeta `fx_worker/`, commit `5321d57`.
 - **Derechos de autor:** clipear vídeos de terceros requiere permiso del autor o un uso permitido. La app no debe prometer esquivar Content ID.
 - **Cuota de YouTube:** ~6 subidas al día por proyecto de Google (cada usuario usa el suyo).
-- **CPU:** Remotion tarda ~1–3 min por clip de 30 s con `FX_CONCURRENCY=1`; el carril global de 1 serializa los renders.
+- **CPU:** el tiempo por clip con HyperFrames está por medir en el experimento de F5; el carril global de 1 serializa los renders.
 - **Costes de API:** AssemblyAI (con diarización) por minuto de audio y OpenAI por detección y SEO; se pagan con las claves del `.env`. El modelo de detección se cambia con `OPENAI_CLIP_MODEL` (por defecto `gpt-4o`).
 - **La calidad de los clips depende del modelo:** algunos empiezan sin el contexto necesario («esta institución…»). La revisión humana en el editor es parte del flujo.
 
@@ -95,4 +91,9 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 - Los énfasis se guardan por tiempo absoluto y texto, no por índice de palabra.
 - El estado del proyecto es un Enum de Python guardado como texto, no un `ENUM` nativo de MariaDB.
 - Los cortes de clip priorizan acabar en una frase completa antes que en un silencio.
-- **Estructura del short (C1):** arranca directamente en contenido, con una intro corta del propio clip (~4 s, cortada en un silencio). La cortinilla de inicio es opcional (casilla por clip, valor por defecto en la plantilla de marca, apagada por defecto): entra tras la intro, pausa el clip y dura 3,6 s. La cortinilla final es siempre, sin interruptor; `outro_enabled` se elimina del modelo en F6.
+- **Estructura del short (C1):** arranca directamente en contenido, con una intro corta del propio clip (~4 s, cortada en un silencio). La cortinilla de inicio es opcional (casilla por clip, valor por defecto en la plantilla de marca, apagada por defecto): entra en el silencio que se elija (por defecto, tras la intro de ~4 s; sin máximo), pausa el clip y dura 3,6 s. La cortinilla final es siempre, sin interruptor; `outro_enabled` se elimina del modelo en F6.
+- **Capas de estilo en F5 (C2):** banda de papel, dos estilos de subtítulo, blanco y negro para el clip citado y preset `editorial` van con el porte del render vertical.
+- **Vista previa en F6 (C3):** el editor de plantilla de cortinilla tiene vista previa sin renderizar (iframe sobre la composición HTML, a validar en F5).
+- **Reglas de estilo por usuario (C4):** tabla `style_rules` en la BD; `rules/` del repo queda como guía de desarrollo.
+- **Sin `FX_PARALLEL` (C5):** rige solo el carril global de 1; no hay escalado por réplicas del servicio de render.
+- **Motor de animación: HyperFrames de HeyGen (HTML + GSAP)**, en lugar de Remotion. Remotion queda como plan B si falla el experimento de F5.
