@@ -94,3 +94,12 @@ def test_burn_subtitles_fails_cleanly_on_a_bad_video(tmp_path):
     with pytest.raises(ass.AssError, match="subtítulos"):
         ass.burn_subtitles(bad, [W("a", 0, 1)], tmp_path / "o.mp4", duration=1, width=540, height=960, top_ratio=0.5)
     assert not (tmp_path / "o.mp4").exists()
+
+
+def test_a_phrase_never_overlaps_the_next_one():
+    words = [{"text": "uno,", "start": 0.0, "end": 0.7, "speaker": "A"}, {"text": "dos.", "start": 0.72, "end": 1.2, "speaker": "A"},
+             {"text": "tres", "start": 1.25, "end": 1.6, "speaker": "A"}]
+    rows = [l.split(",")[1:3] for l in ass.build_ass(words, duration=3.0).splitlines() if l.startswith("Dialogue")]
+    assert len(rows) >= 2
+    for (_, end), (start, _) in zip(rows, rows[1:]):
+        assert end <= start

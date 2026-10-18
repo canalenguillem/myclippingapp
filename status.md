@@ -8,7 +8,7 @@ App web multiusuario para clipear vídeos largos de YouTube: detectar los mejore
 
 Stack: FastAPI + MariaDB (SQLAlchemy + Alembic), worker con cola en MariaDB, React + Vite, HyperFrames de HeyGen (`fx_worker`) y ffmpeg, todo en Docker Compose.
 
-## Hecho (F0–F4)
+## Hecho (F0–F5)
 
 | Fase | Contenido | Verificado |
 |---|---|---|
@@ -17,6 +17,7 @@ Stack: FastAPI + MariaDB (SQLAlchemy + Alembic), worker con cola en MariaDB, Rea
 | F2 Cola de jobs | Tabla `jobs` como cola; worker con `SKIP LOCKED` y `GET_LOCK`; latido; jobs huérfanos reencolados; límite de jobs por usuario; cancelación; log por fichero y SSE | Tests + prueba real en MariaDB |
 | F3 Ingesta | Proyecto desde URL de YouTube (solo `youtube.com` / `youtu.be`); descarga a 1080p con yt-dlp + deno; audio mono 16 kHz; límite de duración por usuario | Tests + importación real |
 | **F4 Detección y revisión** | Ver detalle abajo | 160 tests + vídeo real de 14 min + interfaz probada en Chrome |
+| **F5 Render vertical** | Carril de render global de 1; clip vertical con ffmpeg (diseño `split`, fotogramas clave densos); `fx_worker` con HyperFrames (HTML + GSAP, banda de papel, subtítulos karaoke en dos estilos, gancho, blanco y negro del clip citado, presets editorial/hormozi/minimal); job `render` con borrador 540x960 y final 1080x1920 (solo aprobado), miniatura, análisis de subtítulos quemados (blanco, verde, amarillo) y fallback a subtítulos ASS si el servicio cae; API (render, cancelar, URLs firmadas, stills); panel de render en el editor | 271 tests + `fx_worker` (43 unitarios y 3 de integración) + clip real de 41,8 s: final 1080x1920 en ~3 min, dos renders seguidos de dos jobs corren uno tras otro, fallback con `fx_worker` parado probado |
 
 ### Detalle de F4
 
@@ -40,20 +41,10 @@ Tras el ajuste de límites: 15 de 16 cortes caen en silencio y 7 de 8 clips acab
 3. En Proyectos, pegar un enlace de YouTube. El job descarga, transcribe y detecta clips; el progreso se ve en Jobs.
 4. En el proyecto: poner nombre y cargo a los speakers, corregir la transcripción, revisar los clips y aprobarlos. En el editor de clip se ajusta el inicio y el fin viendo el vídeo.
 
-## F5 en curso (pasos 1–8 de 9)
-
-- Hecho: carril de render global de 1 (paso 1), estado de render del clip (2), clip vertical con ffmpeg (3), servicio `fx_worker` con HyperFrames (4), capas de estilo (5) y, en el paso 6, `fx_client`, el job `render` con fallback a subtítulos ASS, miniatura, borrador 540x960 y detección de subtítulos quemados. 260 tests en verde.
-- Verificado de punta a punta (2026-10-18): job `render` borrador del clip 40 (41,8 s) por `fx_worker`, 71 s de render, `draft.mp4` de 540x960 con audio y banda, subtítulos y gancho.
-- **Subtítulos quemados amarillos:** la detección ya los reconoce (test nuevo). En el clip 40 los subtítulos de la fuente solo salen ~10 % del clip (los primeros segundos), por debajo del umbral de persistencia del 25 %, así que sigue sin banda obligatoria; es decisión de diseño, no fallo. Si se quiere cubrirlos también cuando son esporádicos, bajar `MIN_PERSISTENCE`.
-- **Paso 7, API de render:** `POST /api/clips/{id}/render` (`quality` draft|final; final solo aprobado; solo `split`; 409 si el clip ya se renderiza o hay otro job no-render en el proyecto), `POST /api/clips/{id}/render/cancel`, `GET /api/clips/{id}/render-urls` (URLs firmadas), `GET /api/clips/{id}/still?t=&quality=` (JPEG de un fotograma del render ya hecho). `ClipOut` trae `render_job_id`. Cancelar un render en cola (por el clip o por `/api/jobs/{id}/cancel`) devuelve el clip a su estado estable. 270 tests en verde.
-- **Paso 8, interfaz:** panel «Render» en el editor de clip (`RenderPanel`): borrador, final (solo aprobado), cancelar, progreso por sondeo del job, reproductor del render con URL firmada y 5 stills; el layout solo ofrece «Pantalla partida». Botón Ver/Ocultar en la contraseña de login y registro. Probado en el navegador: borrador existente, render con progreso y cancelación (vuelve a «borrador listo»). Sin probar en navegador: render final y el aviso del fallback ASS.
-- Falta: cierre con vídeo largo (9). Deuda: si un render agota sus 3 intentos fuera del handler, el clip se queda en `rendering`.
-
 ## Pendiente
 
 | Fase | Contenido |
 |---|---|
-| **F5 Render vertical** | Experimento técnico con HyperFrames: **hecho, GO** (`fx_worker/spike/RESULTADOS.md`). Falta: portar `make_vertical_clip` (con fotogramas clave densos), `render_clip` y `fx_client`; `fx_worker` real en HTML + GSAP; carril de render global de 1; análisis por clip; draft 540x960 y final tras aprobar; stills; capas de estilo (banda de papel, dos estilos de subtítulo, blanco y negro para el clip citado) y preset `editorial` (decisión C2) |
 | **F6 Cortinillas** | Intro corta del clip; cortinilla de inicio opcional (pausa el clip); cortinilla final siempre; plantillas de marca por usuario; editor de plantilla con vista previa (decisión C3) |
 | **F7 Gráficos por transcripción** | Librería de assets; motivos con objeto; `graphics_planner` |
 | **F8 YouTube por usuario** | Canales con su propio `client_secret.json` cifrado; OAuth con `state` firmado; SEO; subida |
@@ -63,7 +54,7 @@ Tras el ajuste de límites: 15 de 16 cortes caen en silencio y 7 de 8 clips acab
 
 Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 
-- Ninguna bloquea F5. Queda por decidir más adelante si entra el presentador-muñeco (F7).
+- Ninguna bloquea F6. Queda por decidir más adelante si entra el presentador-muñeco (F7).
 
 ## Deuda técnica y problemas conocidos
 
@@ -108,3 +99,9 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 - **Motor de animación: HyperFrames de HeyGen (HTML + GSAP)**, en lugar de Remotion; el experimento de F5 salió bien (GO). Remotion queda como plan B.
 - **Diseño de pantalla de F5 (O1):** solo `split`: plano corto arriba y escena completa abajo, con la banda y los subtítulos encima aunque la tapen en parte. Más adelante, el hueco de abajo podrá llevar un gameplay o un vídeo del usuario.
 - **Alcance de F5 (recortes aprobados el 2026-10-18):** subtítulos en dos estilos, gancho, banda de papel, blanco y negro del clip citado, borrador y final, y stills. El análisis por clip se reduce a detectar subtítulos quemados; cortes de plano y caras (mediapipe) pasan a F7. Zooms de énfasis, emojis, barra de progreso, SFX y música quedan fuera de F5 (los zooms con su whoosh podrían entrar como paso extra opcional).
+
+## Cierre de F5: datos y deuda
+
+- **Medido el 2026-10-18** (clip 40, 41,8 s, 107 palabras, máquina de 12 núcleos): borrador ~72 s; final ~3 min. Dos jobs `render` lanzados a la vez: el segundo esperó en cola a que acabara el primero.
+- **Fallback ASS:** con `fx_worker` parado el borrador sale con subtítulos simples (sin banda, estilos ni gancho) y `render_error` empieza por «Aviso:». Arreglado en el cierre: las frases ya no se solapan en el tiempo.
+- **Deuda:** subtítulos quemados esporádicos (<25 % del clip) no activan la banda obligatoria; si un render agota sus intentos fuera del handler, el clip se queda en `rendering`; sin probar en el navegador el render final ni el aviso del fallback.

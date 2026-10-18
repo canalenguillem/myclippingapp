@@ -61,9 +61,12 @@ def build_ass(words: list[dict], *, duration: float, width: int = 1080, height: 
     scale = width / 1080
     center_y = int(height * top_ratio) // 2 * 2
     lines = []
-    for g in group_phrases(words, duration):
+    groups = group_phrases(words, duration)
+    for n, g in enumerate(groups):
         start = g[0]["start"]
-        end = min(duration, g[-1]["end"] + 0.25)
+        end = min(duration, g[-1]["end"] + 0.25)  # la frase se queda un instante, pero nunca pisa a la siguiente
+        if n + 1 < len(groups):
+            end = min(end, max(groups[n + 1][0]["start"], start + 0.05))
         text = " ".join(_clean(w["text"]).upper() for w in g)
         size = round(min(64, 0.9 * 1080 / max(1, len(text) * 0.7)) * scale)
         parts = " ".join("{\\kf%d}%s" % (max(1, round((w["end"] - w["start"]) * 100)), _clean(w["text"]).upper()) for w in g)
