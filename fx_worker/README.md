@@ -69,3 +69,7 @@ npm install
 npm test                    # unitarias: contrato, rutas, constructor, linter y servidor (sin Chrome)
 npm run test:integration    # render real con Chrome; tarda ~10 s
 ```
+
+## Vista previa de plantillas
+
+`POST /previews` con `{cortinilla, outro}` (sin `at` ni `orbit`) devuelve `{html, duration}`: un HTML autocontenido (gsap y fuentes en línea) con un clip de relleno, la cortinilla de inicio a 1,2 s y la final, con las mismas capas que el render real. El navegador lo reproduce con `<hyperframes-player srcdoc>` sin renderizar nada. No ocupa el carril de render.

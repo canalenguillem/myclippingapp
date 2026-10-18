@@ -2,14 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
 import RenderPanel from "../components/RenderPanel";
-import type { Clip, Project, Transcript } from "../types";
+import type { Clip, Project, Template, Transcript } from "../types";
 import { EDITABLE_CLIP, fmtTime } from "../types";
 
-type Draft = Pick<Clip, "start" | "end" | "title" | "hook" | "layout" | "focus" | "zoom" | "top_ratio" | "intro_enabled" | "cortinilla_at">;
+type Draft = Pick<Clip, "start" | "end" | "title" | "hook" | "layout" | "focus" | "zoom" | "top_ratio" | "intro_enabled" | "cortinilla_at" | "template_id">;
 
 const draftOf = (c: Clip): Draft => ({
   start: c.start, end: c.end, title: c.title, hook: c.hook, layout: c.layout, focus: c.focus,
-  zoom: c.zoom, top_ratio: c.top_ratio, intro_enabled: c.intro_enabled, cortinilla_at: c.cortinilla_at,
+  zoom: c.zoom, top_ratio: c.top_ratio, intro_enabled: c.intro_enabled, cortinilla_at: c.cortinilla_at, template_id: c.template_id,
 });
 
 type CortinillaOptions = { duration: number; intro: number; default: number | null; positions: { at: number; sentence: boolean }[] };
@@ -32,6 +32,7 @@ export default function ClipEditor() {
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
   const [options, setOptions] = useState<CortinillaOptions | null>(null);
+  const [templates, setTemplates] = useState<Template[]>([]);
   const video = useRef<HTMLVideoElement>(null);
   const seeked = useRef(false);
 
@@ -51,6 +52,8 @@ export default function ClipEditor() {
       })
       .catch(fail);
   }, [id]);
+
+  useEffect(() => { api<Template[]>("/api/templates").then(setTemplates).catch(() => setTemplates([])); }, []);
 
   const projectId = clip?.project_id;
   const loadUrl = useCallback(() => {
@@ -224,6 +227,14 @@ export default function ClipEditor() {
           </label>
           <label>Parte superior {Math.round(draft.top_ratio * 100)} %
             <input type="range" min={0.2} max={0.9} step={0.05} disabled={!editable} value={draft.top_ratio} onChange={(e) => set({ top_ratio: Number(e.target.value) })} />
+          </label>
+          <label>Plantilla de marca
+            <select disabled={!editable} value={draft.template_id === null ? "" : String(draft.template_id)}
+              onChange={(e) => set({ template_id: e.target.value === "" ? null : Number(e.target.value) })}>
+              <option value="">Sin plantilla (valores por defecto)</option>
+              {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+            <span className="muted hint">Textos y colores de las cortinillas y estilo de los subtítulos. <Link to="/templates">Editar plantillas</Link></span>
           </label>
           <label className="check">
             <input type="checkbox" disabled={!editable} checked={draft.intro_enabled} onChange={(e) => set({ intro_enabled: e.target.checked })} />

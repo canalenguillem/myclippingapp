@@ -42,7 +42,7 @@ def text_between(words: list[dict], start: float, end: float) -> str:
 
 
 # Campos del clip que cambian el vídeo renderizado: editarlos deja obsoletos el borrador y el final.
-RENDER_AFFECTING = frozenset({"start", "end", "hook", "layout", "focus", "zoom", "top_ratio", "intro_enabled", "cortinilla_at"})
+RENDER_AFFECTING = frozenset({"start", "end", "hook", "layout", "focus", "zoom", "top_ratio", "intro_enabled", "cortinilla_at", "template_id"})
 
 
 def drop_render_files(clip: Clip) -> None:

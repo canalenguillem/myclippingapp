@@ -8,8 +8,9 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildProject } from "./builder.mjs";
-import { ContractError, parseRequest } from "./contract.mjs";
+import { ContractError, parsePreview, parseRequest } from "./contract.mjs";
 import { PathError, resolveInMedia } from "./paths.mjs";
+import { buildPreviewHtml, previewDuration } from "./preview.mjs";
 import { renderProject } from "./render.mjs";
 
 const MAX_BODY = 2 * 1024 * 1024;
@@ -98,6 +99,11 @@ export function createApp({ mediaDir, workers = 2, renderer = renderProject, wor
     const path = url.pathname;
     try {
       if (req.method === "GET" && path === "/health") return send(res, 200, { ok: true, engine: "hyperframes", busy: busy() });
+
+      if (req.method === "POST" && path === "/previews") {
+        const request = parsePreview(await readJson(req));
+        return send(res, 200, { html: buildPreviewHtml(request), duration: previewDuration(request) });
+      }
 
       if (req.method === "POST" && path === "/renders") {
         const request = parseRequest(await readJson(req));

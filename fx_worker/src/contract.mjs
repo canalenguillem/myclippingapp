@@ -114,3 +114,19 @@ export class ContractError extends Error {
     this.details = details;
   }
 }
+
+
+/** Vista previa de una plantilla (cortinilla de inicio + final sobre un clip de relleno), sin renderizar. */
+export const previewRequest = z
+  .object({
+    // `{}` y ausente dan los valores por defecto de cada plantilla (preprocess: `.default({})` no los aplica en zod 4)
+    cortinilla: z.preprocess((v) => v ?? {}, cortinilla.omit({ at: true, orbit: true })),
+    outro: z.preprocess((v) => v ?? {}, outro),
+  })
+  .strict();
+
+export function parsePreview(input) {
+  const result = previewRequest.safeParse(input);
+  if (!result.success) throw new ContractError(result.error.issues.map((i) => `${i.path.join(".") || "(raíz)"}: ${i.message}`));
+  return result.data;
+}

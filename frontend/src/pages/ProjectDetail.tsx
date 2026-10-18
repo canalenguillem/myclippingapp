@@ -4,7 +4,7 @@ import { api, ApiError } from "../api";
 import ClipCard from "../components/ClipCard";
 import SpeakerPanel from "../components/SpeakerPanel";
 import TranscriptView from "../components/TranscriptView";
-import type { Clip, Project, Speaker, Transcript } from "../types";
+import type { Clip, Project, Speaker, Template, Transcript } from "../types";
 import { STATUS_LABEL } from "./Projects";
 
 const BUSY = new Set(["downloading", "transcribing"]);
@@ -18,6 +18,7 @@ export default function ProjectDetail() {
   const [notice, setNotice] = useState("");
   const [clipsPerPart, setClipsPerPart] = useState(5);
   const [targetDur, setTargetDur] = useState(40);
+  const [templates, setTemplates] = useState<Template[]>([]);
 
   const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
 
@@ -30,6 +31,14 @@ export default function ProjectDetail() {
         .catch((e) => { if (!(e instanceof ApiError && e.status === 409)) fail(e); }), // 409 = aún sin transcripción
     [id],
   );
+
+  useEffect(() => { api<Template[]>("/api/templates").then(setTemplates).catch(() => setTemplates([])); }, []);
+  const setDefaultTemplate = async (value: string) => {
+    setError("");
+    try {
+      setProject(await api<Project>(`/api/projects/${id}`, { method: "PATCH", json: { default_template_id: value === "" ? null : Number(value) } }));
+    } catch (e) { fail(e); }
+  };
 
   useEffect(() => {
     loadProject();
@@ -111,6 +120,15 @@ export default function ProjectDetail() {
           {project.duration ? ` · ${(project.duration / 60).toFixed(1)} min` : ""}
           {transcript ? ` · ${transcript.words.length} palabras · ${transcript.language}` : ""}
         </p>
+      )}
+      {project && (
+        <label className="check">Plantilla de marca por defecto (para los clips que se detecten a partir de ahora)
+          <select value={project.default_template_id == null ? "" : String(project.default_template_id)} onChange={(e) => setDefaultTemplate(e.target.value)}>
+            <option value="">Sin plantilla</option>
+            {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+          {" "}<Link to="/templates">Editar plantillas</Link>
+        </label>
       )}
       {error && <p className="error">{error}</p>}
       {notice && <p className="notice">{notice}</p>}

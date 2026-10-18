@@ -3,6 +3,7 @@ export type CaptionStyle = "sans_upper" | "serif_italic";
 export type Speaker = { name: string; role: string; caption_style: CaptionStyle; is_source: boolean };
 
 export type Project = {
+  default_template_id?: number | null;
   id: number; source_url: string; title: string; duration: number | null;
   status: string; error: string | null; created_at: string | null;
   speakers: Record<string, Speaker>;
@@ -22,7 +23,7 @@ export type Clip = {
   status: string; created_at: string | null;
   /** Estado del render, aparte del editorial: none | rendering | draft | final | failed. */
   render_state: "none" | "rendering" | "draft" | "final" | "failed";
-  has_draft: boolean; has_final: boolean; render_error: string | null; render_job_id: number | null;
+  has_draft: boolean; has_final: boolean; render_error: string | null; render_job_id: number | null; template_id: number | null;
 };
 
 export const EDITABLE_CLIP = new Set(["detected", "approved"]);
@@ -36,3 +37,15 @@ export const fmtTime = (s: number): string => {
 const PALETTE = ["#da2e09", "#4da3ff", "#2fbf71", "#e0a526", "#b266ff", "#ff7ab8"];
 export const speakerColor = (label: string | undefined, labels: string[]): string =>
   PALETTE[Math.max(0, labels.indexOf(label ?? "")) % PALETTE.length];
+
+export type TemplateCortinilla = {
+  title: string; kicker: string; color?: string; duration: number; handle: string;
+  outro_text: string; outro_duration: number; like: string; subscribe: string;
+};
+export type Template = {
+  id: number; name: string; preset: "editorial" | "hormozi" | "minimal"; colors: { primary?: string };
+  sfx: boolean; cortinilla_default: boolean; cortinilla: Partial<TemplateCortinilla>; created_at: string | null;
+};
+export const EMPTY_CORTINILLA: TemplateCortinilla = {
+  title: "", kicker: "", duration: 3.6, handle: "", outro_text: "", outro_duration: 2.5, like: "ME GUSTA", subscribe: "SUSCRÍBETE",
+};

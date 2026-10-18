@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.deps import current_user, get_owned
 from app.db import get_db
-from app.db.models import Job, Project, ProjectStatus, User
+from app.db.models import BrandTemplate, Job, Project, ProjectStatus, User
 from app.jobs import queue
 from app.services import media_sign, storage, transcription
 from app.services.video_download import is_youtube_url
@@ -24,6 +24,7 @@ class ProjectOut(BaseModel):
     status: str
     error: str | None
     speakers: dict
+    default_template_id: int | None = None
     created_at: datetime | None
     model_config = {"from_attributes": True}
 
@@ -66,6 +67,23 @@ def create_project(body: ProjectIn, user: User = Depends(current_user), db: Sess
         payload["speakers_expected"] = body.speakers_expected
     job = queue.enqueue(db, user.id, "ingest", payload)
     return ProjectCreated.model_validate({**ProjectOut.model_validate(project).model_dump(), "job_id": job.id})
+
+
+class ProjectPatch(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    default_template_id: int | None = Field(default=None, ge=1)
+
+
+@router.patch("/{project_id}", response_model=ProjectOut)
+def patch_project(project_id: int, body: ProjectPatch, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Plantilla por defecto del proyecto: la que toman los clips que se detecten a partir de ahora."""
+    project = get_owned(db, Project, project_id, user)
+    if body.default_template_id is not None:
+        get_owned(db, BrandTemplate, body.default_template_id, user)
+    project.default_template_id = body.default_template_id
+    db.commit()
+    return project
 
 
 @router.get("/{project_id}", response_model=ProjectOut)

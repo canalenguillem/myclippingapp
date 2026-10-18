@@ -5,6 +5,7 @@ import Home from "./pages/Home";
 import Jobs from "./pages/Jobs";
 import ProjectDetail from "./pages/ProjectDetail";
 import Projects from "./pages/Projects";
+import Templates from "./pages/Templates";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 
@@ -25,6 +26,7 @@ export default function App() {
           <Route path="/jobs" element={<Jobs />} />
           <Route path="/projects" element={<Projects />} />
           <Route path="/projects/:id" element={<ProjectDetail />} />
+          <Route path="/templates" element={<Templates />} />
           <Route path="/clips/:id" element={<ClipEditor />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -59,6 +59,18 @@ class FxClient:
             return False
 
     # --- API ----------------------------------------------------------------------------------------
+    def preview(self, request: dict) -> dict:
+        """Vista previa de una plantilla: {html, duration}. No ocupa el carril de render."""
+        try:
+            r = self.http.post(f"{self.base}/previews", json=request, timeout=httpx.Timeout(20.0, connect=3.0))
+        except httpx.HTTPError as exc:
+            raise FxUnavailable(f"No se puede hablar con el servicio de render ({type(exc).__name__})") from exc
+        if r.status_code >= 500:
+            raise FxUnavailable(f"El servicio de render respondió {r.status_code}")
+        if r.status_code != 200:
+            raise FxRenderFailed(f"Petición de vista previa rechazada ({r.status_code}): {r.text[:300]}")
+        return r.json()
+
     def render(
         self,
         request: dict,

@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.auth.deps import current_user, get_owned
-from app.db.models import Clip, Job, Project, RenderState, User
+from app.db.models import BrandTemplate, Clip, Job, Project, RenderState, User
 from app.db import get_db
 from app.jobs import queue
 from app.pipeline import ffops
@@ -23,6 +23,7 @@ router = APIRouter(tags=["clips"])
 MIN_CLIP_SECONDS = 5.0
 MAX_CLIP_SECONDS = 180.0  # tope de un Short
 EDITABLE = ("detected", "approved")
+NULLABLE = ("cortinilla_at", "template_id")  # en el PATCH, null vuelve al valor automático / sin plantilla
 NOT_DELETABLE = ("planning", "rendering", "uploading")
 
 
@@ -45,6 +46,7 @@ class ClipOut(BaseModel):
     top_ratio: float
     intro_enabled: bool
     cortinilla_at: float | None
+    template_id: int | None
     status: str
     render_state: str
     has_draft: bool
@@ -59,7 +61,7 @@ def _out(c: Clip, render_job_id: int | None = None) -> ClipOut:
         id=c.id, project_id=c.project_id, start=c.start, end=c.end, duration=round(c.end - c.start, 3),
         title=c.title, reason=c.reason, score=c.score, transcript=c.transcript, hook=c.hook,
         emphasis=c.emphasis_json or [], parts=c.parts or [], layout=c.layout, focus=c.focus, zoom=c.zoom,
-        top_ratio=c.top_ratio, intro_enabled=c.intro_enabled, cortinilla_at=c.cortinilla_at,
+        top_ratio=c.top_ratio, intro_enabled=c.intro_enabled, cortinilla_at=c.cortinilla_at, template_id=c.template_id,
         status=c.status, render_state=c.render_state.value, has_draft=bool(c.draft_path),
         has_final=bool(c.rendered_path), render_error=c.render_error, render_job_id=render_job_id, created_at=c.created_at,
     )
@@ -79,6 +81,7 @@ class ClipPatch(BaseModel):
     zoom: float | None = Field(default=None, ge=1.0, le=3.0)
     top_ratio: float | None = Field(default=None, ge=0.2, le=0.9)
     intro_enabled: bool | None = None
+    template_id: int | None = Field(default=None, ge=1)
     cortinilla_at: float | None = Field(default=None, gt=0)
 
 
@@ -138,7 +141,7 @@ def patch_clip(clip_id: int, body: ClipPatch, user: User = Depends(current_user)
         raise HTTPException(409, "El clip se está renderizando; espera a que termine o cancela el render")
     changes = body.model_dump(exclude_unset=True)
     # `cortinilla_at: null` vuelve a la posición automática; en los demás campos null significa «sin cambio»
-    really_changed = {k for k, v in changes.items() if (v is not None or k == "cortinilla_at") and getattr(clip, k) != v}
+    really_changed = {k for k, v in changes.items() if (v is not None or k in NULLABLE) and getattr(clip, k) != v}
     start, end = changes.get("start", clip.start), changes.get("end", clip.end)
     if "start" in changes or "end" in changes:
         project = db.get(Project, clip.project_id)
@@ -148,10 +151,12 @@ def patch_clip(clip_id: int, body: ClipPatch, user: User = Depends(current_user)
             raise HTTPException(422, f"La duración debe estar entre {MIN_CLIP_SECONDS:.0f} y {MAX_CLIP_SECONDS:.0f} s")
         if project.duration and end > project.duration + 0.05:
             raise HTTPException(422, "El fin está fuera de la duración del vídeo")
+    if changes.get("template_id") is not None:
+        get_owned(db, BrandTemplate, changes["template_id"], user)  # una plantilla ajena responde 404
     if changes.get("cortinilla_at") is not None and changes["cortinilla_at"] > end - start - cortinilla_service.END_MARGIN:
         raise HTTPException(422, "La cortinilla de inicio no puede entrar en el último segundo del clip")
     for field, value in changes.items():
-        if value is not None or field == "cortinilla_at":
+        if value is not None or field in NULLABLE:
             setattr(clip, field, value)
     if ("start" in changes or "end" in changes) and "cortinilla_at" not in changes:
         clip.cortinilla_at = None  # es relativa al inicio del clip: con otro recorte ya no apunta al mismo sitio

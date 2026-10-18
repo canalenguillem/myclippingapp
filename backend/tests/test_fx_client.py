@@ -158,3 +158,15 @@ def test_make_fx_client_depends_on_the_configured_url(monkeypatch):
     monkeypatch.setattr(get_settings(), "fx_worker_url", "http://fx_worker:3000/")
     c = make_fx_client()
     assert isinstance(c, FxClient) and c.base == "http://fx_worker:3000"
+
+
+def test_preview_returns_the_service_body_and_maps_errors():
+    client, requests, _ = make([json_resp(200, {"html": "<x>", "duration": 8.3})])
+    assert client.preview({"cortinilla": {}}) == {"html": "<x>", "duration": 8.3}
+    assert requests[0].url.path == "/previews"
+    with pytest.raises(FxUnavailable):
+        make([httpx.ConnectError("no")])[0].preview({})
+    with pytest.raises(FxUnavailable):
+        make([json_resp(502, {})])[0].preview({})
+    with pytest.raises(FxRenderFailed):
+        make([json_resp(400, {"error": "invalid_request"})])[0].preview({})
