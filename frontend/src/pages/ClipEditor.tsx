@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
+import RenderPanel from "../components/RenderPanel";
 import type { Clip, Project, Transcript } from "../types";
 import { EDITABLE_CLIP, fmtTime } from "../types";
 
@@ -192,8 +193,7 @@ export default function ClipEditor() {
             <label>Layout
               <select value={draft.layout} disabled={!editable} onChange={(e) => set({ layout: e.target.value as Draft["layout"] })}>
                 <option value="split">Pantalla partida</option>
-                <option value="full">Pantalla completa</option>
-                <option value="facecam">Facecam</option>
+                {draft.layout !== "split" && <option value={draft.layout}>{draft.layout === "full" ? "Pantalla completa" : "Facecam"} (sin render)</option>}
               </select>
             </label>
             <label>Encuadre
@@ -227,6 +227,8 @@ export default function ClipEditor() {
           {clip.emphasis.length > 0 && <div className="chips">{clip.emphasis.map((e, i) => <span className="chip" key={i} title={fmtTime(e.start)}>{e.text}</span>)}</div>}
         </div>
       </div>
+
+      <RenderPanel clip={clip} dirty={dirty} editable={editable} onClip={setClip} />
 
       <section>
         <h2>Transcripción del tramo</h2>
