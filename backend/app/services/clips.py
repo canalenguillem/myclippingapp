@@ -93,3 +93,11 @@ def restore_after_cancel(db: Session, job) -> None:
     if clip is not None and clip.user_id == job.user_id and clip.render_state is RenderState.RENDERING:
         clip.render_state, clip.render_error = settled_state(clip), None
         db.commit()
+
+
+def restore_after_upload_cancel(db: Session, job) -> None:
+    """Un job `upload` cancelado antes de arrancar no pasa por su handler: el clip vuelve a «aprobado»."""
+    clip = db.get(Clip, int((job.payload or {}).get("clip_id", 0)))
+    if clip is not None and clip.user_id == job.user_id and clip.status == "uploading":
+        clip.status = "approved"
+        db.commit()

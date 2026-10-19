@@ -173,6 +173,7 @@ class Clip(Base):
     privacy: Mapped[str] = mapped_column(String(16), default="private")
     publish_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     uploaded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    upload_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=_now())
 
     project: Mapped[Project] = relationship(back_populates="clips")

@@ -61,8 +61,10 @@ def cancel_job(job_id: int, user: User = Depends(current_user), db: Session = De
     was_queued = job.status == "queued"
     if not queue.cancel(db, job):
         raise HTTPException(409, "El job ya habia terminado")
-    if job.type == "render" and was_queued:  # en marcha lo restaura el handler; en cola no hay handler
+    if was_queued and job.type == "render":  # en marcha lo restaura el handler; en cola no hay handler
         clips_service.restore_after_cancel(db, job)
+    if was_queued and job.type == "upload":
+        clips_service.restore_after_upload_cancel(db, job)
     return job
 
 

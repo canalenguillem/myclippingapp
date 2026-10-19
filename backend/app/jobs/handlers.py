@@ -187,5 +187,6 @@ def detect(ctx: JobContext, payload: dict) -> None:
 
 
 from .render import render  # noqa: E402  (al final: render importa este paquete)
+from .upload import upload  # noqa: E402
 
-HANDLERS: dict[str, Handler] = {"demo": demo, "ingest": ingest, "detect": detect, "render": render}
+HANDLERS: dict[str, Handler] = {"demo": demo, "ingest": ingest, "detect": detect, "render": render, "upload": upload}

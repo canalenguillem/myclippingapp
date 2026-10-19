@@ -1,5 +1,5 @@
 import tempfile
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Literal
 
@@ -10,13 +10,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.auth.deps import current_user, get_owned
-from app.db.models import Asset, BrandTemplate, Clip, Job, Project, RenderState, User
+from app.db.models import Asset, BrandTemplate, Clip, YouTubeChannel, Job, Project, RenderState, User
 from app.db import get_db
 from app.jobs import queue
 from app.pipeline import ffops
 from app.services import clips as clips_service
 from app.services import cortinilla as cortinilla_service
-from app.services import fx_request, graphics_schedule, media_sign, silences as silences_service, storage, transcription
+from app.services import fx_request, graphics_schedule, seo as seo_service, media_sign, silences as silences_service, storage, transcription
 
 router = APIRouter(tags=["clips"])
 
@@ -48,23 +48,36 @@ class ClipOut(BaseModel):
     cortinilla_at: float | None
     template_id: int | None
     graphics: list[dict]
+    seo_title: str
+    seo_description: str
+    seo_tags: list[str]
+    channel_id: int | None
+    privacy: str
+    publish_at: datetime | None
+    youtube_video_id: str | None
+    uploaded_at: datetime | None
+    upload_error: str | None
     status: str
     render_state: str
     has_draft: bool
     has_final: bool
     render_error: str | None
     render_job_id: int | None = None
+    upload_job_id: int | None = None
     created_at: datetime | None
 
 
-def _out(c: Clip, render_job_id: int | None = None) -> ClipOut:
+def _out(c: Clip, render_job_id: int | None = None, upload_job_id: int | None = None) -> ClipOut:
     return ClipOut(
         id=c.id, project_id=c.project_id, start=c.start, end=c.end, duration=round(c.end - c.start, 3),
         title=c.title, reason=c.reason, score=c.score, transcript=c.transcript, hook=c.hook,
         emphasis=c.emphasis_json or [], parts=c.parts or [], layout=c.layout, focus=c.focus, zoom=c.zoom,
         top_ratio=c.top_ratio, intro_enabled=c.intro_enabled, cortinilla_at=c.cortinilla_at, template_id=c.template_id, graphics=c.graphics_json or [],
+        seo_title=c.seo_title or "", seo_description=c.seo_description or "", seo_tags=[t for t in (c.seo_tags or "").split(",") if t.strip()],
+        channel_id=c.channel_id, privacy=c.privacy, publish_at=c.publish_at, youtube_video_id=c.youtube_video_id, uploaded_at=c.uploaded_at,
+        upload_error=c.upload_error,
         status=c.status, render_state=c.render_state.value, has_draft=bool(c.draft_path),
-        has_final=bool(c.rendered_path), render_error=c.render_error, render_job_id=render_job_id, created_at=c.created_at,
+        has_final=bool(c.rendered_path), render_error=c.render_error, render_job_id=render_job_id, upload_job_id=upload_job_id, created_at=c.created_at,
     )
 
 
@@ -149,9 +162,9 @@ class RenderIn(BaseModel):
     quality: Literal["draft", "final"] = "draft"
 
 
-def _render_jobs(db: Session, user_id: int) -> dict[int, int]:
-    """{clip_id: job_id} de los renders del usuario en cola o en marcha."""
-    jobs = db.scalars(select(Job).where(Job.user_id == user_id, Job.type == "render", Job.status.in_(("queued", "running")))).all()
+def _render_jobs(db: Session, user_id: int, kind: str = "render") -> dict[int, int]:
+    """{clip_id: job_id} de los jobs `kind` (render o upload) del usuario en cola o en marcha."""
+    jobs = db.scalars(select(Job).where(Job.user_id == user_id, Job.type == kind, Job.status.in_(("queued", "running")))).all()
     return {int(j.payload["clip_id"]): j.id for j in sorted(jobs, key=lambda j: j.id) if (j.payload or {}).get("clip_id")}
 
 
@@ -159,8 +172,8 @@ def _render_jobs(db: Session, user_id: int) -> dict[int, int]:
 def list_clips(project_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     project = get_owned(db, Project, project_id, user)
     clips = db.scalars(select(Clip).where(Clip.project_id == project.id, Clip.user_id == user.id).order_by(Clip.start)).all()
-    jobs = _render_jobs(db, user.id)
-    return [_out(c, jobs.get(c.id)) for c in clips]
+    jobs, uploads = _render_jobs(db, user.id), _render_jobs(db, user.id, "upload")
+    return [_out(c, jobs.get(c.id), uploads.get(c.id)) for c in clips]
 
 
 @router.post("/api/projects/{project_id}/detect", response_model=JobRef, status_code=202)
@@ -179,7 +192,7 @@ def detect(project_id: int, body: DetectIn, user: User = Depends(current_user), 
 @router.get("/api/clips/{clip_id}", response_model=ClipOut)
 def get_clip(clip_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     clip = get_owned(db, Clip, clip_id, user)
-    return _out(clip, _render_jobs(db, user.id).get(clip.id))
+    return _out(clip, _render_jobs(db, user.id).get(clip.id), _render_jobs(db, user.id, "upload").get(clip.id))
 
 
 @router.patch("/api/clips/{clip_id}", response_model=ClipOut)
@@ -412,3 +425,101 @@ def graphics_plan(clip_id: int, body: PlanIn, user: User = Depends(current_user)
         "beats": [{**b, "start": round(max(0.0, b["at"] - b["lead"]), 3), "end": round(max(0.0, b["at"] - b["lead"]) + b["duration"], 3)} for b in plan.beats],
         "dropped": plan.dropped,
     }
+
+
+# --- YouTube: textos SEO y subida ---------------------------------------------------------------------
+
+def _channel(db: Session, user: User, channel_id: int) -> YouTubeChannel:
+    ch = db.get(YouTubeChannel, channel_id)
+    if ch is None or ch.user_id != user.id:
+        raise HTTPException(404, "Canal no encontrado")
+    return ch
+
+
+class SeoGenerateIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    channel_id: int = Field(ge=1)
+
+
+class SeoIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    channel_id: int = Field(ge=1)
+    title: str = Field(min_length=1, max_length=seo_service.TITLE_MAX)
+    description: str = Field(max_length=seo_service.DESCRIPTION_MAX)
+    tags: list[str] = Field(default_factory=list, max_length=seo_service.TAGS_MAX)
+    privacy: Literal["private", "unlisted", "public"] = "private"
+    publish_at: datetime | None = None
+
+
+class UploadIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    channel_id: int = Field(ge=1)   # el canal que el usuario VE en pantalla: si no coincide con el guardado, no se sube
+
+
+def _editable_for_seo(clip: Clip) -> None:
+    if clip.status not in EDITABLE:
+        raise HTTPException(409, f"Un clip en estado «{clip.status}» no admite cambios en sus textos de YouTube")
+
+
+@router.post("/api/clips/{clip_id}/seo/generate")
+def generate_seo(clip_id: int, body: SeoGenerateIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Propone título, descripción y etiquetas para el canal elegido. No guarda nada: el usuario los revisa y los guarda."""
+    clip = get_owned(db, Clip, clip_id, user)
+    ch = _channel(db, user, body.channel_id)
+    seo = seo_service.generate(
+        title=clip.title, hook=clip.hook, reason=clip.reason, transcript=clip.transcript, emphasis=[e.get("text", "") for e in clip.emphasis_json or []],
+        channel_name=ch.yt_title or ch.name, language=ch.language, seo_rules=ch.seo_rules or "",
+    )
+    return {"title": seo.title, "description": seo.description, "tags": seo.tags, "source": seo.source}
+
+
+@router.put("/api/clips/{clip_id}/seo", response_model=ClipOut)
+def save_seo(clip_id: int, body: SeoIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    clip = get_owned(db, Clip, clip_id, user)
+    _editable_for_seo(clip)
+    ch = _channel(db, user, body.channel_id)
+    if body.publish_at is not None:
+        when = body.publish_at.astimezone(timezone.utc).replace(tzinfo=None) if body.publish_at.tzinfo else body.publish_at
+        if body.privacy != "private":
+            raise HTTPException(422, "Para programar la publicación, la privacidad tiene que ser «privado» (YouTube lo publica solo a esa hora)")
+        if when < datetime.utcnow() + timedelta(minutes=2):
+            raise HTTPException(422, "La hora de publicación tiene que ser futura")
+    else:
+        when = None
+    clean = seo_service.clean(seo_service.Seo(body.title, body.description, body.tags))
+    if not clean.title:
+        raise HTTPException(422, "El título no puede quedar vacío")
+    clip.channel_id, clip.seo_title, clip.seo_description, clip.seo_tags = ch.id, clean.title, clean.description, ",".join(clean.tags)
+    clip.privacy, clip.publish_at, clip.upload_error = body.privacy, when, None
+    db.commit()
+    return _out(clip)
+
+
+@router.post("/api/clips/{clip_id}/upload", response_model=JobRef, status_code=202)
+def upload_clip(clip_id: int, body: UploadIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Encola la subida del vídeo final con los textos guardados. Nunca sube a otro canal que el que el usuario está viendo."""
+    clip = get_owned(db, Clip, clip_id, user)
+    if clip.youtube_video_id or clip.status == "uploaded":
+        raise HTTPException(409, "Este clip ya está subido a YouTube")
+    if clip.status == "uploading":
+        raise HTTPException(409, "Ya se está subiendo")
+    if clip.status != "approved":
+        raise HTTPException(409, "Solo se suben clips aprobados")
+    if not clip.rendered_path or clip.render_state is not RenderState.FINAL:
+        raise HTTPException(409, "Primero hay que hacer el render final del clip")
+    if not clip.seo_title.strip() or clip.channel_id is None:
+        raise HTTPException(409, "Guarda antes los textos de YouTube (título, descripción y etiquetas) para un canal")
+    if clip.channel_id != body.channel_id:
+        raise HTTPException(409, "El canal elegido no coincide con el de los textos guardados: vuelve a guardarlos")
+    ch = _channel(db, user, clip.channel_id)
+    if not ch.token_enc:
+        raise HTTPException(409, "El canal no está conectado a YouTube: conéctalo en Canales")
+    if queue.active_job(db, user.id, clip.project_id, ignore_types=("render",)):
+        raise HTTPException(409, "Hay un job en marcha para este proyecto")
+    job = queue.enqueue(db, user.id, "upload", {"clip_id": clip.id, "project_id": clip.project_id})
+    clip.status, clip.upload_error = "uploading", None
+    db.commit()
+    return JobRef(job_id=job.id)
