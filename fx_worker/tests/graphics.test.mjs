@@ -320,3 +320,15 @@ test("los motivos nuevos pasan el linter de HyperFrames al construir el proyecto
   assert.ok(html.includes("700 ml") && html.includes("PSOE") && html.includes("ANA".slice(0, 0) + "Ana López"));
   assert.equal((await checkProject(work)).totalErrors, 0);
 });
+
+test("pantalla completa: la banda de subtítulos va bajo la parte nítida aunque haya subtítulos quemados, y los gráficos debajo", () => {
+  const dir = tmp();
+  const video = makeVideo(join(dir, "src.mp4"), 12);
+  const work = join(dir, "work");
+  const request = parseRequest({ video: "a.mp4", output: "b.mp4", duration: 12, layout: { mode: "full", top_ratio: 0.65 }, band: { y0: 700, y1: 780 },
+    graphics: [{ type: "emoji", at: 6, emoji: "🔥" }] });
+  buildProject({ request, video, workDir: work });
+  const html = readFileSync(join(work, "index.html"), "utf8");
+  assert.ok(html.includes("#band{position:absolute;left:0;top:1248px"), "banda a topH (1248) + 30 − ROOM(30), no en las filas 700–780");
+  assert.ok(/#g0\{top:14\d\dpx\}/.test(html), "el emoji va bajo la banda");
+});

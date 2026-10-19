@@ -65,9 +65,13 @@ export function buildProject({ request, video, workDir, orbit = null, images = {
   // franja centrada en el corte entre el plano corto y la escena completa.
   const topH = Math.floor((1920 * layout.top_ratio) / 2) * 2;
   const clampRow = (v) => Math.min(1920 - ROOM, Math.max(ROOM, v));
-  const core = request.band
-    ? { y0: clampRow(request.band.y0 - 10), y1: clampRow(request.band.y1 + 10) }
-    : { y0: clampRow(topH - 45), y1: clampRow(topH + 45) };
+  // En pantalla completa la banda va siempre justo bajo la parte nítida, en la zona difuminada (aunque el vídeo traiga subtítulos
+  // quemados: da igual); el resto de gráficos van debajo de ella (`graphicZones`).
+  const core = layout.mode === "full"
+    ? { y0: clampRow(topH + 30), y1: clampRow(topH + 110) }
+    : request.band
+      ? { y0: clampRow(request.band.y0 - 10), y1: clampRow(request.band.y1 + 10) }
+      : { y0: clampRow(topH - 45), y1: clampRow(topH + 45) };
   const band = preset.band ? bandLayer({ core, paper: preset.paper }) : null;
   const center = (core.y0 + core.y1) / 2;
   const captions = captionsLayer({ words, speakers, duration: total, preset, center, height: Math.max(90, core.y1 - core.y0), stops: C ? [C.at] : [] });

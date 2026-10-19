@@ -185,15 +185,19 @@ def render(ctx: JobContext, payload: dict) -> None:
                                     zoom=clip.zoom, layout=clip.layout, draft=draft, on_progress=_stage(ctx, 0, 20), cancel_check=cancel)
         ctx.log("Clip vertical listo")
 
-        try:
-            band = analysis_mod.detect_burned_subtitles(vertical_path, top_ratio=clip.top_ratio, duration=duration)
-        except analysis_mod.AnalysisError as exc:
-            ctx.log(f"No se pudo analizar el clip ({exc}); la banda irá centrada")
-            band = None
+        band = None
+        if clip.layout == "full":
+            # los subtítulos van siempre en la zona difuminada de abajo: da igual que el vídeo original traiga los suyos
+            ctx.log("Pantalla completa: la banda de subtítulos va en la zona difuminada de abajo")
+        else:
+            try:
+                band = analysis_mod.detect_burned_subtitles(vertical_path, top_ratio=clip.top_ratio, duration=duration)
+            except analysis_mod.AnalysisError as exc:
+                ctx.log(f"No se pudo analizar el clip ({exc}); la banda irá centrada")
+            ctx.log("Subtítulos quemados detectados en las filas " + (f"{band['y0']}–{band['y1']} (confianza {band['confidence']})" if band else "—: ninguno"))
         analysis_file = folder / "analysis.json"
         analysis_file.write_text(json.dumps({"version": 1, "burned_subtitles": band}), encoding="utf-8")
         clip.analysis_path = storage.rel(analysis_file)
-        ctx.log("Subtítulos quemados detectados en las filas " + (f"{band['y0']}–{band['y1']} (confianza {band['confidence']})" if band else "—: ninguno"))
         ctx.progress(25)
 
         template = db.get(BrandTemplate, clip.template_id) if clip.template_id else None
