@@ -123,3 +123,11 @@ def test_every_listed_country_renders():
     from app.services import country_maps
     for c in country_maps.available():
         assert country_maps.render(c["name"])[:4] == b"\x89PNG"
+
+
+def test_europe_and_antimeridian_countries_render_without_bands():
+    from app.services import country_maps
+    for name, max_ratio in (("Europa", 1.3), ("Rusia", 3.5)):
+        img = Image.open(io.BytesIO(country_maps.render(name)))
+        assert img.width / img.height < max_ratio                      # sin bandas que den la vuelta al mundo
+        assert img.getchannel("A").getextrema()[1] == 255

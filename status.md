@@ -200,3 +200,4 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 - `app/data/countries-50m.json` (world-atlas 2.0.2, ISC; Natural Earth) + `app/services/country_maps.py`: PNG transparente del país en el rojo de marca, contorno crema y vecinos tenues; solo Pillow. 57 países (Europa entera + los que salen más en política), con recuadros que quitan ultramar (Francia, España, Noruega…).
 - API: `GET /api/assets/maps/countries` y `POST /api/assets/maps {countries}` (crea assets `kind="map"` «Mapa de X», sin duplicar). UI: sección «Mapas de países» en la librería del panel de gráficos. Sirven como imagen en un gráfico o como objeto que orbita (Plantillas).
 - Tests en `tests/test_assets_api.py` (todos los países renderizan).
+- «Europa» (continente entero en rojo, vecinos tenues) en la lista de mapas; los anillos que cruzan el antimeridiano (Rusia) se desenvuelven.

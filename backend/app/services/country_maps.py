@@ -36,6 +36,9 @@ NAMES = {
     "Siria": "Syria", "Venezuela": "Venezuela", "Chile": "Chile", "Libia": "Libya", "Mauritania": "Mauritania", "Túnez": "Tunisia",
 }
 EUROPE = list(NAMES)[:list(NAMES).index("Argelia")]
+CONTINENT = "Europa"  # no es un país: todos los europeos en rojo (menos los del Cáucaso, Turquía y Chipre, que quedan tenues)
+NOT_IN_CONTINENT = {"Armenia", "Azerbaiyán", "Georgia", "Turquía", "Chipre"}
+CONTINENT_VIEW = (-25.0, 34.0, 45.0, 72.0)  # lon0, lat0, lon1, lat1
 
 # recuadro (lon0, lat0, lon1, lat1) que se queda de cada país: sin islas lejanas ni territorios de ultramar
 REGION = {
@@ -72,7 +75,16 @@ def _ring(indexes: list[int], arcs) -> list[tuple[float, float]]:
     for i in indexes:
         pts = arcs[i] if i >= 0 else arcs[~i][::-1]
         ring.extend(pts if not ring else pts[1:])
-    return ring
+    # polígonos que cruzan el antimeridiano (Rusia, Fiyi): se desenvuelve la longitud para que el anillo sea continuo
+    out = [ring[0]]
+    shift = 0.0
+    for (px, _), (x, y) in zip(ring, ring[1:]):
+        if x - px > 180:
+            shift -= 360
+        elif px - x > 180:
+            shift += 360
+        out.append((x + shift, y))
+    return out
 
 
 def _polygons(geometry: dict, arcs) -> list[list[list[tuple[float, float]]]]:
@@ -92,30 +104,37 @@ def _bbox_area(ring) -> float:
 
 def available() -> list[dict]:
     """Países que ofrece la librería, en español: [{name, group}]."""
-    return [{"name": es, "group": "Europa" if es in EUROPE else "Otros"} for es in sorted(NAMES)]
+    return [{"name": CONTINENT, "group": "Europa"}] + [{"name": es, "group": "Europa" if es in EUROPE else "Otros"} for es in sorted(NAMES)]
 
 
 def render(country_es: str) -> bytes:
     """PNG transparente del país (nombre en español de `NAMES`)."""
-    en = NAMES.get(country_es)
-    if en is None:
-        raise CountryError(f"País desconocido: {country_es!r}")
     topo, arcs = _atlas()
     geoms = topo["objects"]["countries"]["geometries"]
-    target = next((g for g in geoms if g["properties"]["name"] == en), None)
-    if target is None:
-        raise CountryError(f"No hay datos para {country_es!r}")
-    polys = _polygons(target, arcs)
-    if en in REGION:
-        x0, y0, x1, y1 = REGION[en]
-        polys = [p for p in polys if x0 <= _centroid(p[0])[0] <= x1 and y0 <= _centroid(p[0])[1] <= y1] or polys
+    if country_es == CONTINENT:
+        wanted = {NAMES[n] for n in EUROPE if n not in NOT_IN_CONTINENT}
+        targets = [g for g in geoms if g["properties"]["name"] in wanted]
+        polys = [p for g in targets for p in _polygons(g, arcs)]
+        lon0, lat0, lon1, lat1 = CONTINENT_VIEW
     else:
-        biggest = max(polys, key=lambda p: _bbox_area(p[0]))
-        cx, cy = _centroid(biggest[0])
-        polys = [p for p in polys if abs(_centroid(p[0])[0] - cx) < 25 and abs(_centroid(p[0])[1] - cy) < 25]
-    pts = [pt for p in polys for pt in p[0]]
-    lon0, lon1 = min(p[0] for p in pts), max(p[0] for p in pts)
-    lat0, lat1 = min(p[1] for p in pts), max(p[1] for p in pts)
+        en = NAMES.get(country_es)
+        if en is None:
+            raise CountryError(f"País desconocido: {country_es!r}")
+        target = next((g for g in geoms if g["properties"]["name"] == en), None)
+        if target is None:
+            raise CountryError(f"No hay datos para {country_es!r}")
+        targets = [target]
+        polys = _polygons(target, arcs)
+        if en in REGION:
+            x0, y0, x1, y1 = REGION[en]
+            polys = [p for p in polys if x0 <= _centroid(p[0])[0] <= x1 and y0 <= _centroid(p[0])[1] <= y1] or polys
+        else:
+            biggest = max(polys, key=lambda p: _bbox_area(p[0]))
+            cx, cy = _centroid(biggest[0])
+            polys = [p for p in polys if abs(_centroid(p[0])[0] - cx) < 25 and abs(_centroid(p[0])[1] - cy) < 25]
+        pts = [pt for p in polys for pt in p[0]]
+        lon0, lon1 = min(p[0] for p in pts), max(p[0] for p in pts)
+        lat0, lat1 = min(p[1] for p in pts), max(p[1] for p in pts)
     k = math.cos(math.radians((lat0 + lat1) / 2))  # equirrectangular corregida por la latitud media
     w_deg, h_deg = max((lon1 - lon0) * k, 1e-6), max(lat1 - lat0, 1e-6)
     scale = SIZE * (1 - 2 * PAD) / max(w_deg, h_deg)
@@ -129,7 +148,7 @@ def render(country_es: str) -> bytes:
     draw = ImageDraw.Draw(img, "RGBA")
     margin = 0.15  # grados extra para pintar a los vecinos que asoman en el encuadre
     for g in geoms:
-        if g is target:
+        if any(g is t for t in targets):
             continue
         for poly in _polygons(g, arcs):
             ring = poly[0]
