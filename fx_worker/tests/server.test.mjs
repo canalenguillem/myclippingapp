@@ -164,3 +164,22 @@ test("los registros terminados caducan", async () => {
   app.sweep();
   assert.equal((await call("GET", `/renders/${body.id}`)).status, 404);
 });
+
+
+test("con FX_MAX_RENDERS=2 admite dos renders a la vez y rechaza el tercero", async () => {
+  let release;
+  const gate = new Promise((r) => (release = r));
+  const { call, waitFor } = await start(async (o) => {
+    await gate;
+    return okRenderer(o);
+  }, { maxRenders: 2 });
+  const a = await call("POST", "/renders", valid);
+  const b = await call("POST", "/renders", { ...valid, output: "u1/p1/b.mp4" });
+  const c = await call("POST", "/renders", { ...valid, output: "u1/p1/c.mp4" });
+  assert.deepEqual([a.status, b.status, c.status, c.body.error], [202, 202, 409, "busy"]);
+  assert.equal((await call("GET", "/health")).body.busy, true);
+  release();
+  await waitFor(a.body.id, (x) => x.status === "completed");
+  await waitFor(b.body.id, (x) => x.status === "completed");
+  assert.equal((await call("GET", "/health")).body.busy, false);
+});

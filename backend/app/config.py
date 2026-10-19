@@ -22,6 +22,7 @@ class Settings(BaseSettings):
 
     worker_concurrency: int = 2
     fx_worker_url: str = ""
+    render_lanes: int = 1                   # renders de vídeo a la vez en todo el sistema (carril de render)
     asd_worker_url: str = ""                # worker TalkNet en GPU (vacío = «Sigue al hablante» sin detección de cara)
     media_dir: Path = Path("/media")
 

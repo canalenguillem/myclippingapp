@@ -77,3 +77,26 @@ def test_a_dead_render_frees_the_lane_after_the_stale_timeout(client):
     assert queue.requeue_stale(db) == 1
     # A vuelve a la cola (llegó antes que B) y el carril está libre
     assert queue.claim_next(db, "w2").id == ra.id
+
+
+def test_render_lanes_setting_allows_that_many_renders_at_once(client, monkeypatch):
+    from app.config import get_settings
+    monkeypatch.setattr(get_settings(), "render_lanes", 2)
+    db = client.session_factory()
+    a, b = mkuser(db, "a@x.com", limit=2), mkuser(db, "b@x.com")
+    r1, r2, r3 = queue.enqueue(db, a.id, "render"), queue.enqueue(db, a.id, "render"), queue.enqueue(db, b.id, "render")
+    assert queue.claim_next(db, "w").id == r1.id
+    assert queue.claim_next(db, "w").id == r2.id        # el usuario A tiene límite 2 y hay 2 carriles
+    assert queue.claim_next(db, "w") is None            # el render de B espera: los 2 carriles están ocupados
+    queue.finish(db, r1.id)
+    assert queue.claim_next(db, "w").id == r3.id
+
+
+def test_a_users_limit_still_caps_their_renders_even_with_free_lanes(client, monkeypatch):
+    from app.config import get_settings
+    monkeypatch.setattr(get_settings(), "render_lanes", 2)
+    db = client.session_factory()
+    a = mkuser(db, "a@x.com", limit=1)
+    r1, r2 = queue.enqueue(db, a.id, "render"), queue.enqueue(db, a.id, "render")
+    assert queue.claim_next(db, "w").id == r1.id
+    assert queue.claim_next(db, "w") is None

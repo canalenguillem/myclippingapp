@@ -1,5 +1,6 @@
 import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth";
+import Admin from "./pages/Admin";
 import Channels from "./pages/Channels";
 import ClipEditor from "./pages/ClipEditor";
 import Home from "./pages/Home";
@@ -25,6 +26,7 @@ export default function App() {
         <Route element={<RequireAuth />}>
           <Route path="/" element={<Home />} />
           <Route path="/jobs" element={<Jobs />} />
+          <Route path="/admin" element={<Admin />} />
           <Route path="/projects" element={<Projects />} />
           <Route path="/projects/:id" element={<ProjectDetail />} />
           <Route path="/channels" element={<Channels />} />

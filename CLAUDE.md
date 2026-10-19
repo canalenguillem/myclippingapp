@@ -6,7 +6,7 @@ App web multiusuario para clipear vídeos largos de YouTube y convertirlos en sh
 
 1. **Una fase cada vez.** No adelantes trabajo de fases futuras, aunque lo veas fácil o relacionado.
 2. **Toda fase acaba con los tests en verde y `status.md` actualizado.** Sin las dos cosas, la fase no está cerrada.
-3. **Ningún render de vídeo en paralelo.** Hay un único carril de render global: solo un job `render` en ejecución en todo el sistema, de cualquier usuario.
+3. **Carril de render global.** Como mucho `RENDER_LANES` jobs `render` en ejecución a la vez en todo el sistema, de cualquier usuario (por defecto 1; el admin lo sube en el `.env` y `fx_worker` lo respeta con `FX_MAX_RENDERS`). Con más de 1, `FX_WORKERS=1` y vigilar la RAM. Cada usuario además tiene su `max_concurrent_jobs` (pantalla «Usuarios» del admin); las subidas a YouTube no cuentan.
 4. **Tiempos en segundos como `float`** (nunca milisegundos ni frames fuera del worker de render). **Las rutas guardadas en la BD son relativas a `MEDIA_DIR`**; se resuelven con `app/services/storage.py`, que rechaza rutas que se salgan de `MEDIA_DIR`.
 5. **Cuando te corrija estilo o tiempos**, además de arreglar el caso, añade o reescribe la regla en `rules/<area>.md`, con `<area>` entre `subtitulos`, `rotulos`, `cortinillas`, `plan` y `qa`. Si la regla nueva contradice otra, reescribe la antigua en vez de dejar las dos.
 

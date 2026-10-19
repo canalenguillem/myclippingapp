@@ -16,12 +16,13 @@ import { renderProject } from "./render.mjs";
 const MAX_BODY = 2 * 1024 * 1024;
 const RECORD_TTL_MS = 60 * 60 * 1000;
 
-export function createApp({ mediaDir, workers = 2, renderer = renderProject, workRoot = tmpdir(), now = Date.now } = {}) {
+export function createApp({ mediaDir, workers = 2, maxRenders = 1, renderer = renderProject, workRoot = tmpdir(), now = Date.now } = {}) {
   /** @type {Map<string, any>} */
   const records = new Map();
   const controllers = new Map();
 
-  const busy = () => [...records.values()].some((r) => r.status === "queued" || r.status === "running");
+  // «ocupado» = ya hay `maxRenders` renders en cola o en marcha (el backend decide cuántos lanza a la vez; esto es el tope de seguridad)
+  const busy = () => [...records.values()].filter((r) => r.status === "queued" || r.status === "running").length >= maxRenders;
 
   async function run(record, request, videoAbs, outputAbs, orbitAbs, images) {
     const controller = controllers.get(record.id);
@@ -157,7 +158,7 @@ export function createApp({ mediaDir, workers = 2, renderer = renderProject, wor
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   process.env.HYPERFRAMES_TELEMETRY = "0";
   const mediaDir = process.env.MEDIA_DIR ?? "/media";
-  const app = createApp({ mediaDir, workers: Number(process.env.FX_WORKERS ?? 2) });
+  const app = createApp({ mediaDir, workers: Number(process.env.FX_WORKERS ?? 2), maxRenders: Math.max(1, Number(process.env.FX_MAX_RENDERS ?? 1)) });
   setInterval(app.sweep, 10 * 60 * 1000).unref();
   const port = Number(process.env.PORT ?? 3000);
   createServer(app.handle).listen(port, "0.0.0.0", () => console.log(`fx_worker escuchando en :${port} (MEDIA_DIR=${mediaDir})`));

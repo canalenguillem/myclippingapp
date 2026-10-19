@@ -236,3 +236,8 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 
 - `ClipOut` añade `render_job_status` (queued/running), `render_job_progress` y `upload_job_status`. Las tarjetas del proyecto muestran «En cola para renderizar», «Renderizando N %», «Subiendo a YouTube…», «Borrador/Final listo», fallos de render y de subida, y para un clip subido: fecha, privacidad y enlace «Ver en YouTube». La lista se refresca sola cada 3 s mientras haya algo en marcha.
 - Cola: una subida a YouTube (solo red) ya no espera al render de su usuario (`max_concurrent_jobs` solo cuenta los jobs que no son de subida; máximo una subida a la vez por usuario). Antes, con límite 1, el clip 64 esperaba en cola «subiendo» detrás de los renders.
+
+## Carriles de render configurables y pantalla de usuarios (admin)
+
+- `RENDER_LANES` (por defecto 1) es el número de renders a la vez en todo el sistema (`queue.claim_next`); `FX_MAX_RENDERS` (compose lo toma de `RENDER_LANES`) es el tope de `fx_worker`. Regla 3 de `CLAUDE.md` reescrita. Con 2 carriles conviene `FX_WORKERS=1` y vigilar la RAM.
+- Pantalla «Usuarios» (solo admin, `/admin`, `routers/admin.py`): por usuario, jobs a la vez (1–8), minutos máximos de vídeo y activo; muestra los jobs en marcha y en cola y los carriles del sistema.

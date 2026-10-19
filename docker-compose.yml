@@ -73,6 +73,7 @@ services:
     shm_size: "1gb"                 # Chrome headless se cae a mitad del render con los 64 MB por defecto
     environment:
       MEDIA_DIR: /media
+      FX_MAX_RENDERS: "${RENDER_LANES:-1}"            # renders a la vez que acepta (debe coincidir con RENDER_LANES del backend)
       FX_WORKERS: "${FX_WORKERS:-2}"               # workers de captura por render: 2 = 98 s y 2,6 GB, 4 apenas mejora y duplica la memoria
       HYPERFRAMES_TELEMETRY: "0"
     volumes:

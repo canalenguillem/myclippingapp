@@ -4,8 +4,8 @@ from __future__ import annotations
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import case, exists, func, or_, select, update
-from sqlalchemy.orm import Session, aliased
+from sqlalchemy import case, func, or_, select, update
+from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db.models import Job, User  # noqa: F401
@@ -14,7 +14,7 @@ STALE_AFTER = timedelta(minutes=2)
 MAX_ATTEMPTS = 3
 TERMINAL = {"completed", "failed", "cancelled"}
 UPLOAD_TYPE = "upload"  # solo red: no espera a los jobs de CPU de su usuario (ni ellos a él), pero solo una subida a la vez por usuario
-RENDER_TYPE = "render"  # carril global: solo un job de este tipo en marcha en todo el sistema
+RENDER_TYPE = "render"  # carril global: como mucho `RENDER_LANES` (por defecto 1) jobs de este tipo en marcha en todo el sistema
 
 
 def utcnow() -> datetime:
@@ -71,8 +71,8 @@ def claim_next(db: Session, worker_id: str) -> Job | None:
     )
     # Carril de render: un `render` en cola no se reclama mientras haya otro en marcha (de cualquier usuario).
     # No bloquea a los demás tipos de job: un detect de otro usuario sigue pudiendo pasar por delante.
-    other = aliased(Job)
-    render_busy = exists().where(other.type == RENDER_TYPE, other.status == "running")
+    render_running = select(func.count()).select_from(Job).where(Job.type == RENDER_TYPE, Job.status == "running").scalar_subquery()
+    lanes = max(1, get_settings().render_lanes)
     with _claim_lock(db) as ok:
         if ok is False:
             return None
@@ -80,7 +80,7 @@ def claim_next(db: Session, worker_id: str) -> Job | None:
             select(Job).join(User, User.id == Job.user_id)
             .where(Job.status == "queued", User.is_active.is_(True),
                    case((Job.type == UPLOAD_TYPE, running_uploads < 1), else_=running < User.max_concurrent_jobs),
-                   or_(Job.type != RENDER_TYPE, ~render_busy))
+                   or_(Job.type != RENDER_TYPE, render_running < lanes))
             .order_by(Job.created_at, Job.id).limit(1).with_for_update(skip_locked=True)
         ).first()
         if job is None:
