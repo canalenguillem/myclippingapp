@@ -178,3 +178,10 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 
 - **Plantillas:** la cortinilla tiene un selector «Objeto que orbita» con las imágenes de la librería (`cortinilla.orbit_asset_id`); la vista previa muestra la imagen elegida (data URI de 160 px) y el render la usa (gana a `logo_path`, que queda de respaldo). Borrar una imagen usada por una plantilla da 409.
 - **Proyecto:** selector «Canal de YouTube al que irán los vídeos» (`PATCH /api/projects/{id}` con `default_channel_id`): lo toman los clips nuevos y los existentes aún sin canal (nunca se pisa el de un clip que ya lo tiene ni los subidos). 451 tests.
+
+## Hablantes conocidos y reproductor karaoke (2026-10-19)
+
+- `GET /api/speakers/known?exclude_project=` devuelve los hablantes con nombre que el usuario ya ha puesto en sus proyectos (cargo y estilo más recientes, nº de vídeos). El panel de speakers ofrece «Elegir de mis otros vídeos…» (rellena nombre, cargo, estilo y «clip citado») y autocompleta el nombre al escribirlo.
+- La transcripción tiene al lado el vídeo fuente: mientras suena se ilumina la palabra, el panel dice «Habla ahora: X» y marca su tarjeta con 🔊; los controles son −5/+5 s, velocidad y «Seguir el texto» (la caja se desplaza sola). Cada turno tiene un ▶ con su hora para saltar ahí, y en una selección hay «▶ Escuchar» (reproduce solo ese rango antes de asignarlo a un speaker).
+- **Lección:** un `<video>` dentro de un contenedor `position: sticky` junto a una columna muy alta (la transcripción de ~4.800 palabras) colgaba la pestaña. No usar `sticky` con vídeos en páginas largas; el reproductor va al lado de la caja de transcripción, que ya tiene su altura.
+- Corrección de la banda de papel en los ojos (clip 33): la detección de subtítulos quemados ya no busca en el 45 % de arriba y exige ≥ 40 % de persistencia.

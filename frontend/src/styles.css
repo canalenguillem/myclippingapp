@@ -142,3 +142,17 @@ input[type="range"] { padding: 0; }
 .yt-panel textarea { width: 100%; } .yt-target { margin: 0; } .yt-warn { margin: 0; padding: 8px 12px; border-radius: 8px; background: #4a2a12; color: #ffd9b0; }
 
 .yt-source { border: 1px solid var(--line, #2a2a2a); border-radius: 8px; padding: 8px 12px; display: flex; flex-direction: column; gap: 4px; } .yt-source legend { padding: 0 6px; font-size: .85rem; }
+
+/* --- reproductor sincronizado con la transcripción (karaoke) y hablantes conocidos --- */
+.watch-layout.with-video { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 24px; align-items: start; }
+/* SIN position: sticky: un <video> pegajoso junto a una columna muy alta colgaba la pestaña. El reproductor va al lado de la caja de transcripción, que ya tiene su propia altura y su desplazamiento interno. */
+@media (max-width: 1000px) { .watch-layout.with-video { grid-template-columns: 1fr; } .watch-side { order: -1; } }
+.source-player { display: flex; flex-direction: column; gap: 8px; }
+.source-player video { width: 100%; background: #000; border-radius: 10px; aspect-ratio: 16 / 9; }
+.sp-now { display: flex; gap: 10px; align-items: baseline; padding: 6px 12px; border-left: 4px solid var(--line); background: var(--panel); border-radius: 6px; }
+.sp-now .ts { margin-left: auto; margin-right: 0; }
+.sp-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; } .sp-controls button { padding: 6px 12px; }
+.word.now { background: var(--accent); color: #fff; }
+.turn.now { background: rgba(218, 46, 9, .08); }
+button.ts-btn { background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline dotted; color: var(--accent); }
+.speaker-card.speaking { box-shadow: 0 0 0 2px var(--accent); }

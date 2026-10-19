@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, ApiError } from "../api";
 import ClipCard from "../components/ClipCard";
+import SourcePlayer from "../components/SourcePlayer";
 import SpeakerPanel from "../components/SpeakerPanel";
 import TranscriptView from "../components/TranscriptView";
 import type { Channel, Clip, Project, Speaker, Template, Transcript } from "../types";
@@ -20,6 +21,11 @@ export default function ProjectDetail() {
   const [targetDur, setTargetDur] = useState(40);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [channels, setChannels] = useState<Channel[]>([]);
+  const [videoUrl, setVideoUrl] = useState("");
+  const [now, setNow] = useState(0);
+  const [follow, setFollow] = useState(true);
+  const video = useRef<HTMLVideoElement>(null);
+  const rangeEnd = useRef<number | null>(null);    // «Escuchar» una selección: se para al llegar al final
 
   const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
 
@@ -35,6 +41,35 @@ export default function ProjectDetail() {
 
   useEffect(() => { api<Template[]>("/api/templates").then(setTemplates).catch(() => setTemplates([])); }, []);
   useEffect(() => { api<Channel[]>("/api/channels").then(setChannels).catch(() => setChannels([])); }, []);
+  // Vídeo fuente (URL firmada que dura 1 h) y reloj para el karaoke: mientras suena, se lee su tiempo unas 10 veces por segundo.
+  const hasTranscript = Boolean(transcript);
+  useEffect(() => {
+    if (!hasTranscript) return;
+    const load = () => api<{ url: string }>(`/api/projects/${id}/video-url`).then((r) => setVideoUrl(r.url)).catch(() => setVideoUrl(""));
+    load();
+    const t = setInterval(load, 50 * 60 * 1000);
+    return () => clearInterval(t);
+  }, [id, hasTranscript]);
+  useEffect(() => {
+    const t = setInterval(() => {
+      const v = video.current;
+      if (!v) return;
+      if (!v.paused || Math.abs(v.currentTime - now) > 0.3) setNow(v.currentTime);
+      if (rangeEnd.current !== null && v.currentTime >= rangeEnd.current) { v.pause(); rangeEnd.current = null; }
+    }, 100);
+    return () => clearInterval(t);
+  }, [now]);
+  const seek = (seconds: number) => { const v = video.current; if (v) { rangeEnd.current = null; v.currentTime = Math.max(0, seconds); setNow(v.currentTime); v.play().catch(() => undefined); } };
+  const listen = (start: number, end: number) => { const v = video.current; if (v) { v.currentTime = Math.max(0, start - 0.2); rangeEnd.current = end + 0.2; v.play().catch(() => undefined); } };
+  const words = transcript?.words ?? [];
+  const activeIndex = useMemo(() => {
+    if (!words.length || !videoUrl) return null;
+    let lo = 0, hi = words.length - 1, found = -1;
+    while (lo <= hi) { const mid = (lo + hi) >> 1; if (words[mid].start <= now) { found = mid; lo = mid + 1; } else hi = mid - 1; }
+    return found >= 0 && now <= words[found].end + 1.2 ? found : null;   // pasado 1,2 s de silencio ya no habla nadie
+  }, [words, now, videoUrl]);
+  const speakerNow = activeIndex !== null ? words[activeIndex].speaker ?? null : null;
+
   const setDefaultChannel = async (value: string) => {
     setError("");
     try {
@@ -181,15 +216,25 @@ export default function ProjectDetail() {
       {project && Object.keys(project.speakers).length > 0 && (
         <section>
           <h2>Speakers</h2>
-          <SpeakerPanel speakers={project.speakers} onSave={saveSpeakers} />
+          <SpeakerPanel speakers={project.speakers} onSave={saveSpeakers} projectId={project.id} speakingNow={speakerNow} />
         </section>
       )}
-
       {transcript && project && (
-        <section>
-          <h2>Transcripción</h2>
-          <TranscriptView words={transcript.words} speakers={project.speakers} busy={busy} onEditWord={editWord} onAssign={assign} />
-        </section>
+        <div className={`watch-layout${videoUrl ? " with-video" : ""}`}>
+          <section className="watch-main">
+            <h2>Transcripción</h2>
+            <TranscriptView words={transcript.words} speakers={project.speakers} busy={busy} onEditWord={editWord} onAssign={assign}
+              activeIndex={activeIndex} follow={follow && !!videoUrl} onSeek={videoUrl ? seek : undefined} onListen={videoUrl ? listen : undefined} />
+          </section>
+          {videoUrl && (
+            <aside className="watch-side">
+              <SourcePlayer videoRef={video} url={videoUrl} now={now} speaker={speakerNow}
+                speakerName={speakerNow ? project.speakers[speakerNow]?.name || `Speaker ${speakerNow}` : ""} labels={Object.keys(project.speakers).sort()}
+                follow={follow} onFollow={setFollow} onSpeed={(r) => { if (video.current) video.current.playbackRate = r; }}
+                onSeekBy={(d) => { const v = video.current; if (v) { v.currentTime = Math.max(0, v.currentTime + d); setNow(v.currentTime); } }} />
+            </aside>
+          )}
+        </div>
       )}
     </div>
   );

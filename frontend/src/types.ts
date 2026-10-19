@@ -73,3 +73,5 @@ export type Channel = {
   has_secret: boolean; secret_hint: string | null; linked: boolean; yt_title: string | null; yt_thumbnail: string | null;
   yt_channel_id: string | null; linked_at: string | null; redirect_uri: string;
 };
+
+export type KnownSpeaker = { name: string; role: string; caption_style: CaptionStyle; is_source: boolean; uses: number; last_project_id: number };

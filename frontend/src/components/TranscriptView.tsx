@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { Speaker, Word } from "../types";
 import { fmtTime, speakerColor } from "../types";
 
@@ -8,6 +8,11 @@ type Props = {
   busy: boolean;
   onEditWord: (index: number, text: string) => Promise<void>;
   onAssign: (startIndex: number, endIndex: number, speaker: string) => Promise<void>;
+  /** Palabra que suena ahora en el reproductor (karaoke), si hay vídeo. */
+  activeIndex?: number | null;
+  follow?: boolean;
+  onSeek?: (seconds: number) => void;
+  onListen?: (start: number, end: number) => void;
 };
 
 type Turn = { speaker: string | undefined; from: number; to: number };
@@ -25,6 +30,7 @@ const turnsOf = (words: Word[]): Turn[] => {
 type TurnProps = {
   turn: Turn; words: Word[]; labels: string[]; name: string; sel: [number, number] | null; editing: number | null;
   draft: string; setDraft: (v: string) => void; onClickWord: (i: number, shift: boolean) => void;
+  active: number | null; onSeek?: (seconds: number) => void;
   onStartEdit: (i: number) => void; onCommit: () => void; onCancel: () => void;
 };
 
@@ -32,8 +38,11 @@ const TurnBlock = memo(function TurnBlock(p: TurnProps) {
   const { turn, words, sel } = p;
   const color = speakerColor(turn.speaker, p.labels);
   return (
-    <div className="turn" style={{ borderLeftColor: color }}>
-      <div className="turn-head"><span style={{ color }}>{p.name}</span> <span className="ts">{fmtTime(words[turn.from].start)}</span></div>
+    <div className={`turn${p.active !== null ? " now" : ""}`} style={{ borderLeftColor: color }}>
+      <div className="turn-head"><span style={{ color }}>{p.name}</span>{" "}
+        {p.onSeek
+          ? <button className="ts ts-btn" title="Ir a este punto del vídeo" onClick={() => p.onSeek?.(words[turn.from].start)}>▶ {fmtTime(words[turn.from].start)}</button>
+          : <span className="ts">{fmtTime(words[turn.from].start)}</span>}</div>
       <p>
         {words.slice(turn.from, turn.to + 1).map((w, k) => {
           const i = turn.from + k;
@@ -46,7 +55,7 @@ const TurnBlock = memo(function TurnBlock(p: TurnProps) {
           }
           const selected = sel !== null && i >= sel[0] && i <= sel[1];
           return (
-            <span key={i} className={`word${selected ? " sel" : ""}${w.confidence < 0.6 ? " low" : ""}`}
+            <span key={i} data-w={i} className={`word${selected ? " sel" : ""}${w.confidence < 0.6 ? " low" : ""}${p.active === i ? " now" : ""}`}
               title={`${fmtTime(w.start)} · confianza ${(w.confidence * 100).toFixed(0)}%`}
               onClick={(e) => p.onClickWord(i, e.shiftKey)} onDoubleClick={() => p.onStartEdit(i)}>
               {w.text}{" "}
@@ -58,7 +67,8 @@ const TurnBlock = memo(function TurnBlock(p: TurnProps) {
   );
 });
 
-export default function TranscriptView({ words, speakers, busy, onEditWord, onAssign }: Props) {
+export default function TranscriptView({ words, speakers, busy, onEditWord, onAssign, activeIndex = null, follow = false, onSeek, onListen }: Props) {
+  const box = useRef<HTMLDivElement>(null);
   const labels = useMemo(() => Object.keys(speakers).sort(), [speakers]);
   const turns = useMemo(() => turnsOf(words), [words]);
   const [anchor, setAnchor] = useState<number | null>(null);
@@ -66,6 +76,16 @@ export default function TranscriptView({ words, speakers, busy, onEditWord, onAs
   const [editing, setEditing] = useState<number | null>(null);
   const [draft, setDraft] = useState("");
   const [target, setTarget] = useState("");
+
+  // Seguir el texto: mantiene la palabra que suena dentro de la caja (sin mover la página).
+  useEffect(() => {
+    if (!follow || activeIndex === null || !box.current) return;
+    const el = box.current.querySelector<HTMLElement>(`[data-w="${activeIndex}"]`);
+    if (!el) return;
+    const c = box.current;
+    const top = el.offsetTop - c.offsetTop;
+    if (top < c.scrollTop + 60 || top > c.scrollTop + c.clientHeight - 80) c.scrollTo({ top: Math.max(0, top - c.clientHeight / 3), behavior: "smooth" });
+  }, [activeIndex, follow]);
 
   const sel: [number, number] | null = anchor === null || focus === null ? null : [Math.min(anchor, focus), Math.max(anchor, focus)];
 
@@ -81,7 +101,7 @@ export default function TranscriptView({ words, speakers, busy, onEditWord, onAs
   };
 
   return (
-    <div className={`transcript${busy ? " busy" : ""}`}>
+    <div ref={box} className={`transcript${busy ? " busy" : ""}`}>
       {/* Hueco de altura fija: la ayuda y la barra de selección se turnan sin mover el texto. Si la barra
           empujara el contenido al aparecer, el segundo clic de un doble clic caería en otra palabra. */}
       <div className="tv-slot">
@@ -92,6 +112,7 @@ export default function TranscriptView({ words, speakers, busy, onEditWord, onAs
               <option value="">Asignar a…</option>
               {labels.map((l) => <option key={l} value={l}>{speakers[l].name || `Speaker ${l}`}</option>)}
             </select>
+            {onListen && <button className="ghost" onClick={() => onListen(words[sel[0]].start, words[sel[1]].end)} title="Reproduce solo esas palabras en el vídeo">▶ Escuchar</button>}
             <button disabled={!target || busy} onClick={async () => { await onAssign(sel[0], sel[1], target); setAnchor(null); setFocus(null); setTarget(""); }}>Asignar</button>
             <button className="ghost" onClick={() => { setAnchor(null); setFocus(null); }}>Limpiar</button>
           </div>
@@ -105,6 +126,7 @@ export default function TranscriptView({ words, speakers, busy, onEditWord, onAs
           sel={sel && sel[1] >= t.from && sel[0] <= t.to ? sel : null}
           editing={editing !== null && editing >= t.from && editing <= t.to ? editing : null}
           draft={draft} setDraft={setDraft} onClickWord={clickWord}
+          active={activeIndex !== null && activeIndex >= t.from && activeIndex <= t.to ? activeIndex : null} onSeek={onSeek}
           onStartEdit={(i) => { setEditing(i); setDraft(words[i].text); }}
           onCommit={commit} onCancel={() => setEditing(null)} />
       ))}

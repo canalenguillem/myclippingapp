@@ -148,3 +148,30 @@ def delete_project(project_id: int, user: User = Depends(current_user), db: Sess
     shutil.rmtree(storage.media_root() / f"u{user.id}" / f"p{project.id}", ignore_errors=True)
     db.delete(project)
     db.commit()
+
+
+speakers_router = APIRouter(prefix="/api/speakers", tags=["projects"])
+
+
+@speakers_router.get("/known")
+def known_speakers(exclude_project: int | None = None, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Hablantes con nombre que el usuario ya ha puesto en sus proyectos, para no escribirlos otra vez: el nombre, el cargo y el
+    estilo más recientes de cada persona y en cuántos proyectos sale. Del más usado al menos."""
+    projects = db.scalars(select(Project).where(Project.user_id == user.id).order_by(Project.id.desc())).all()
+    people: dict[str, dict] = {}
+    for p in projects:
+        if exclude_project is not None and p.id == exclude_project:
+            continue
+        seen_here: set[str] = set()
+        for card in (p.speakers or {}).values():
+            name = str(card.get("name", "")).strip()
+            key = name.lower()
+            if not name or key in seen_here:
+                continue
+            seen_here.add(key)
+            entry = people.setdefault(key, {"name": name, "role": str(card.get("role", "")).strip(), "caption_style": card.get("caption_style", "sans_upper"),
+                                            "is_source": bool(card.get("is_source", False)), "uses": 0, "last_project_id": p.id})
+            entry["uses"] += 1
+            if not entry["role"] and str(card.get("role", "")).strip():   # el cargo más reciente que no esté vacío
+                entry["role"] = str(card["role"]).strip()
+    return sorted(people.values(), key=lambda e: (-e["uses"], e["name"].lower()))
