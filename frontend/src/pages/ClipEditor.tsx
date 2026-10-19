@@ -228,6 +228,7 @@ export default function ClipEditor() {
                 <option value="left">Izquierda</option>
                 <option value="center">Centro</option>
                 <option value="right">Derecha</option>
+                <option value="speaker">Sigue al hablante (posición en Speakers)</option>
               </select>
             </label>
           </div>

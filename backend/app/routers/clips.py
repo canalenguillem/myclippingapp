@@ -139,7 +139,7 @@ class ClipPatch(BaseModel):
     title: str | None = Field(default=None, max_length=255)
     hook: str | None = Field(default=None, max_length=255)
     layout: Literal["split", "full", "facecam"] | None = None
-    focus: Literal["left", "center", "right"] | None = None
+    focus: Literal["left", "center", "right", "speaker"] | None = None
     zoom: float | None = Field(default=None, ge=1.0, le=3.0)
     top_ratio: float | None = Field(default=None, ge=0.2, le=0.9)
     intro_enabled: bool | None = None

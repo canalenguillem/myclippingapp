@@ -5,7 +5,7 @@ CAPTION_STYLES = ("sans_upper", "serif_italic")
 
 
 def default_speaker() -> dict:
-    return {"name": "", "role": "", "caption_style": "sans_upper", "is_source": False}
+    return {"name": "", "role": "", "caption_style": "sans_upper", "is_source": False, "focus_x": 0.5}
 
 
 def merge_speakers(existing: dict | None, labels: list[str]) -> dict:

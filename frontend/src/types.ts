@@ -1,6 +1,6 @@
 export type CaptionStyle = "sans_upper" | "serif_italic";
 
-export type Speaker = { name: string; role: string; caption_style: CaptionStyle; is_source: boolean };
+export type Speaker = { name: string; role: string; caption_style: CaptionStyle; is_source: boolean; focus_x?: number };
 
 export type Project = {
   default_template_id?: number | null;
@@ -19,7 +19,7 @@ export type Clip = {
   id: number; project_id: number; start: number; end: number; duration: number;
   title: string; reason: string; score: number; transcript: string; hook: string;
   emphasis: { start: number; text: string }[]; parts: string[];
-  layout: "split" | "full" | "facecam"; focus: "left" | "center" | "right";
+  layout: "split" | "full" | "facecam"; focus: "left" | "center" | "right" | "speaker";
   zoom: number; top_ratio: number; intro_enabled: boolean; cortinilla_at: number | null;
   status: string; created_at: string | null;
   /** Estado del render, aparte del editorial: none | rendering | draft | final | failed. */

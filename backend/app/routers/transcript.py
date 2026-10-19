@@ -49,6 +49,7 @@ class SpeakerCard(BaseModel):
     role: str = Field(default="", max_length=120)
     caption_style: str = "sans_upper"
     is_source: bool = False
+    focus_x: float = Field(default=0.5, ge=0, le=1)  # dónde está en el plano (0 izquierda, 1 derecha); lo usa «Sigue al hablante»
 
 
 class Revision(BaseModel):

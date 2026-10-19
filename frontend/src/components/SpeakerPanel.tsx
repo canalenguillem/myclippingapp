@@ -28,7 +28,7 @@ export default function SpeakerPanel({ speakers, onSave, projectId, speakingNow 
 
   const addSpeaker = () => {
     const next = "ABCDEFGH".split("").find((l) => !(l in draft));
-    if (next) setDraft((d) => ({ ...d, [next]: { name: "", role: "", caption_style: "sans_upper", is_source: false } }));
+    if (next) setDraft((d) => ({ ...d, [next]: { name: "", role: "", caption_style: "sans_upper", is_source: false, focus_x: 0.5 } }));
   };
 
   if (labels.length === 0) return <p className="muted">Sin speakers todavía.</p>;
@@ -57,6 +57,10 @@ export default function SpeakerPanel({ speakers, onSave, projectId, speakingNow 
             <option value="sans_upper">Subtítulo: sans MAYÚSCULAS</option>
             <option value="serif_italic">Subtítulo: serif cursiva</option>
           </select>
+          <label title="Dónde está en el plano: con el encuadre «Sigue al hablante», el recorte vertical se centra aquí cuando habla">
+            Posición en el plano: {Math.round((draft[label].focus_x ?? 0.5) * 100)} % (0 = izquierda, 100 = derecha)
+            <input type="range" min={0} max={1} step={0.05} value={draft[label].focus_x ?? 0.5} onChange={(e) => set(label, { focus_x: Number(e.target.value) })} />
+          </label>
           <label className="check">
             <input type="checkbox" checked={draft[label].is_source} onChange={(e) => set(label, { is_source: e.target.checked })} />
             Clip citado (B/N)

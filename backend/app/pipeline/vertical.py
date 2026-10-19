@@ -12,6 +12,7 @@ import os
 from collections.abc import Callable
 from pathlib import Path
 
+from . import focus as focus_mod
 from .ffmpeg_run import FfmpegError, progress_args, run_ffmpeg
 
 CANVAS_W, CANVAS_H = 1080, 1920
@@ -19,6 +20,15 @@ DRAFT_W, DRAFT_H = 540, 960
 FPS = 30
 
 FOCUS_X = {"left": "0", "center": "(iw-ow)/2", "right": "iw-ow"}
+SPEAKER = "speaker"  # el encuadre sigue a quien habla (`track` de pipeline/focus.py)
+
+
+def _crop_x(focus: str, track: list[tuple[float, float]] | None) -> str:
+    if focus == SPEAKER:
+        return "'" + focus_mod.x_expr(track or [(0.0, focus_mod.DEFAULT_X)]) + "'"
+    if focus not in FOCUS_X:
+        raise VerticalError(f"Encuadre no válido: {focus!r}")
+    return FOCUS_X[focus]
 
 
 class VerticalError(RuntimeError):
@@ -30,11 +40,11 @@ def canvas_for(draft: bool) -> tuple[int, int]:
 
 
 def build_filter(top_ratio: float = 0.5, focus: str = "center", zoom: float = 1.0,
-                 width: int = CANVAS_W, height: int = CANVAS_H) -> str:
+                 width: int = CANVAS_W, height: int = CANVAS_H,
+                 track: list[tuple[float, float]] | None = None) -> str:
     """Arriba: recorte enfocado (encuadre + zoom) que rellena el hueco. Abajo: la escena completa, sin recortar y
     con barras negras si hace falta, para no perder a nadie. Termina en 30 fps constantes."""
-    if focus not in FOCUS_X:
-        raise VerticalError(f"Encuadre no válido: {focus!r}")
+    crop_x = _crop_x(focus, track)
     top_h = int(height * top_ratio)
     top_h -= top_h % 2  # alto par para el codec
     bottom_h = height - top_h
@@ -43,7 +53,7 @@ def build_filter(top_ratio: float = 0.5, focus: str = "center", zoom: float = 1.
     return (
         f"[0:v]split=2[top][botsrc];"
         f"[top]scale={scaled_w}:{scaled_h}:force_original_aspect_ratio=increase,"
-        f"crop={width}:{top_h}:{FOCUS_X[focus]}:(ih-oh)/2,setsar=1[toppad];"
+        f"crop={width}:{top_h}:{crop_x}:(ih-oh)/2,setsar=1[toppad];"
         f"[botsrc]scale={width}:{bottom_h}:force_original_aspect_ratio=decrease,"
         f"pad={width}:{bottom_h}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1[bot];"
         f"[toppad][bot]vstack=inputs=2,fps={FPS}[v]"
@@ -51,12 +61,12 @@ def build_filter(top_ratio: float = 0.5, focus: str = "center", zoom: float = 1.
 
 
 def build_filter_full(top_ratio: float = 0.66, focus: str = "center", zoom: float = 1.0,
-                      width: int = CANVAS_W, height: int = CANVAS_H) -> str:
+                      width: int = CANVAS_W, height: int = CANVAS_H,
+                      track: list[tuple[float, float]] | None = None) -> str:
     """Pantalla completa: arriba el vídeo nítido (encuadre + zoom) en `top_ratio` del alto; el resto del lienzo es una copia
     del mismo vídeo muy difuminada y oscurecida, un fondo tranquilo para gráficos y subtítulos. El difuminado se hace
     a un cuarto de resolución (barato) y se reescala."""
-    if focus not in FOCUS_X:
-        raise VerticalError(f"Encuadre no válido: {focus!r}")
+    crop_x = _crop_x(focus, track)
     top_h = int(height * top_ratio)
     top_h -= top_h % 2
     zoom = max(1.0, float(zoom))
@@ -68,7 +78,7 @@ def build_filter_full(top_ratio: float = 0.66, focus: str = "center", zoom: floa
         f"[bgsrc]scale={small_w}:{small_h}:force_original_aspect_ratio=increase,crop={small_w}:{small_h},"
         f"gblur=sigma={sigma},eq=brightness=-0.22:saturation=0.85,scale={width}:{height}:flags=bilinear,setsar=1[bg];"
         f"[fg]scale={scaled_w}:{scaled_h}:force_original_aspect_ratio=increase,"
-        f"crop={width}:{top_h}:{FOCUS_X[focus]}:(ih-oh)/2,setsar=1[fgc];"
+        f"crop={width}:{top_h}:{crop_x}:(ih-oh)/2,setsar=1[fgc];"
         f"[bg][fgc]overlay=0:0,fps={FPS}[v]"
     )
 
@@ -86,6 +96,7 @@ def make_vertical_clip(
     focus: str = "center",
     zoom: float = 1.0,
     layout: str = "split",
+    track: list[tuple[float, float]] | None = None,
     draft: bool = False,
     ffmpeg: str = "ffmpeg",
     on_progress: Callable[[float], None] | None = None,
@@ -113,7 +124,7 @@ def make_vertical_clip(
     cmd = [
         *progress_args(ffmpeg),
         "-ss", f"{start:.3f}", "-i", str(video), "-t", f"{duration:.3f}",
-        "-filter_complex", (build_filter_full if layout == "full" else build_filter)(top_ratio, focus, zoom, width, height),
+        "-filter_complex", (build_filter_full if layout == "full" else build_filter)(top_ratio, focus, zoom, width, height, track),
         "-map", "[v]", "-map", "0:a?",
         "-c:v", "libx264", *quality, "-pix_fmt", "yuv420p",
         "-g", str(FPS), "-keyint_min", str(FPS), "-sc_threshold", "0",  # fotograma clave cada segundo

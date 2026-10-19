@@ -170,8 +170,8 @@ def test_concurrent_updates_with_the_same_revision_only_one_wins(tmp_path):
 
 def test_put_speakers_replaces_cards_and_project_exposes_them(client, tmp_path, monkeypatch):
     h, db, p, path = _project(client, tmp_path, monkeypatch)
-    cards = {"A": {"name": "Soto Ivars", "role": "periodista", "caption_style": "sans_upper", "is_source": False},
-             "B": {"name": "Gómez", "role": "expolítico", "caption_style": "serif_italic", "is_source": True}}
+    cards = {"A": {"name": "Soto Ivars", "role": "periodista", "caption_style": "sans_upper", "is_source": False, "focus_x": 0.2},
+             "B": {"name": "Gómez", "role": "expolítico", "caption_style": "serif_italic", "is_source": True, "focus_x": 0.5}}
     assert client.put(f"/api/projects/{p.id}/speakers", json=cards, headers=h).status_code == 200
     assert client.get(f"/api/projects/{p.id}").json()["speakers"] == cards
 
@@ -181,6 +181,7 @@ def test_put_speakers_replaces_cards_and_project_exposes_them(client, tmp_path, 
     {"A": {"name": "x" * 81}, "B": {}},
     {"A": {"is_source": "quizá"}, "B": {}},
     {"A": {"bold": True}, "B": {}},                                # campo desconocido
+    {"A": {"focus_x": 1.5}, "B": {}}, {"A": {"focus_x": -0.1}, "B": {}},
     {"A b": {}, "B": {}}, {"A": {}},                               # etiqueta inválida / quita B, que tiene palabras
 ])
 def test_put_speakers_validation(client, tmp_path, monkeypatch, cards):

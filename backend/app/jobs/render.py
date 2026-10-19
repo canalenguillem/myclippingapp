@@ -14,6 +14,8 @@ from app.db.models import Asset, BrandTemplate, Clip, Project, RenderState
 from app.jobs import queue
 from app.pipeline import analysis as analysis_mod
 from app.pipeline import ass_fallback, ffops, vertical
+from app.pipeline import focus as focus_mod
+from app.services import asd_client
 from app.services import clips as clips_service
 from app.services import cortinilla as cortinilla_service
 from app.services import fx_request, graphics_schedule, silences as silences_mod, storage, transcription
@@ -89,6 +91,31 @@ def _resolve_images(db, user_id: int, beats: list[dict]) -> tuple[list[dict], li
     return out, missing
 
 
+def _speaker_track(ctx, clip, project, source, folder, words, cancel) -> list[tuple[float, float]]:
+    """Recorrido del encuadre «Sigue al hablante». Con worker de ASD (GPU) se detecta quién habla y dónde está su cara;
+    sin él, o si falla, se usan las posiciones de los speakers (slider) y la diarización de la transcripción."""
+    if asd_client.configured():
+        cache = folder / f"asd_{clip.start:.3f}_{clip.end:.3f}.json"
+        data = None
+        try:
+            raw = folder / "asd_input.mp4"
+            if not cache.is_file():
+                ctx.log("Detectando quién habla (worker de GPU)…")
+                ffops.cut_for_analysis(source, clip.start, clip.end, raw, cancel_check=cancel)
+            data = asd_client.fetch_segments(raw, cache)
+            raw.unlink(missing_ok=True)
+        except (ffops.FfopsError, OSError) as exc:
+            ctx.log(f"No se pudo preparar el tramo para el worker de ASD ({exc})")
+        if data and data.get("speakers"):
+            track = focus_mod.track_from_asd(data)
+            ctx.log("Encuadre que sigue al hablante (detección de cara): " + ", ".join(f"{t:.1f} s → {x:.2f}" for t, x in track))
+            return track
+        ctx.log("El worker de ASD no respondió o no vio caras; se usan las posiciones de los speakers")
+    track = focus_mod.build_track(words, project.speakers)
+    ctx.log("Encuadre que sigue al hablante (posiciones de los speakers): " + ", ".join(f"{t:.1f} s → {x:.2f}" for t, x in track))
+    return track
+
+
 def _orbit_path(db, template: BrandTemplate | None, user_id: int) -> str | None:
     """Imagen que orbita en la cortinilla: la de la librería que eligió el usuario en la plantilla (si es suya y existe en el
     disco) o, si no, el `logo_path` de la plantilla."""
@@ -152,7 +179,9 @@ def render(ctx: JobContext, payload: dict) -> None:
     warning: str | None = None
     try:
         ctx.log(f"Render {'borrador' if draft else 'final'} del clip {clip.id}: {clip.start:.2f}–{clip.end:.2f} s ({duration:.1f} s)")
-        vertical.make_vertical_clip(source, clip.start, clip.end, vertical_path, top_ratio=clip.top_ratio, focus=clip.focus,
+        words = fx_request.clip_words(transcription.load_words(storage.absolute(project.words_path))["words"], clip.start, clip.end)
+        track = _speaker_track(ctx, clip, project, source, folder, words, cancel) if clip.focus == vertical.SPEAKER else None
+        vertical.make_vertical_clip(source, clip.start, clip.end, vertical_path, top_ratio=clip.top_ratio, focus=clip.focus, track=track,
                                     zoom=clip.zoom, layout=clip.layout, draft=draft, on_progress=_stage(ctx, 0, 20), cancel_check=cancel)
         ctx.log("Clip vertical listo")
 
@@ -167,7 +196,6 @@ def render(ctx: JobContext, payload: dict) -> None:
         ctx.log("Subtítulos quemados detectados en las filas " + (f"{band['y0']}–{band['y1']} (confianza {band['confidence']})" if band else "—: ninguno"))
         ctx.progress(25)
 
-        words = fx_request.clip_words(transcription.load_words(storage.absolute(project.words_path))["words"], clip.start, clip.end)
         template = db.get(BrandTemplate, clip.template_id) if clip.template_id else None
         template = template if template and template.user_id == ctx.user_id else None
         preset = template.preset if template else DEFAULT_PRESET

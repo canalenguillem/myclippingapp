@@ -185,3 +185,12 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 - La transcripción tiene al lado el vídeo fuente: mientras suena se ilumina la palabra, el panel dice «Habla ahora: X» y marca su tarjeta con 🔊; los controles son −5/+5 s, velocidad y «Seguir el texto» (la caja se desplaza sola). Cada turno tiene un ▶ con su hora para saltar ahí, y en una selección hay «▶ Escuchar» (reproduce solo ese rango antes de asignarlo a un speaker).
 - **Lección:** un `<video>` dentro de un contenedor `position: sticky` junto a una columna muy alta (la transcripción de ~4.800 palabras) colgaba la pestaña. No usar `sticky` con vídeos en páginas largas; el reproductor va al lado de la caja de transcripción, que ya tiene su altura.
 - Corrección de la banda de papel en los ojos (clip 33): la detección de subtítulos quemados ya no busca en el 45 % de arriba y exige ≥ 40 % de persistencia.
+
+## Encuadre que sigue al hablante
+
+- Nuevo valor `focus="speaker"` (sin migración; `Clip.focus` es texto). Cada speaker tiene `focus_x` (0 izquierda … 1 derecha) en `Project.speakers`.
+- `app/pipeline/focus.py`: `build_track` agrupa las palabras por speaker (las interjecciones < 1 s no mueven el plano; en silencios se mantiene la posición) y `x_expr` genera la expresión de `crop` de ffmpeg con transiciones suaves de 0,25 s. Funciona en `split` y `full`.
+- El job de render calcula las palabras del clip antes del paso vertical y registra el recorrido en el log.
+- UI: opción «Sigue al hablante» en Encuadre y slider «Posición en el plano» por speaker. Guardar speakers invalida los renders.
+- Tests: `tests/test_focus.py` (recorrido, suavizado y render real con ffmpeg sobre un vídeo mitad rojo / mitad azul).
+- ASD automático (como mymoviepy): `ASD_WORKER_URL` (worker TalkNet de `asd_worker/` del repo viejo, GPU). Con worker, el render corta el tramo (720 p, 25 fps), lo manda a `POST /asd` y usa `speakers[].center_norm` + `segments`; cacheado por clip en `asd_<start>_<end>.json`. Sin URL o si falla, usa los sliders de posición de los speakers. En 2026-10-19 el worker antiguo (192.168.1.46:8900) no respondía: sin probar contra un worker real.

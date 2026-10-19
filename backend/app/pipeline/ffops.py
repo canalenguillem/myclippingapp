@@ -45,3 +45,22 @@ def downscale(video: Path, out_path: Path, *, width: int, height: int, duration:
         raise FfopsError("No se generó el borrador reducido")
     os.replace(part, out_path)
     return out_path
+
+
+def cut_for_analysis(video: Path, start: float, end: float, out_path: Path, *, ffmpeg: str = "ffmpeg",
+                     cancel_check: Callable[[], None] | None = None) -> Path:
+    """Tramo [start, end] a 25 fps y 720 px de alto, sin recomponer: lo que se manda al worker de ASD."""
+    out_path = Path(out_path)
+    part = out_path.with_name(out_path.stem + ".part" + out_path.suffix)
+    duration = round(end - start, 3)
+    cmd = [*progress_args(ffmpeg), "-ss", f"{start:.3f}", "-i", str(video), "-t", f"{duration:.3f}",
+           "-vf", "scale=-2:'min(720,ih)',fps=25", "-c:v", "libx264", "-crf", "26", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+           "-c:a", "aac", "-b:a", "96k", "-ar", "16000", "-ac", "1", str(part)]
+    try:
+        run_ffmpeg(cmd, duration=duration, cleanup=[part], cancel_check=cancel_check)
+    except FfmpegError as exc:
+        raise FfopsError(f"No se pudo preparar el tramo para el análisis: {exc}") from exc
+    if not part.exists():
+        raise FfopsError("No se generó el tramo de análisis")
+    os.replace(part, out_path)
+    return out_path
