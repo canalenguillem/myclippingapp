@@ -13,6 +13,10 @@ def _overlaps(a_start: float, a_end: float, b_start: float, b_end: float) -> boo
     return min(a_end, b_end) - max(a_start, b_start) > 0.5 * min(a_end - a_start, b_end - b_start)
 
 
+# Diseño de los clips nuevos: pantalla completa con el fondo difuminado abajo y encuadre que sigue al hablante.
+DEFAULT_LAYOUT, DEFAULT_FOCUS, DEFAULT_TOP_RATIO = "full", "speaker", 0.65
+
+
 def replace_detected_clips(db: Session, project: Project, candidates: list[ClipCandidate]) -> tuple[int, int]:
     """Sustituye los clips sin trabajar (`detected`) por los nuevos. Los demás (aprobados, renderizados…)
     se conservan, y un candidato que se pise con uno de ellos se descarta para no duplicarlo.
@@ -29,7 +33,7 @@ def replace_detected_clips(db: Session, project: Project, candidates: list[ClipC
         db.add(Clip(
             project_id=project.id, user_id=project.user_id, start=c.start, end=c.end, title=c.title,
             reason=c.reason, score=c.score, transcript=c.transcript, hook=c.hook, emphasis_json=c.emphasis,
-            parts=c.parts, intro_enabled=intro_default, template_id=project.default_template_id, channel_id=project.default_channel_id,
+            parts=c.parts, layout=DEFAULT_LAYOUT, focus=DEFAULT_FOCUS, top_ratio=DEFAULT_TOP_RATIO, intro_enabled=intro_default, template_id=project.default_template_id, channel_id=project.default_channel_id,
         ))
         inserted += 1
     db.commit()

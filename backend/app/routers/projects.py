@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.deps import current_user, get_owned
 from app.db import get_db
-from app.db.models import BrandTemplate, Clip, Job, Project, ProjectStatus, User, YouTubeChannel
+from app.db.models import BrandTemplate, Clip, Job, Project, ProjectStatus, RenderState, User, YouTubeChannel
 from app.jobs import queue
 from app.services import media_sign, storage, transcription
 from app.services import seo as seo_service
@@ -90,6 +90,12 @@ def patch_project(project_id: int, body: ProjectPatch, user: User = Depends(curr
         if body.default_template_id is not None:
             get_owned(db, BrandTemplate, body.default_template_id, user)
         project.default_template_id = body.default_template_id
+        if body.default_template_id is not None:
+            # los clips aún sin plantilla y sin renderizar la reciben (un clip ya renderizado no se toca: quedaría obsoleto)
+            tpl = db.get(BrandTemplate, body.default_template_id)
+            db.execute(update(Clip).where(Clip.project_id == project.id, Clip.user_id == user.id, Clip.template_id.is_(None),
+                                          Clip.status.in_(("detected", "approved")), Clip.render_state == RenderState.NONE)
+                       .values(template_id=body.default_template_id, **({"intro_enabled": True} if tpl and tpl.cortinilla_default else {})))
     if "default_channel_id" in sent:
         if body.default_channel_id is not None:
             get_owned(db, YouTubeChannel, body.default_channel_id, user)

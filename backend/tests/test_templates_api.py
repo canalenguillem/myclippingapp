@@ -213,3 +213,21 @@ def test_new_clips_take_the_project_default_channel(client, tmp_path, monkeypatc
     db.refresh(p)
     clips_service.replace_detected_clips(db, p, [ClipCandidate(start=10.0, end=40.0, title="t", reason="", score=5, transcript="x", hook="h", emphasis=[], parts=[])])
     assert db.query(Clip).one().channel_id == ch
+
+
+def test_new_clips_use_full_layout_following_the_speaker_by_default(client, tmp_path, monkeypatch):
+    h, db, p = _project(client, tmp_path, monkeypatch)
+    from app.services import clips as clips_service
+    clips_service.replace_detected_clips(db, p, [type("C", (), dict(start=10.0, end=40.0, title="t", reason="", score=80, transcript="", hook="", emphasis=[], parts=[]))()])
+    c = db.query(Clip).filter(Clip.project_id == p.id).one()
+    assert (c.layout, c.focus, c.top_ratio) == ("full", "speaker", 0.65)
+
+
+def test_setting_the_project_template_also_applies_it_to_untouched_clips_only(client, tmp_path, monkeypatch):
+    h, db, p = _project(client, tmp_path, monkeypatch)
+    tpl = client.post("/api/templates", json={"name": "Mi marca", "cortinilla_default": True}, headers=h).json()["id"]
+    sin, con, hecho = _clip(db, p, 10, 40), _clip(db, p, 50, 80, template_id=None), _clip(db, p, 90, 99, render_state="draft")
+    client.patch(f"/api/projects/{p.id}", json={"default_template_id": tpl}, headers=h)
+    db.expire_all()
+    assert db.get(Clip, sin.id).template_id == tpl and db.get(Clip, sin.id).intro_enabled is True
+    assert db.get(Clip, hecho.id).template_id is None                      # el ya renderizado no se toca
