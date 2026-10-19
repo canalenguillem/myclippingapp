@@ -106,8 +106,14 @@ def test_channel_info_reads_the_channel_or_explains_why_not():
 # --- API de canales ------------------------------------------------------------------------------
 
 class FakeGoogle:
-    def __init__(self, fail=None):
-        self.fail, self.codes = fail, []
+    def __init__(self, fail=None, title="Spain facts"):
+        self.fail, self.codes, self.title, self.refreshed = fail, [], title, 0
+
+    def refresh(self, secret, token):
+        self.refreshed += 1
+        if self.fail:
+            raise youtube_oauth.OAuthError(self.fail)
+        return {**token, "access_token": "renovado", "expires_at": int(time.time()) + 3600}
 
     def exchange_code(self, secret, code):
         self.codes.append(code)
@@ -116,7 +122,7 @@ class FakeGoogle:
         return {"access_token": "ya29.fake", "refresh_token": "1//refresh-fake", "scope": "s", "expires_at": int(time.time()) + 3600}
 
     def channel_info(self, access_token):
-        return {"id": "UC123", "title": "Spain facts", "thumbnail": "https://img/x.jpg"}
+        return {"id": "UC123", "title": self.title, "thumbnail": "https://img/x.jpg"}
 
 
 def make_channel(client, h, **extra):
@@ -231,3 +237,66 @@ def test_channels_and_callback_are_isolated_between_users(client, monkeypatch):
     monkeypatch.setattr(channels_router, "google", FakeGoogle())
     assert other.get("/api/youtube/callback", params={"code": "c", "state": state}, follow_redirects=False).status_code == 400   # state de otro usuario
     assert not client.get("/api/channels").json()[0]["linked"]
+
+
+def linked_channel(client, h, monkeypatch, **fake_kw):
+    ch = make_channel(client, h)
+    client.put(f"/api/channels/{ch['id']}/client-secret", files=secret_file(), headers=h)
+    fake = FakeGoogle(**fake_kw)
+    monkeypatch.setattr(channels_router, "google", fake)
+    state = parse_qs(urlparse(client.get(f"/api/channels/{ch['id']}/oauth/start", headers=h).json()["url"]).query)["state"][0]
+    client.get("/api/youtube/callback", params={"code": "c", "state": state}, follow_redirects=False)
+    return ch, fake
+
+
+def test_refresh_rereads_the_name_and_avatar_after_the_channel_was_renamed(client, monkeypatch):
+    h = _login(client)
+    ch, fake = linked_channel(client, h, monkeypatch, title="Salud Senior +60")
+    assert client.get("/api/channels").json()[0]["yt_title"] == "Salud Senior +60"
+    fake.title = "Spain Facts"                                    # lo renombran en YouTube
+    out = client.post(f"/api/channels/{ch['id']}/refresh", headers=h).json()
+    assert (out["yt_title"], out["linked"], out["yt_channel_id"]) == ("Spain Facts", True, "UC123") and fake.refreshed == 0   # el acceso aún vale
+
+
+def test_refresh_renews_an_expired_access_token_and_stores_it(client, monkeypatch):
+    h = _login(client)
+    ch, fake = linked_channel(client, h, monkeypatch)
+    db = client.session_factory()
+    row = db.get(YouTubeChannel, ch["id"])
+    row.token_enc = crypto.encrypt_json({**crypto.decrypt_json(row.token_enc), "expires_at": int(time.time()) - 10})
+    db.commit()
+    assert client.post(f"/api/channels/{ch['id']}/refresh", headers=h).status_code == 200 and fake.refreshed == 1
+    db.expire_all()
+    assert crypto.decrypt_json(db.get(YouTubeChannel, ch["id"]).token_enc)["access_token"] == "renovado"
+
+
+def test_refresh_errors_are_explained_and_need_a_connected_channel(client, monkeypatch):
+    h = _login(client)
+    ch = make_channel(client, h)
+    assert client.post(f"/api/channels/{ch['id']}/refresh", headers=h).status_code == 409
+    linked, fake = linked_channel(client, h, monkeypatch)
+    db = client.session_factory()
+    row = db.get(YouTubeChannel, linked["id"])
+    row.token_enc = crypto.encrypt_json({**crypto.decrypt_json(row.token_enc), "expires_at": 0})
+    db.commit()
+    fake.fail = "Google no renovó el acceso (invalid_grant): vuelve a conectar el canal"
+    r = client.post(f"/api/channels/{linked['id']}/refresh", headers=h)
+    assert r.status_code == 502 and "invalid_grant" in r.json()["detail"]
+    other = TestClient(client.app)
+    hb = _login(other, "b@x.com")
+    assert other.post(f"/api/channels/{linked['id']}/refresh", headers=hb).status_code == 404
+
+
+def test_google_client_refresh_returns_a_new_expiry_and_rejects_revoked_tokens():
+    secret = youtube_oauth.parse_client_secret(json.dumps(SECRET))
+    seen = {}
+
+    def ok(request):
+        seen.update(dict(httpx.QueryParams(request.content.decode())))
+        return httpx.Response(200, json={"access_token": "nuevo", "expires_in": 3599})
+
+    token = google_with(ok).refresh(secret, {"refresh_token": "r", "access_token": "viejo", "scope": "s"})
+    assert seen["grant_type"] == "refresh_token" and seen["refresh_token"] == "r"
+    assert (token["access_token"], token["refresh_token"]) == ("nuevo", "r") and token["expires_at"] > time.time() + 3000
+    with pytest.raises(youtube_oauth.OAuthError, match="invalid_grant"):
+        google_with(lambda r: httpx.Response(400, json={"error": "invalid_grant"})).refresh(secret, {"refresh_token": "r"})

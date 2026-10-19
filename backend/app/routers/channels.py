@@ -1,6 +1,7 @@
 """Canales de YouTube del usuario: cada uno con su propio `client_secret.json` (cambiable) y su conexión OAuth."""
 from __future__ import annotations
 
+import time
 from datetime import datetime
 from typing import Literal
 from urllib.parse import quote
@@ -145,6 +146,26 @@ def oauth_start(channel_id: int, user: User = Depends(current_user), db: Session
     except (crypto.CryptoError, TypeError, ValueError) as exc:
         raise HTTPException(409, "No se puede leer el client_secret guardado: súbelo otra vez") from exc
     return {"url": youtube_oauth.build_auth_url(secret, youtube_oauth.sign_state(user.id, ch.id)), "redirect_uri": youtube_oauth.redirect_uri()}
+
+
+@router.post("/{channel_id}/refresh", response_model=ChannelOut)
+def refresh_channel(channel_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Vuelve a leer de YouTube el nombre y el avatar del canal conectado (p. ej. tras renombrarlo). Renueva el acceso si hace falta."""
+    ch = get_owned(db, YouTubeChannel, channel_id, user)
+    if not ch.token_enc or not ch.client_secret_enc:
+        raise HTTPException(409, "El canal no está conectado")
+    try:
+        secret = youtube_oauth.ClientSecret(**crypto.decrypt_json(ch.client_secret_enc))
+        token = crypto.decrypt_json(ch.token_enc)
+        if int(token.get("expires_at", 0)) < time.time() + 60:
+            token = google.refresh(secret, token)
+            ch.token_enc = crypto.encrypt_json(token)
+        info = google.channel_info(token["access_token"])
+    except (youtube_oauth.OAuthError, crypto.CryptoError, TypeError, ValueError, KeyError) as exc:
+        raise HTTPException(502, str(exc)) from exc
+    ch.yt_channel_id, ch.yt_title, ch.yt_thumbnail = info["id"], info["title"], info["thumbnail"]
+    db.commit()
+    return _out(ch)
 
 
 @router.delete("/{channel_id}/token", response_model=ChannelOut)

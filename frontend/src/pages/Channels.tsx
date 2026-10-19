@@ -37,6 +37,10 @@ function ChannelCard({ ch, onChange, onError, onNotice }: { ch: Channel; onChang
       window.location.href = r.url;   // Google devuelve al usuario a /api/youtube/callback y de ahí a esta página
     } catch (e) { fail(e); setBusy(false); }
   };
+  const refresh = async () => {
+    setBusy(true);
+    try { await api(`/api/channels/${ch.id}/refresh`, { method: "POST" }); onNotice("Datos del canal actualizados desde YouTube"); onChange(); } catch (e) { fail(e); } finally { setBusy(false); }
+  };
   const disconnect = async () => {
     if (!window.confirm("¿Desconectar este canal de YouTube? Podrás volver a conectarlo cuando quieras.")) return;
     try { await api(`/api/channels/${ch.id}/token`, { method: "DELETE" }); onChange(); } catch (e) { fail(e); }
@@ -86,6 +90,7 @@ function ChannelCard({ ch, onChange, onError, onNotice }: { ch: Channel; onChang
         </label>
         {ch.has_secret && <button className="ghost" onClick={removeSecret}>Quitar JSON</button>}
         <button onClick={connect} disabled={!ch.has_secret || busy}>{ch.linked ? "Reconectar con otra cuenta" : "Conectar con YouTube"}</button>
+        {ch.linked && <button className="ghost" onClick={refresh} disabled={busy} title="Vuelve a leer el nombre y el avatar del canal en YouTube">Refrescar datos</button>}
         {ch.linked && <button className="ghost" onClick={disconnect}>Desconectar</button>}
       </div>
       {ch.secret_hint && <p className="muted">JSON actual: {ch.secret_hint}</p>}

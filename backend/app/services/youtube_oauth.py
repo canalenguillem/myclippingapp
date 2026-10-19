@@ -148,6 +148,20 @@ class GoogleClient:
         return {"access_token": body["access_token"], "refresh_token": body["refresh_token"], "scope": body.get("scope", ""),
                 "expires_at": int(time.time()) + int(body.get("expires_in", 3600))}
 
+    def refresh(self, secret: ClientSecret, token: dict) -> dict:
+        """Renueva el acceso con el refresh_token. Devuelve el token con el access_token y la caducidad nuevos."""
+        try:
+            r = self.http.post(secret.token_uri, data={
+                "client_id": secret.client_id, "client_secret": secret.client_secret,
+                "refresh_token": token.get("refresh_token", ""), "grant_type": "refresh_token",
+            })
+        except httpx.HTTPError as exc:
+            raise OAuthError(f"No se pudo hablar con Google ({type(exc).__name__})") from exc
+        body = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+        if r.status_code != 200 or not body.get("access_token"):
+            raise OAuthError(f"Google no renovó el acceso ({body.get('error') or r.status_code}): vuelve a conectar el canal")
+        return {**token, "access_token": body["access_token"], "expires_at": int(time.time()) + int(body.get("expires_in", 3600))}
+
     def channel_info(self, access_token: str) -> dict:
         """El canal de la cuenta conectada: {id, title, thumbnail}."""
         try:
