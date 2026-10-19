@@ -145,3 +145,49 @@ def test_entry_and_explode_are_accepted_for_images_and_emoji_but_validated(clien
         assert client.patch(f"/api/clips/{c.id}", json={"graphics": [bad]}, headers=h).status_code == 422, bad
     plan = client.post(f"/api/clips/{c.id}/graphics-plan", json={"graphics": [img]}, headers=h).json()
     assert plan["beats"][0]["lead"] == 0.7 and plan["beats"][0]["start"] == 11.3
+
+
+def _words_project(client, tmp_path, monkeypatch):
+    """Proyecto con palabras reales (una por 0,4 s) para el planificador."""
+    from app.services import transcription
+    h, db, p = _project(client, tmp_path, monkeypatch, words=False)
+    text = ("Hay muchos pensionistas en España cada vez más y el sistema de pensiones ha petado paga con deuda y saca dinero de todos lados "
+            "para pagar las pensiones que son la mitad del gasto público en España Dicen que con los inmigrantes sí pero los informes de Funcas "
+            "te cuentan que no da y eso funciona electoralmente para el PSOE").split()
+    ws = [{"text": w, "start": round(i * 0.4, 3), "end": round(i * 0.4 + 0.3, 3), "confidence": 1, "speaker": "A"} for i, w in enumerate(text)]
+    folder = storage.project_dir(p.user_id, p.id)
+    transcription.save_words({"words": ws}, folder / "words.json")
+    p.words_path = storage.rel(folder / "words.json")
+    db.commit()
+    return h, db, p, ws
+
+
+def test_suggest_returns_anchored_scheduled_proposals_and_saves_nothing(client, tmp_path, monkeypatch):
+    from app.config import get_settings
+    h, db, p, ws = _words_project(client, tmp_path, monkeypatch)
+    monkeypatch.setattr(get_settings(), "openai_api_key", "")
+    c = _clip(db, p, 0.0, 30.0)
+    r = client.post(f"/api/clips/{c.id}/graphics-plan/suggest", json={"graphics": []}, headers=h)
+    assert r.status_code == 200
+    out = r.json()
+    assert out["source"] == "plan_b" and out["notes"] and 0 < len(out["beats"]) <= out["max_beats"] == 5
+    starts = {round(w["start"], 3) for w in ws}
+    assert all(b["at"] in starts and b["reason"] and b["type"] == "emoji" for b in out["beats"])
+    assert {b["emoji"] for b in out["beats"]} & {"🧓", "💥", "💸"}
+    db.refresh(c)
+    assert c.graphics_json == []                                                           # no guarda nada
+
+
+def test_suggest_keeps_what_the_user_already_has_and_checks_ownership(client, tmp_path, monkeypatch):
+    from app.config import get_settings
+    h, db, p, ws = _words_project(client, tmp_path, monkeypatch)
+    monkeypatch.setattr(get_settings(), "openai_api_key", "")
+    c = _clip(db, p, 0.0, 30.0)
+    out = client.post(f"/api/clips/{c.id}/graphics-plan/suggest", json={"graphics": []}, headers=h).json()["beats"]
+    mine = [{"type": "emoji", "at": out[0]["at"], "emoji": "🔥"}]
+    again = client.post(f"/api/clips/{c.id}/graphics-plan/suggest", json={"graphics": mine}, headers=h).json()["beats"]
+    assert all(not (b["type"] == "emoji" and abs(b["at"] - mine[0]["at"]) < 2.4) for b in again)       # nada pisa lo que ya hay
+    other = TestClient(client.app)
+    hb = _login(other, "b@x.com")
+    assert other.post(f"/api/clips/{c.id}/graphics-plan/suggest", json={"graphics": []}, headers=hb).status_code == 404
+    assert client.post(f"/api/clips/{c.id}/graphics-plan/suggest", json={"graphics": [], "start": 5.0, "end": 5.5}, headers=h).status_code == 422

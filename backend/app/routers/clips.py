@@ -16,7 +16,7 @@ from app.jobs import queue
 from app.pipeline import ffops
 from app.services import clips as clips_service
 from app.services import cortinilla as cortinilla_service
-from app.services import fx_request, graphics_schedule, seo as seo_service, media_sign, silences as silences_service, storage, transcription
+from app.services import fx_request, graphics_planner, graphics_schedule, seo as seo_service, media_sign, silences as silences_service, storage, transcription
 
 router = APIRouter(tags=["clips"])
 
@@ -523,3 +523,35 @@ def upload_clip(clip_id: int, body: UploadIn, user: User = Depends(current_user)
     clip.status, clip.upload_error = "uploading", None
     db.commit()
     return JobRef(job_id=job.id)
+
+
+@router.post("/api/clips/{clip_id}/graphics-plan/suggest")
+def suggest_graphics(clip_id: int, body: PlanIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Propone gráficos a partir de la transcripción del recorte y de las imágenes del usuario. No guarda nada: devuelve solo lo
+    que cabe junto a lo que el formulario ya tiene (que manda). El usuario lo revisa y lo edita en la línea de tiempo."""
+    clip = get_owned(db, Clip, clip_id, user)
+    project = db.get(Project, clip.project_id)
+    start = clip.start if body.start is None else body.start
+    end = clip.end if body.end is None else body.end
+    if end - start < 1.0:
+        raise HTTPException(422, "Recorte no válido")
+    if not project.words_path:
+        raise HTTPException(409, "El proyecto aún no tiene transcripción")
+    duration = end - start
+    words, silences = _words_and_silences(db, project, start, end)
+    if not words:
+        raise HTTPException(409, "El recorte no tiene palabras transcritas")
+    intro = clip.intro_enabled if body.intro_enabled is None else body.intro_enabled
+    at = cortinilla_service.resolve_position(body.cortinilla_at, words, silences, duration) if intro else None
+    assets = [{"id": a.id, "name": a.name, "tags": a.tags or []} for a in db.scalars(select(Asset).where(Asset.user_id == user.id).order_by(Asset.id)).all()]
+    result = graphics_planner.plan(words=words, duration=duration, hook=clip.hook, assets=assets, existing=_beats(body.graphics),
+                                   cortinilla_at=at, single_lane=(body.layout or clip.layout) == "full")
+    clean = []
+    for beat in result.beats:
+        reason = beat.pop("reason", "")
+        try:
+            GraphicIn(**beat)
+        except ValueError:
+            continue
+        clean.append({**beat, "reason": reason})
+    return {"beats": clean, "source": result.source, "notes": result.notes, "max_beats": graphics_planner.max_beats(duration)}
