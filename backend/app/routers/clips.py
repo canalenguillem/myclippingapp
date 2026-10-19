@@ -65,10 +65,14 @@ class ClipOut(BaseModel):
     render_error: str | None
     render_job_id: int | None = None
     upload_job_id: int | None = None
+    render_job_status: str | None = None      # queued | running (solo con un job de render activo)
+    render_job_progress: float | None = None
+    upload_job_status: str | None = None
     created_at: datetime | None
 
 
-def _out(c: Clip, render_job_id: int | None = None, upload_job_id: int | None = None) -> ClipOut:
+def _out(c: Clip, render_job_id: int | None = None, upload_job_id: int | None = None, jobs: dict | None = None) -> ClipOut:
+    jobs = jobs or {}
     return ClipOut(
         id=c.id, project_id=c.project_id, start=c.start, end=c.end, duration=round(c.end - c.start, 3),
         title=c.title, reason=c.reason, score=c.score, transcript=c.transcript, hook=c.hook,
@@ -79,6 +83,9 @@ def _out(c: Clip, render_job_id: int | None = None, upload_job_id: int | None = 
         upload_error=c.upload_error,
         status=c.status, render_state=c.render_state.value, has_draft=bool(c.draft_path),
         has_final=bool(c.rendered_path), render_error=c.render_error, render_job_id=render_job_id, upload_job_id=upload_job_id, created_at=c.created_at,
+        render_job_status=(jobs.get(("render", render_job_id)) or (None, None))[0] if render_job_id else None,
+        render_job_progress=(jobs.get(("render", render_job_id)) or (None, None))[1] if render_job_id else None,
+        upload_job_status=(jobs.get(("upload", upload_job_id)) or (None, None))[0] if upload_job_id else None,
     )
 
 
@@ -188,7 +195,8 @@ def list_clips(project_id: int, user: User = Depends(current_user), db: Session 
     project = get_owned(db, Project, project_id, user)
     clips = db.scalars(select(Clip).where(Clip.project_id == project.id, Clip.user_id == user.id).order_by(Clip.start)).all()
     jobs, uploads = _render_jobs(db, user.id), _render_jobs(db, user.id, "upload")
-    return [_out(c, jobs.get(c.id), uploads.get(c.id)) for c in clips]
+    states = {(j.type, j.id): (j.status, j.progress) for j in db.scalars(select(Job).where(Job.id.in_([*jobs.values(), *uploads.values()]))).all()} if (jobs or uploads) else {}
+    return [_out(c, jobs.get(c.id), uploads.get(c.id), states) for c in clips]
 
 
 @router.post("/api/projects/{project_id}/detect", response_model=JobRef, status_code=202)

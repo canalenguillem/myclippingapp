@@ -30,7 +30,8 @@ def test_draft_enqueues_a_render_job_and_marks_the_clip(client, tmp_path, monkey
     assert job.id == r.json()["job_id"] and job.payload == {"clip_id": c.id, "project_id": p.id, "quality": "draft"}
     out = client.get(f"/api/clips/{c.id}").json()
     assert out["render_state"] == "rendering" and out["render_job_id"] == job.id and out["render_error"] is None
-    assert client.get(f"/api/projects/{p.id}/clips").json()[0]["render_job_id"] == job.id
+    listed = client.get(f"/api/projects/{p.id}/clips").json()[0]
+    assert listed["render_job_id"] == job.id and listed["render_job_status"] == "queued" and listed["render_job_progress"] == 0 and listed["upload_job_status"] is None
     assert client.post(f"/api/clips/{c.id}/render", json={}, headers=h).status_code == 409  # ya en marcha
 
 

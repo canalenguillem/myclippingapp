@@ -206,3 +206,10 @@ select, input, textarea { max-width: 100%; min-width: 0; }
 .qa-ok > strong { color: #7fd8a1; } .qa-warn > strong { color: #ffd27a; } .qa-error > strong { color: #ff7a6b; }
 li.qa-warn { color: #ffd27a; } li.qa-error { color: #ff7a6b; } li.qa-ok { color: var(--muted); }
 .qa-contact { width: 100%; border-radius: 6px; display: block; }
+
+/* tarjetas de clip: actividad y subido */
+.chip.act-busy { background: #1d4ed8; color: #fff; } .chip.act-queued { background: #5a4313; color: #ffe3a3; }
+.chip.act-done { background: #14532d; color: #c6f6d5; } .chip.act-error { background: #7f1d1d; color: #fecaca; }
+.clip-uploaded { padding: 6px 10px; border-radius: 8px; background: #14301f; color: #9be7b4; font-size: .88rem; }
+.clip-uploaded a { color: #c6f6d5; }
+.clip-card.uploaded { border-color: #15803d; }

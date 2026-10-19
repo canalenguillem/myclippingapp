@@ -231,3 +231,7 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 - Al acabar cada render (borrador y final) se genera `contact_<calidad>.jpg` (un fotograma cada 2,5 s en rejilla) y `qa_<calidad>.json` con comprobaciones (`app/services/qa.py`): duración = clip + cortinillas, audio (sin audio, casi mudo, pico > −0,1 dB), pantalla negra ≥ 1 s, gráficos grandes solapados, gráficos visibles < 0,8 s y gráficos descartados. Solo informan: nunca tumban el render.
 - `GET /api/clips/{id}/qa` y bloque «Revisión automática» (✔/⚠/✖ + hoja de contactos) en el panel de render.
 - Sin hacer (necesita visión por ordenador): gráfico sobre una cara, estilo de subtítulo que no corresponde al hablante, destellos < 0,3 s. Tampoco están el bucle notas → reglas ni los límites/borrado de media antigua.
+
+## Tarjetas de clip: render, cola y subido
+
+- `ClipOut` añade `render_job_status` (queued/running), `render_job_progress` y `upload_job_status`. Las tarjetas del proyecto muestran «En cola para renderizar», «Renderizando N %», «Subiendo a YouTube…», «Borrador/Final listo», fallos de render y de subida, y para un clip subido: fecha, privacidad y enlace «Ver en YouTube». La lista se refresca sola cada 3 s mientras haya algo en marcha.

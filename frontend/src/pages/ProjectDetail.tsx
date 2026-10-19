@@ -102,6 +102,14 @@ export default function ProjectDetail() {
     return () => clearInterval(t);
   }, [loadProject]);
 
+  // Mientras algún clip se renderiza o se sube (o espera en cola), la lista se refresca sola.
+  const anyActive = clips.some((c) => c.render_job_id !== null || c.upload_job_id !== null || c.render_state === "rendering");
+  useEffect(() => {
+    if (!anyActive) return;
+    const t = setInterval(loadClips, 3000);
+    return () => clearInterval(t);
+  }, [anyActive, loadClips]);
+
   // Al cambiar de estado (p. ej. detecting -> ready) se recargan transcripción y clips.
   const status = project?.status;
   useEffect(() => {
