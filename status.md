@@ -143,3 +143,10 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 
 - Hecho: textos SEO con el modelo (título, descripción con `#Shorts` y etiquetas, según idioma y reglas del canal; plan B sin modelo; siempre revisables), guardado de textos, job `upload` con subida reanudable (renueva el acceso con el refresh_token, errores de la API traducidos, no duplica en reintentos, cancelable), API (`/seo/generate`, `/seo`, `/upload`) y panel «Subir a YouTube» en el editor con el canal de destino bien visible y confirmación antes de subir. Migración 0006. 404 tests.
 - **Pendiente:** primera subida real. El canal conectado hoy es «Salud Senior +60», NO @SpainFactsjjj: hay que reconectar eligiendo la cuenta correcta en Canales. No se ha subido nada a YouTube.
+
+## graphics_planner (F7, 2026-10-19)
+
+- `POST /api/clips/{id}/graphics-plan/suggest` propone gráficos desde la transcripción del recorte y la librería de imágenes: el modelo elige la palabra gancho (por índice; el tiempo sale de la palabra, no del modelo), el motivo (emoji con objetivo y efecto, tarjeta de texto, imagen con estilo, entrada y efecto) y una razón corta; `graphics_schedule` impone después las reglas y lo que el usuario ya tiene en el formulario manda (lo propuesto solo entra si cabe). Plan B sin modelo: diccionario palabra → emoji (cosas, cifras e instituciones). Máx. un gráfico cada ~6 s. No guarda nada.
+- Política de contenido: sin emojis de colectivos (tonos de piel, banderas salvo 🇪🇸); el prompt lo prohíbe y el código lo filtra.
+- Editor: botón «✨ Sugerir gráficos con IA» en el panel «Gráficos»; añade lo propuesto a la lista con su razón y se revisa, cambia o quita antes de guardar. Probado con el clip 31: 9 propuestas razonables. 420 tests.
+- **Deuda:** no tiene en cuenta el plano (caras) ni el contenido visual; las propuestas con imágenes de la librería dependen de que el nombre del asset encaje con la palabra.

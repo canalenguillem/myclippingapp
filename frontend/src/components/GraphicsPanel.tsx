@@ -42,6 +42,9 @@ export default function GraphicsPanel({ clip, list, onChange, start, end, layout
   const [assets, setAssets] = useState<Asset[]>([]);
   const [assetError, setAssetError] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestNotice, setSuggestNotice] = useState("");
+  const [reasons, setReasons] = useState<Record<string, string>>({});
   const [describe, setDescribe] = useState<Record<number, string>>({});
   const [understood, setUnderstood] = useState<Record<number, string>>({});
   const [plan, setPlan] = useState<GraphicsPlan | null>(null);
@@ -74,6 +77,24 @@ export default function GraphicsPanel({ clip, list, onChange, start, end, layout
       if (Object.keys(patch).length) update(i, patch);
       setUnderstood((u) => ({ ...u, [i]: r.source === "none" ? "No he entendido la frase: usa los selectores (por ejemplo «golpe», «explota», «se vaporiza», «cae»)." : `Entendido (${r.source === "llm" ? "con el modelo" : "por palabras"}): ${r.understood}. Corrígelo en los selectores si no es lo que querías.` }));
     } catch (e) { setUnderstood((u) => ({ ...u, [i]: e instanceof Error ? e.message : String(e) })); }
+  };
+  // El planificador propone gráficos desde la transcripción (modelo o plan básico); se añaden a los que ya hay, que mandan.
+  const suggest = async () => {
+    setSuggesting(true); setSuggestNotice(""); setAssetError("");
+    try {
+      const r = await api<{ beats: (Graphic & { reason?: string })[]; source: string; notes: string[]; max_beats: number }>(`/api/clips/${clip.id}/graphics-plan/suggest`, {
+        json: { graphics: list, start, end, layout, intro_enabled: introEnabled, cortinilla_at: cortinillaAt },
+      });
+      const found: Record<string, string> = {};
+      const added = r.beats.map(({ reason, ...g }) => { found[`${g.type}:${g.at}`] = reason ?? ""; return g as Graphic; });
+      if (added.length) onChange(sorted([...list, ...added]));
+      setReasons((x) => ({ ...x, ...found }));
+      setSuggestNotice(
+        added.length === 0
+          ? `No hay propuestas nuevas que quepan. ${r.notes.join(" ")}`
+          : `${added.length} gráfico${added.length !== 1 ? "s" : ""} propuesto${added.length !== 1 ? "s" : ""} ${r.source === "model" ? "por el modelo" : "(propuesta básica, sin modelo)"}. Revísalos, cámbialos o quítalos y guarda. ${r.notes.join(" ")}`,
+      );
+    } catch (e) { setSuggestNotice(e instanceof Error ? e.message : String(e)); } finally { setSuggesting(false); }
   };
   const removeAsset = async (a: Asset) => {
     if (!window.confirm(`¿Borrar la imagen «${a.name}» de la librería?`)) return;
@@ -134,9 +155,13 @@ export default function GraphicsPanel({ clip, list, onChange, start, end, layout
         {plan?.dropped.map((d, i) => <div key={`d${i}`} className="gfx-drop" style={{ left: pct(d.beat.at) }} title={`Descartado: ${d.reason}`} />)}
         <div className="gfx-head" style={{ left: pct(nowAt) }} />
       </div>
+      {suggestNotice && <p className="notice">{suggestNotice}</p>}
       <div className="muted gfx-scale"><span>0 s</span><span>{fmtTime(duration)}</span></div>
 
       <div className="gfx-add">
+        <button disabled={!editable || suggesting || !!problem || trimDirty} title={trimDirty ? "Guarda antes el recorte" : "Propone gráficos desde la transcripción"} onClick={suggest}>
+          {suggesting ? "Pensando…" : "✨ Sugerir gráficos con IA"}
+        </button>
         <button disabled={!editable || !!problem} onClick={() => addAt({ type: "keyword", text: (picked?.text ?? "Palabra").replace(/[^\p{L}\p{N} ]/gu, "").toUpperCase() || "PALABRA" }, where)}>
           + Tarjeta en {whereLabel}
         </button>
@@ -241,6 +266,7 @@ export default function GraphicsPanel({ clip, list, onChange, start, end, layout
                 </span>
               )}
               {understood[i] && <span className="muted gfx-understood">{understood[i]}</span>}
+              {reasons[`${g.type}:${g.at}`] && <span className="muted">✨ {reasons[`${g.type}:${g.at}`]}</span>}
               {st.text && <span className={st.ok ? "muted" : "error"}>{st.text}</span>}
             </li>
           );
