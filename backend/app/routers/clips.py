@@ -484,11 +484,13 @@ def generate_seo(clip_id: int, body: SeoGenerateIn, user: User = Depends(current
     """Propone título, descripción y etiquetas para el canal elegido. No guarda nada: el usuario los revisa y los guarda."""
     clip = get_owned(db, Clip, clip_id, user)
     ch = _channel(db, user, body.channel_id)
+    project = db.get(Project, clip.project_id)
     seo = seo_service.generate(
         title=clip.title, hook=clip.hook, reason=clip.reason, transcript=clip.transcript, emphasis=[e.get("text", "") for e in clip.emphasis_json or []],
         channel_name=ch.yt_title or ch.name, language=ch.language, seo_rules=ch.seo_rules or "",
     )
-    return {"title": seo.title, "description": seo.description, "tags": seo.tags, "source": seo.source}
+    description = seo_service.with_source(seo.description, handle=project.source_handle, url=project.source_url, start=clip.start)
+    return {"title": seo.title, "description": description, "tags": seo.tags, "source": seo.source}
 
 
 @router.put("/api/clips/{clip_id}/seo", response_model=ClipOut)

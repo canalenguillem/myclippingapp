@@ -5,6 +5,7 @@ export type Speaker = { name: string; role: string; caption_style: CaptionStyle;
 export type Project = {
   default_template_id?: number | null;
   default_channel_id?: number | null;
+  source_handle?: string;
   id: number; source_url: string; title: string; duration: number | null;
   status: string; error: string | null; created_at: string | null;
   speakers: Record<string, Speaker>;

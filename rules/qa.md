@@ -1,1 +1,3 @@
 - Todo fotograma que se extrae del clip para la composición (congelados bajo los barridos) se comprueba que existe: ffmpeg termina sin error y sin fichero si el instante cae pasado el final real del vídeo (el clip dura unas milésimas menos de lo pedido). El último fotograma se pide respecto al final real. Un render que cae al plan B por esto se ve como «Aviso: LintError… missing_local_asset» en el editor.
+
+- Toda descripción de YouTube generada lleva el @ del canal original en la primera línea y el enlace al vídeo original (con el segundo del clip); sin el @ guardado en el proyecto, solo el enlace.

@@ -219,3 +219,8 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 ## Rótulo de nombre automático
 
 - `graphics_planner.speaker_beats`: al sugerir gráficos, cada speaker con nombre recibe un `lower_third` (nombre + cargo de su ficha) cuando empieza un turno de ≥ 1,5 s, tras el gancho (≥ 2,6 s). Prioridad 8, por encima de contadores y mapas; es editable como cualquier gráfico. Sin nombre en la ficha, no hay rótulo.
+
+## @ del canal original y enlace en la descripción SEO
+
+- `projects.source_handle` (migración 0008): el @ del canal de YouTube de donde viene el vídeo. Se rellena solo al ingerir (`uploader_id` de yt-dlp) y se edita en la pantalla del proyecto («Canal del vídeo original (@)»; acepta `esRadio`, `@esRadio` o la URL del canal). Los proyectos anteriores lo tienen vacío: se escribe a mano.
+- «Generar SEO» antepone a la descripción `@canal` (lo primero, para etiquetarlo) y `Vídeo original: <enlace>` con `&t=` al segundo donde empieza el clip (enlace tal cual si no es de YouTube). No duplica lo que ya esté; lo que se guarda es lo que el usuario deja en el cuadro.

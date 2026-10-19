@@ -11,6 +11,7 @@ from app.db import get_db
 from app.db.models import BrandTemplate, Clip, Job, Project, ProjectStatus, User, YouTubeChannel
 from app.jobs import queue
 from app.services import media_sign, storage, transcription
+from app.services import seo as seo_service
 from app.services.video_download import is_youtube_url
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
@@ -26,6 +27,7 @@ class ProjectOut(BaseModel):
     speakers: dict
     default_template_id: int | None = None
     default_channel_id: int | None = None
+    source_handle: str = ""
     created_at: datetime | None
     model_config = {"from_attributes": True}
 
@@ -75,6 +77,7 @@ class ProjectPatch(BaseModel):
 
     default_template_id: int | None = Field(default=None, ge=1)
     default_channel_id: int | None = Field(default=None, ge=1)
+    source_handle: str | None = Field(default=None, max_length=200)   # @ del canal original; vacío lo quita
 
 
 @router.patch("/{project_id}", response_model=ProjectOut)
@@ -94,6 +97,11 @@ def patch_project(project_id: int, body: ProjectPatch, user: User = Depends(curr
         if body.default_channel_id is not None:
             db.execute(update(Clip).where(Clip.project_id == project.id, Clip.user_id == user.id, Clip.channel_id.is_(None),
                                           Clip.status.in_(("detected", "approved"))).values(channel_id=body.default_channel_id))
+    if "source_handle" in sent:
+        handle = seo_service.normalize_handle(body.source_handle or "")
+        if (body.source_handle or "").strip() and not handle:
+            raise HTTPException(422, "El @ del canal no es válido (letras, números, puntos, guiones)")
+        project.source_handle = handle
     db.commit()
     return project
 

@@ -108,6 +108,7 @@ class Project(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     source_url: Mapped[str] = mapped_column(String(1024))
     title: Mapped[str] = mapped_column(String(512), default="")
+    source_handle: Mapped[str] = mapped_column(String(80), default="", server_default="")  # @canal de YouTube del vídeo original
     duration: Mapped[float | None] = mapped_column(Float, nullable=True)
     video_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     words_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)

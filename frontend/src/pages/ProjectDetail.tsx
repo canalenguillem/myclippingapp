@@ -70,6 +70,17 @@ export default function ProjectDetail() {
   }, [words, now, videoUrl]);
   const speakerNow = activeIndex !== null ? words[activeIndex].speaker ?? null : null;
 
+  const [handleDraft, setHandleDraft] = useState<string | null>(null);
+  const saveHandle = async () => {
+    if (handleDraft === null || handleDraft.trim() === (project?.source_handle ?? "")) { setHandleDraft(null); return; }
+    setError("");
+    try {
+      setProject(await api<Project>(`/api/projects/${id}`, { method: "PATCH", json: { source_handle: handleDraft } }));
+      setNotice("@ del canal original guardado; saldrá lo primero en las descripciones que generes.");
+      setHandleDraft(null);
+    } catch (e) { fail(e); }
+  };
+
   const setDefaultChannel = async (value: string) => {
     setError("");
     try {
@@ -182,6 +193,13 @@ export default function ProjectDetail() {
             {channels.map((c) => <option key={c.id} value={c.id}>{c.name}{c.linked ? ` — ${c.yt_title ?? "conectado"}` : " (sin conectar)"}</option>)}
           </select>
           {" "}<Link to="/channels">Editar canales</Link>
+        </label>
+      )}
+      {project && (
+        <label className="check">Canal del vídeo original (@)
+          <input value={handleDraft ?? project.source_handle ?? ""} placeholder="@esRadio" maxLength={200} style={{ width: 220 }}
+            onChange={(e) => setHandleDraft(e.target.value)} onBlur={saveHandle} onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} />
+          <span className="muted">Sale lo primero en la descripción de YouTube, con el enlace al vídeo original, para etiquetarlo.</span>
         </label>
       )}
       {error && <p className="error">{error}</p>}

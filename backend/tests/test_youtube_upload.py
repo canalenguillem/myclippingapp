@@ -324,3 +324,16 @@ def test_the_job_fails_clearly_if_the_draft_file_is_gone(client, tmp_path, monke
         upload_job.upload(ctx, claimed.payload)
     db.refresh(clip)
     assert clip.status == "approved"
+
+
+def test_generate_puts_the_original_channel_handle_first_and_the_link_to_the_original(client, tmp_path, monkeypatch):
+    h, db, clip, ch, *_ = world(client, tmp_path, monkeypatch, seo_saved=False)
+    monkeypatch.setattr(get_settings(), "openai_api_key", "")
+    project = db.get(Project, clip.project_id)
+    project.source_url, project.source_handle = "https://www.youtube.com/watch?v=abcdefghijk", "@esRadio"
+    db.commit()
+    desc = client.post(f"/api/clips/{clip.id}/seo/generate", json={"channel_id": ch.id}, headers=h).json()["description"]
+    assert desc.splitlines()[0] == "@esRadio" and f"Vídeo original: https://www.youtube.com/watch?v=abcdefghijk&t={int(clip.start)}s" in desc and desc.endswith("#Shorts")
+    assert client.patch(f"/api/projects/{project.id}", json={"source_handle": "https://www.youtube.com/@Otro"}, headers=h).json()["source_handle"] == "@Otro"
+    assert client.patch(f"/api/projects/{project.id}", json={"source_handle": "dos palabras"}, headers=h).status_code == 422
+    assert client.patch(f"/api/projects/{project.id}", json={"source_handle": ""}, headers=h).json()["source_handle"] == ""

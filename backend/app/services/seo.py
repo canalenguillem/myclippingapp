@@ -115,3 +115,44 @@ def generate(*, title: str, hook: str, reason: str, transcript: str, emphasis: l
     if not data or not str(data.get("title", "")).strip():
         return plan_b
     return clean(Seo(str(data.get("title", "")), str(data.get("description", "")), data.get("tags") or [], source="model"))
+
+
+HANDLE_RE = re.compile(r"^@?([A-Za-z0-9._\-·]{1,60})$")
+
+
+def normalize_handle(text: str) -> str:
+    """«esRadio», «@esRadio» o «https://www.youtube.com/@esRadio» → «@esRadio»; vacío si no es un handle válido."""
+    text = (text or "").strip()
+    m = re.search(r"youtube\.com/(@[^/?#\s]+)", text)
+    text = m.group(1) if m else text
+    m = HANDLE_RE.match(text)
+    return f"@{m.group(1)}" if m else ""
+
+
+def handle_from_info(info: dict) -> str:
+    """El @ del canal del vídeo original, de los metadatos de yt-dlp (`uploader_id` o la URL del canal)."""
+    for key in ("uploader_id", "channel_url", "uploader_url"):
+        value = str(info.get(key) or "")
+        if "@" in value:
+            return normalize_handle(value)
+    return ""
+
+
+def source_link(url: str, start: float) -> str:
+    """Enlace al vídeo original en el segundo donde empieza el clip (YouTube); otras URLs, tal cual."""
+    m = re.search(r"(?:youtu\.be/|[?&]v=|/shorts/)([A-Za-z0-9_-]{11})", url or "")
+    if not m:
+        return url
+    return f"https://www.youtube.com/watch?v={m.group(1)}&t={max(0, int(start))}s"
+
+
+def with_source(description: str, *, handle: str, url: str, start: float) -> str:
+    """Cabecera de la descripción: el @ del canal original lo primero (para etiquetarlo) y el enlace al vídeo original.
+    No repite lo que ya está."""
+    link = source_link(url, start)
+    head: list[str] = []
+    if handle and handle.lower() not in description.lower():
+        head.append(handle)
+    if link and link not in description:
+        head.append(f"Vídeo original: {link}")
+    return "\n".join(head) + ("\n\n" + description if description and head else description)

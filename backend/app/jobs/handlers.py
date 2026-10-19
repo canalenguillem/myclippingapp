@@ -33,6 +33,7 @@ def ingest(ctx: JobContext, payload: dict) -> None:
     from app.db.models import Project, ProjectStatus, User
     from app.services import speakers as speakers_service
     from app.services import silences as silences_service
+    from app.services import seo as seo_service
     from app.services import storage, transcription, video_download
 
     project = ctx.db.get(Project, int(payload["project_id"]))
@@ -95,6 +96,7 @@ def ingest(ctx: JobContext, payload: dict) -> None:
         duration = float(info.get("duration") or 0)
         project.title = str(info.get("title") or project.source_url)[:512]
         project.duration = duration
+        project.source_handle = project.source_handle or seo_service.handle_from_info(info)
         ctx.db.commit()
         if duration and duration > user.max_video_minutes * 60:
             raise video_download.DownloadError(
