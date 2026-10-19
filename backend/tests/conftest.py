@@ -1,6 +1,7 @@
 import os
 
 os.environ.setdefault("JWT_SECRET", "test-secret-test-secret-test-secret-123456")
+os.environ.setdefault("APP_ENCRYPTION_KEY", "3RBkGCEr0Sg3KoUfT_4vwsyGE9NJdxP9RfX5BsAh6SY=")  # clave Fernet solo para tests
 if os.environ.get("RUN_MARIADB_TESTS") != "1":  # las pruebas de carrera necesitan la MariaDB real
     os.environ["DATABASE_URL"] = "sqlite://"
 

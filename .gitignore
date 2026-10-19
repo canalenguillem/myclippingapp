@@ -12,3 +12,7 @@ videos_ejemplo
 fx_worker/spike/assets/
 fx_worker/spike/out/
 fx_worker/spike/project/
+
+# Credenciales OAuth de Google (secretos): nunca al repo
+client_secret*.json
+*.apps.googleusercontent.com.json
