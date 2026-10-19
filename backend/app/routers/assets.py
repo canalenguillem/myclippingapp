@@ -71,7 +71,7 @@ def map_countries(user: User = Depends(current_user)):
 def add_country_maps(body: MapsIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
     """Genera el mapa de cada país pedido y lo añade a la librería (los que ya están no se duplican). Devuelve los nuevos."""
     names = list(dict.fromkeys(body.countries))
-    unknown = [n for n in names if n not in country_maps.NAMES]
+    unknown = [n for n in names if n not in country_maps.names()]
     if unknown:
         raise HTTPException(422, f"País desconocido: {', '.join(unknown)}")
     have = {a.source for a in db.scalars(select(Asset).where(Asset.user_id == user.id, Asset.kind == "map")).all()}

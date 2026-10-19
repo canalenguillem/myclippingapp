@@ -102,6 +102,11 @@ def _bbox_area(ring) -> float:
     return (max(xs) - min(xs)) * (max(ys) - min(ys))
 
 
+def names() -> set[str]:
+    """Todo lo que se puede pedir: países y el continente."""
+    return set(NAMES) | {CONTINENT}
+
+
 def available() -> list[dict]:
     """Países que ofrece la librería, en español: [{name, group}]."""
     return [{"name": CONTINENT, "group": "Europa"}] + [{"name": es, "group": "Europa" if es in EUROPE else "Otros"} for es in sorted(NAMES)]

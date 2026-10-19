@@ -217,7 +217,7 @@ export default function GraphicsPanel({ clip, list, onChange, start, end, layout
             <div key={group}>
               <div className="gfx-maps-head">
                 <strong>{group}</strong>
-                <button className="ghost" onClick={() => { const names = countries.filter((c) => c.group === group).map((c) => c.name); setMapPick((p) => [...new Set([...p, ...names])]); }}>Marcar todos</button>
+                <button className="ghost" onClick={() => { const names = countries.filter((c) => c.group === group && c.name !== "Europa").map((c) => c.name); setMapPick((p) => [...new Set([...p, ...names])]); }}>Marcar todos</button>
               </div>
               <div className="gfx-maps-chips">
                 {countries.filter((c) => c.group === group).map((c) => {

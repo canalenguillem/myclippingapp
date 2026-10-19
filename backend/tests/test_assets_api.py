@@ -110,6 +110,8 @@ def test_country_maps_are_generated_once_and_listed(client, tmp_path, monkeypatc
     again = client.post("/api/assets/maps", json={"countries": ["Francia", "Portugal"]}, headers=h).json()
     assert [a["name"] for a in again] == ["Mapa de Portugal"]                      # Francia ya estaba
     assert len(client.get("/api/assets").json()) == 3
+    eu = client.post("/api/assets/maps", json={"countries": ["Europa"]}, headers=h)
+    assert eu.status_code == 201 and eu.json()[0]["name"] == "Mapa de Europa"
 
 
 def test_country_maps_reject_unknown_country(client, tmp_path, monkeypatch):
