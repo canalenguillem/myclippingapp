@@ -132,3 +132,9 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 
 - **Mañana: F8, subida automática a YouTube** (canal @SpainFactsjjj), antes del `graphics_planner`. Motivo: el usuario ya da por buenos los shorts que salen y quiere publicarlos sin pasos manuales. Mientras tanto, el panel de render tiene un botón «Descargar» (sin commitear aún) para subir a mano desde YouTube Studio.
 - Después de F8: `graphics_planner`, motivos `counter` / `strike` / `lower_third`, y los subtítulos quemados del original.
+
+## F8 en curso (2026-10-19)
+
+- Hecho: canales de YouTube por usuario (`/api/channels`) con `client_secret.json` **subible y reemplazable desde la web** (validado: solo servidores de Google; cifrado con Fernet; nunca se devuelve; sustituirlo desconecta el canal), OAuth con `state` firmado (HMAC, caduca a 10 min), callback `/api/youtube/callback`, lectura del nombre y avatar del canal, página **Canales** (URI de redirección a registrar, subir o cambiar JSON, conectar, reconectar con otra cuenta y desconectar). 382 tests.
+- Falta: job `upload` (con `publishAt` y privacidad por defecto privada), SEO (título, descripción y etiquetas), botón «Subir» en el clip y subida real del short del clip 40.
+- Aviso: `client_secret*.json` está en `.gitignore`; el usuario lo tenía en la raíz del repo y se sube desde la web.

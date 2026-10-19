@@ -63,3 +63,9 @@ export type GraphicsPlan = {
   dropped: { beat: Graphic; reason: string }[];
 };
 export type Interpreted = { entry: Graphic["entry"] | null; effect: Graphic["effect"] | null; style: Graphic["style"] | null; source: "keywords" | "llm" | "none"; understood: string };
+
+export type Channel = {
+  id: number; name: string; language: string; default_privacy: "private" | "unlisted" | "public"; seo_rules: string;
+  has_secret: boolean; secret_hint: string | null; linked: boolean; yt_title: string | null; yt_thumbnail: string | null;
+  yt_channel_id: string | null; linked_at: string | null; redirect_uri: string;
+};

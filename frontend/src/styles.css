@@ -128,3 +128,11 @@ input[type="range"] { padding: 0; }
 
 .gfx-describe { display: flex; gap: 6px; flex: 1 1 100%; } .gfx-describe input { flex: 1; min-width: 220px; }
 .gfx-understood { flex: 1 1 100%; font-size: .85rem; }
+
+/* --- F8: canales --- */
+.chan-new { display: flex; gap: 8px; margin-bottom: 16px; } .chan-new input { flex: 1; }
+.chan-card { border: 1px solid var(--line, #2a2a2a); border-radius: 12px; padding: 16px; margin-bottom: 20px; display: flex; flex-direction: column; gap: 10px; }
+.chan-head { display: flex; gap: 12px; align-items: center; } .chan-head > div { flex: 1; }
+.chan-avatar { flex: 0 0 48px; width: 48px; height: 48px; border-radius: 50%; object-fit: cover; } .chan-avatar.empty { background: var(--line, #2a2a2a); }
+.chan-uri { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; } .chan-uri code { padding: 6px 10px; background: var(--line, #1d1d1d); border-radius: 6px; word-break: break-all; }
+.chan-card h3 { margin: 8px 0 0; } .chan-card textarea { width: 100%; }
