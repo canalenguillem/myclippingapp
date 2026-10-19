@@ -71,6 +71,11 @@ const graphic = z.discriminatedUnion("type", [
     entry: z.enum(["pop", "punch", "slide_left", "slide_right", "slide_top", "drop"]).default("pop") }).strict(),
   z.object({ type: z.literal("emoji"), ...graphicBase, emoji: emojiText, target: emojiText.optional(), effect: z.enum(["pop", "vaporize", "explode"]).default("pop") }).strict(),
   z.object({ type: z.literal("keyword"), ...graphicBase, text: z.string().trim().min(1).max(40), zone: z.enum(["bottom", "top"]).default("bottom") }).strict(),
+  // Cifra que rueda hasta la palabra, palabra tachada con un aspa y rótulo de nombre y cargo.
+  z.object({ type: z.literal("counter"), ...graphicBase, from_value: z.number().finite().min(-1e9).max(1e9), to_value: z.number().finite().min(-1e9).max(1e9),
+    prefix: z.string().max(8).default(""), suffix: z.string().max(12).default(""), label: z.string().max(40).default("") }).strict(),
+  z.object({ type: z.literal("strike"), ...graphicBase, text: z.string().trim().min(1).max(40) }).strict(),
+  z.object({ type: z.literal("lower_third"), ...graphicBase, name: z.string().trim().min(1).max(40), role: z.string().trim().max(60).default("") }).strict(),
 ]);
 
 export const renderRequest = z

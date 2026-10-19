@@ -194,3 +194,17 @@ def test_suggest_keeps_what_the_user_already_has_and_checks_ownership(client, tm
     hb = _login(other, "b@x.com")
     assert other.post(f"/api/clips/{c.id}/graphics-plan/suggest", json={"graphics": []}, headers=hb).status_code == 404
     assert client.post(f"/api/clips/{c.id}/graphics-plan/suggest", json={"graphics": [], "start": 5.0, "end": 5.5}, headers=h).status_code == 422
+
+
+def test_counter_strike_and_lower_third_are_saved_scheduled_and_validated(client, tmp_path, monkeypatch):
+    h, db, p = _project(client, tmp_path, monkeypatch)
+    c = _clip(db, p, 10.0, 40.0)
+    items = [{"type": "counter", "at": 5.0, "to_value": 700, "suffix": " ml", "label": "agua"},
+             {"type": "strike", "at": 12.0, "text": " PSOE "}, {"type": "lower_third", "at": 20.0, "name": " Ana López ", "role": "periodista"}]
+    out = client.patch(f"/api/clips/{c.id}", json={"graphics": items}, headers=h).json()["graphics"]
+    assert out[0] == {"type": "counter", "at": 5.0, "from_value": 0.0, "to_value": 700.0, "suffix": " ml", "label": "agua"}
+    assert out[1]["text"] == "PSOE" and out[2]["name"] == "Ana López"
+    plan = client.post(f"/api/clips/{c.id}/graphics-plan", json={"graphics": items}, headers=h).json()
+    assert [b["type"] for b in plan["beats"]] == ["counter", "strike", "lower_third"] and plan["beats"][0]["lead"] == 0.8
+    for bad in ({"type": "counter", "at": 5}, {"type": "counter", "at": 5, "to_value": "x"}, {"type": "strike", "at": 5}, {"type": "lower_third", "at": 5, "name": " "}):
+        assert client.patch(f"/api/clips/{c.id}", json={"graphics": [bad]}, headers=h).status_code == 422, bad

@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 
 from app.services import graphics_schedule
 
-MOTIFS = ("emoji", "keyword", "image")
+MOTIFS = ("emoji", "keyword", "image", "counter", "strike")
 EFFECTS = {"emoji": {"pop", "vaporize", "explode"}, "image": {"pop", "vaporize", "break", "explode"}}
 ENTRIES = {"pop", "punch", "slide_left", "slide_right", "slide_top", "drop"}
 STYLES = {"original", "card", "silhouette", "red"}
@@ -93,12 +93,14 @@ def from_dictionary(words: list[dict], duration: float, *, limit: int | None = N
 PROMPT = """Eres el editor de motion graphics de un canal de YouTube Shorts. A partir de las palabras del clip (cada una con su índice y su
 segundo) propón animaciones que refuercen lo que se dice y mantengan el interés. Responde SOLO un JSON: {"beats": [...]}.
 
-Cada beat: {"word_index": <índice de la palabra gancho>, "motif": "emoji" | "keyword" | "image", ..., "reason": "<5-8 palabras>"}.
+Cada beat: {"word_index": <índice de la palabra gancho>, "motif": "emoji" | "keyword" | "image" | "counter" | "strike", ..., "reason": "<5-8 palabras>"}.
 - emoji: {"emoji": "💥", "target": "<emoji opcional al que llega el principal, ej. 🐔→🗳️>", "effect": "pop" | "vaporize" | "explode"}.
 - keyword: {"text": "<1-3 palabras CLAVE en mayúsculas, ej. DEUDA>"} (tarjeta de texto; úsala poco, para una cifra o una idea).
 - image: {"asset_id": <id de la lista de imágenes>, "style": "original" | "card" | "silhouette" | "red", "entry": "pop" | "punch" | "drop" | "slide_left" | "slide_right" | "slide_top", "effect": "pop" | "vaporize" | "break" | "explode"}.
   Solo si el nombre de la imagen encaja con lo que se dice; nunca inventes un asset_id.
   Las imágenes «Mapa de X» son el mapa de ese país: úsalas con style "original" justo cuando se nombra el país (y «Mapa de Europa» cuando se habla de Europa en general).
+- counter: {"from_value": 0, "to_value": <la cifra que se dice>, "prefix": "", "suffix": "<unidad, ej. ' M€', ' %', ' ml'>", "label": "<1-3 palabras>"}. Solo cuando se dice una cifra concreta; word_index = la palabra de la cifra; to_value es esa cifra tal cual se dice (sin inventar).
+- strike: {"text": "<1-2 palabras>"}: tacha con un aspa algo que se niega o se rechaza (un nombre, una idea). Úsalo poco.
 Reglas:
 - Como máximo {MAX} beats, repartidos por todo el clip (≈ uno cada 5-6 s, nunca dos seguidos). El primero, pasados los 2,5 s.
 - La acción cae EN la palabra gancho: elige la palabra del objeto o la idea (p. ej. «pensionistas», «petado», «deuda»), no una conjunción.
@@ -180,6 +182,21 @@ def beat_from_model(raw: dict, words: list[dict], asset_ids: set[int]) -> dict |
             value = _pick(raw.get(key), allowed)
             if value and value != "pop":
                 beat[key] = value
+    elif motif == "counter":
+        values = []
+        for key in ("from_value", "to_value"):
+            v = raw.get(key, 0 if key == "from_value" else None)
+            if isinstance(v, bool) or not isinstance(v, (int, float)) or not -1e9 <= v <= 1e9:
+                return None
+            values.append(float(v))
+        beat.update(type="counter", from_value=values[0], to_value=values[1], prefix=str(raw.get("prefix") or "")[:8],
+                    suffix=str(raw.get("suffix") or "")[:12], label=re.sub(r"\s+", " ", str(raw.get("label") or "")).strip()[:40])
+        beat = {k: v for k, v in beat.items() if v != ""}
+    elif motif == "strike":
+        text = re.sub(r"\s+", " ", str(raw.get("text", ""))).strip().upper()[:40]
+        if not text:
+            return None
+        beat.update(type="strike", text=text)
     else:
         return None
     return beat

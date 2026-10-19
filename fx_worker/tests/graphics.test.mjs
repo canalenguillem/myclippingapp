@@ -271,3 +271,52 @@ test("builder: golpe + explotar compone, copia los sonidos nuevos y pasa el lint
   for (const f of ["whoosh.wav", "thud.wav", "crack.wav", "pop.wav"]) assert.ok(existsSync(join(work, "sfx", f)), f);
   assert.equal((await checkProject(work)).totalErrors, 0);
 });
+
+// --- counter, strike y lower_third -------------------------------------------------------------------------
+
+import { formatNumber, rollValues } from "../src/motifs/counter.mjs";
+
+test("counter: números en español, rodillo que acaba exactamente en la cifra final y contrato", () => {
+  assert.equal(formatNumber(1234567, 0), "1.234.567");
+  assert.equal(formatNumber(999, 0), "999");
+  assert.equal(formatNumber(3.5, 1), "3,5");
+  assert.equal(formatNumber(-1200.25, 2), "-1.200,25");
+  const roll = rollValues(0, 700, 10, 0);
+  assert.equal(roll[0], "0");
+  assert.equal(roll.at(-1), "700");
+  assert.ok(roll.every((v, i) => i === 0 || Number(v.replace(/\./g, "")) >= Number(roll[i - 1].replace(/\./g, ""))), "creciente");
+  const g = parseRequest({ ...base, graphics: [{ type: "counter", at: 8, from_value: 0, to_value: 700, suffix: " ml" }] }).graphics[0];
+  assert.deepEqual(g, { type: "counter", at: 8, lead: 0.5, duration: 2.5, from_value: 0, to_value: 700, prefix: "", suffix: " ml", label: "" });
+  for (const bad of [{ to_value: "x" }, { to_value: 1e12 }, { suffix: "x".repeat(13) }, { extra: 1 }])
+    assert.throws(() => parseRequest({ ...base, graphics: [{ type: "counter", at: 8, from_value: 0, to_value: 5, ...bad }] }), ContractError, JSON.stringify(bad));
+});
+
+test("counter, strike y lower_third: se construyen, escapan el texto y los pasos del rodillo caen entre la entrada y la palabra", () => {
+  const items = [
+    { type: "counter", at: 6, lead: 0.8, duration: 3, from_value: 0, to_value: 1400, prefix: "", suffix: " M€", label: "<b>deuda</b>" },
+    { type: "strike", at: 12, lead: 0.5, duration: 2.5, text: "PSOE <x>" },
+    { type: "lower_third", at: 16, lead: 0.5, duration: 3, name: "Ana <López>", role: "periodista" },
+  ];
+  const out = graphicsLayer({ items, map: makeTimeMap(undefined), clipDuration: 20 });
+  assert.ok(!out.html.includes("<b>deuda") && !out.html.includes("<x>") && !out.html.includes("<López>"), "sin HTML sin escapar");
+  assert.ok(out.html.includes("1.400 M€") && out.html.includes("PSOE"), "cifra final y texto");
+  assert.ok(out.script.includes("strokeDashoffset") && out.script.includes('#g1s2'), "dos trazos del aspa");
+  assert.deepEqual(out.sfx.map((s) => s.kind), ["pop", "pop", "whoosh", "whoosh"]);
+  const last = [...out.script.matchAll(/tl\.set\("#g0n(\d+)",\{visibility:"visible"\},([\d.]+)\)/g)].at(-1);
+  assert.ok(Math.abs(Number(last[2]) - 6) < 0.05, `el rodillo se para en la palabra (${last[2]} s)`);   // at = 6
+});
+
+test("los motivos nuevos pasan el linter de HyperFrames al construir el proyecto", async () => {
+  const dir = tmp();
+  const video = makeVideo(join(dir, "src.mp4"), 14);
+  const request = parseRequest({ video: "a.mp4", output: "b.mp4", duration: 14, graphics: [
+    { type: "counter", at: 3, from_value: 0, to_value: 700, suffix: " ml", label: "agua" },
+    { type: "strike", at: 7, text: "PSOE" },
+    { type: "lower_third", at: 11, name: "Ana López", role: "periodista" },
+  ] });
+  const work = join(dir, "work");
+  buildProject({ request, video, workDir: work });
+  const html = readFileSync(join(work, "index.html"), "utf8");
+  assert.ok(html.includes("700 ml") && html.includes("PSOE") && html.includes("ANA".slice(0, 0) + "Ana López"));
+  assert.equal((await checkProject(work)).totalErrors, 0);
+});

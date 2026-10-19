@@ -197,3 +197,5 @@ select, input, textarea { max-width: 100%; min-width: 0; }
 .gfx-num { flex: 0 0 auto; min-width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 800; font-size: .78rem; display: inline-flex; align-items: center; justify-content: center; }
 .gfx-time { flex: 0 0 auto; color: var(--muted); font-variant-numeric: tabular-nums; }
 .gfx-phrase mark { background: #5a1a0e; color: var(--ink); border-radius: 3px; padding: 0 3px; font-weight: 700; }
+.gfx-beat.counter { background: #ffd27a; } .gfx-beat.strike { background: #ff9a8a; } .gfx-beat.lower_third { background: #b6e3c0; }
+.gfx-short { width: 90px; }

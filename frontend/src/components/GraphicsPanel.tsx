@@ -6,6 +6,12 @@ import { fmtTime } from "../types";
 const EMOJI = /^[\p{So}\p{Sk}\p{Cf}\p{Mn}]{1,16}$/u;
 const round = (n: number) => Math.round(n * 100) / 100;
 const PLAN_DELAY_MS = 400;
+/** Campos propios de cada motivo: al cambiar de tipo se borran todos y se pone lo del nuevo. */
+const CLEAR: Partial<Graphic> = { text: undefined, emoji: undefined, target: undefined, asset_id: undefined, style: undefined, effect: undefined, entry: undefined,
+  from_value: undefined, to_value: undefined, prefix: undefined, suffix: undefined, label: undefined, name: undefined, role: undefined };
+const beatLabel = (b: Graphic, assetName?: string) =>
+  b.type === "keyword" || b.type === "strike" ? `${b.type === "strike" ? "✗ " : ""}${b.text}` : b.type === "image" ? (assetName ?? "imagen")
+  : b.type === "counter" ? `${b.to_value}${b.suffix ?? ""}` : b.type === "lower_third" ? (b.name ?? "rótulo") : `${b.emoji}${b.target ? "→" + b.target : ""}`;
 const PRESETS: { label: string; emoji: string; target?: string }[] = [
   { label: "🐔 → 🗳️ votar", emoji: "🐔", target: "🗳️" }, { label: "🔥", emoji: "🔥" }, { label: "💰", emoji: "💰" },
   { label: "😱", emoji: "😱" }, { label: "👀", emoji: "👀" }, { label: "🚨", emoji: "🚨" }, { label: "✅", emoji: "✅" }, { label: "❌", emoji: "❌" },
@@ -16,6 +22,9 @@ export function graphicsProblem(list: Graphic[], duration: number): string {
   for (const g of list) {
     if (g.at < 0 || g.at > duration) return `Un gráfico (${g.at.toFixed(1)} s) queda fuera del clip`;
     if (g.type === "keyword" && !(g.text ?? "").trim()) return "Una tarjeta no tiene texto";
+    if (g.type === "strike" && !(g.text ?? "").trim()) return "Un tachado no tiene texto";
+    if (g.type === "counter" && (g.to_value === undefined || Number.isNaN(g.to_value))) return "Un contador no tiene cifra final";
+    if (g.type === "lower_third" && !(g.name ?? "").trim()) return "Un rótulo no tiene nombre";
     if (g.type === "image" && !g.asset_id) return "Un gráfico de imagen no tiene imagen";
     if (g.type === "emoji" && !EMOJI.test(g.emoji ?? "")) return "Un emoji no es válido (solo emojis, sin letras)";
     if (g.type === "emoji" && g.target && !EMOJI.test(g.target)) return "El objetivo de un emoji no es válido";
@@ -159,7 +168,7 @@ export default function GraphicsPanel({ clip, list, onChange, start, end, layout
     const lo = Math.max(0, k - 6), hi = Math.min(words.length, k + 9);
     return { before: words.slice(lo, k).map((w) => w.text).join(" "), word: words[k].text, after: words.slice(k + 1, hi).map((w) => w.text).join(" "), lead: lo > 0, tail: hi < words.length };
   };
-  const rows = useMemo(() => ({ keyword: 0, image: 1, emoji: 2 } as const), []);
+  const rows = useMemo(() => ({ keyword: 0, counter: 0, strike: 0, image: 1, lower_third: 1, emoji: 2 } as const), []);
 
   return (
     <section className="gfx-panel">
@@ -177,8 +186,8 @@ export default function GraphicsPanel({ clip, list, onChange, start, end, layout
         {plan?.cortinilla_at != null && <div className="gfx-cort" style={{ left: pct(plan.cortinilla_at) }} title={`Cortinilla de inicio a ${plan.cortinilla_at.toFixed(1)} s`} />}
         {plan?.beats.map((b, i) => (
           <div key={`b${i}`} className={`gfx-beat ${b.type}`} style={{ left: pct(b.start), width: `calc(${pct(b.end)} - ${pct(b.start)})`, top: 8 + rows[b.type] * 18 }}
-            title={`${b.type === "keyword" ? b.text : b.type === "image" ? assetOf(b.asset_id)?.name : b.emoji} · ${b.start.toFixed(1)}–${b.end.toFixed(1)} s`}>
-            {numberOf(b.type, b.at) ?? "?"} · {b.type === "keyword" ? b.text : b.type === "image" ? (assetOf(b.asset_id)?.name ?? "imagen") : `${b.emoji}${b.target ? "→" + b.target : ""}`}
+            title={`${beatLabel(b, assetOf(b.asset_id)?.name)} · ${b.start.toFixed(1)}–${b.end.toFixed(1)} s`}>
+            {numberOf(b.type, b.at) ?? "?"} · {beatLabel(b, assetOf(b.asset_id)?.name)}
           </div>
         ))}
         {plan?.dropped.map((d, i) => <div key={`d${i}`} className="gfx-drop" style={{ left: pct(d.beat.at) }} title={`Descartado: ${d.reason}`} />)}
@@ -194,6 +203,9 @@ export default function GraphicsPanel({ clip, list, onChange, start, end, layout
         <button disabled={!editable || !!problem} onClick={() => addAt({ type: "keyword", text: (picked?.text ?? "Palabra").replace(/[^\p{L}\p{N} ]/gu, "").toUpperCase() || "PALABRA" }, where)}>
           + Tarjeta en {whereLabel}
         </button>
+        <button className="ghost" disabled={!editable || !!problem} title="Cifra que rueda hasta la palabra" onClick={() => addAt({ type: "counter", from_value: 0, to_value: Number((picked?.text ?? "").replace(/[^\d,.]/g, "").replace(",", ".")) || 100 }, where)}>+ Contador</button>
+        <button className="ghost" disabled={!editable || !!problem} title="Tacha la palabra con un aspa" onClick={() => addAt({ type: "strike", text: (picked?.text ?? "Palabra").replace(/[^\p{L}\p{N} ]/gu, "").toUpperCase() || "PALABRA" }, where)}>+ Tachar</button>
+        <button className="ghost" disabled={!editable || !!problem} title="Rótulo de nombre y cargo" onClick={() => addAt({ type: "lower_third", name: "Nombre", role: "" }, where)}>+ Rótulo</button>
         {PRESETS.map((p) => (
           <button key={p.label} className="ghost" disabled={!editable} title={`Emoji en ${whereLabel}`} onClick={() => addAt({ type: "emoji", emoji: p.emoji, target: p.target }, where)}>{p.label}</button>
         ))}
@@ -269,9 +281,15 @@ export default function GraphicsPanel({ clip, list, onChange, start, end, layout
                 const t = e.target.value;
                 if (t === "emoji") update(i, { type: "emoji", emoji: "🔥", text: undefined, asset_id: undefined, style: undefined, effect: "pop" });
                 else if (t === "image") update(i, { type: "image", asset_id: assets[0]?.id, style: "original", effect: "pop", entry: "pop", text: undefined, emoji: undefined, target: undefined });
-                else update(i, { type: "keyword", text: "PALABRA", emoji: undefined, target: undefined, asset_id: undefined, style: undefined, effect: undefined });
+                else if (t === "counter") update(i, { ...CLEAR, type: "counter", from_value: 0, to_value: 100, suffix: "" });
+                else if (t === "strike") update(i, { ...CLEAR, type: "strike", text: "PALABRA" });
+                else if (t === "lower_third") update(i, { ...CLEAR, type: "lower_third", name: "Nombre", role: "" });
+                else update(i, { ...CLEAR, type: "keyword", text: "PALABRA" });
               }}>
                 <option value="keyword">Tarjeta</option>
+                <option value="counter">Contador</option>
+                <option value="strike">Tachado</option>
+                <option value="lower_third">Rótulo nombre</option>
                 <option value="emoji">Emoji</option>
                 <option value="image" disabled={assets.length === 0}>Imagen</option>
               </select>
@@ -306,8 +324,21 @@ export default function GraphicsPanel({ clip, list, onChange, start, end, layout
                     <option value="explode">Explota</option>
                   </select>
                 </>
-              ) : g.type === "keyword" ? (
-                <input className="gfx-text" value={g.text ?? ""} maxLength={40} disabled={!editable} onChange={(e) => update(i, { text: e.target.value })} placeholder="TEXTO" />
+              ) : g.type === "keyword" || g.type === "strike" ? (
+                <input className="gfx-text" value={g.text ?? ""} maxLength={40} disabled={!editable} onChange={(e) => update(i, { text: e.target.value })} placeholder={g.type === "strike" ? "TEXTO A TACHAR" : "TEXTO"} />
+              ) : g.type === "counter" ? (
+                <>
+                  <label className="gfx-at">de <input type="number" step="any" value={g.from_value ?? 0} disabled={!editable} onChange={(e) => update(i, { from_value: Number(e.target.value) })} /></label>
+                  <label className="gfx-at">a <input type="number" step="any" value={g.to_value ?? ""} disabled={!editable} onChange={(e) => update(i, { to_value: e.target.value === "" ? undefined : Number(e.target.value) })} /></label>
+                  <input className="gfx-short" value={g.prefix ?? ""} maxLength={8} disabled={!editable} onChange={(e) => update(i, { prefix: e.target.value || undefined })} placeholder="prefijo" title="Antes de la cifra (ej. $)" />
+                  <input className="gfx-short" value={g.suffix ?? ""} maxLength={12} disabled={!editable} onChange={(e) => update(i, { suffix: e.target.value || undefined })} placeholder="unidad" title="Después de la cifra (ej. ' M€', ' %')" />
+                  <input className="gfx-text" value={g.label ?? ""} maxLength={40} disabled={!editable} onChange={(e) => update(i, { label: e.target.value || undefined })} placeholder="etiqueta (opcional)" />
+                </>
+              ) : g.type === "lower_third" ? (
+                <>
+                  <input className="gfx-text" value={g.name ?? ""} maxLength={40} disabled={!editable} onChange={(e) => update(i, { name: e.target.value })} placeholder="Nombre" />
+                  <input className="gfx-text" value={g.role ?? ""} maxLength={60} disabled={!editable} onChange={(e) => update(i, { role: e.target.value || undefined })} placeholder="Cargo (opcional)" />
+                </>
               ) : (
                 <>
                   <input className={`gfx-emoji${bad ? " invalid" : ""}`} value={g.emoji ?? ""} maxLength={16} disabled={!editable} onChange={(e) => update(i, { emoji: e.target.value })} title="Emoji" />

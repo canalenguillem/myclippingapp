@@ -208,3 +208,10 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 - `POST /api/clips/{id}/graphics-plan/suggest` crea en la librería los mapas que falten de los países nombrados (hasta 4; `services/map_library.py`) y el planner pone el mapa (`style original`) en la primera mención posterior al gancho (≥ 2,5 s), salvo que el modelo ya haya puesto esa imagen. El prompt del modelo también sabe qué son las imágenes «Mapa de X».
 - Efecto secundario: sugerir gráficos puede añadir mapas a la librería del usuario.
 - Arreglo (clip 42): los emojis caían sobre los subtítulos cuando la banda iba más abajo que el corte. `graphicZones` recibe ahora el borde inferior de la banda y coloca los gráficos debajo.
+
+## Motivos nuevos: counter, strike, lower_third
+
+- `fx_worker`: `motifs/counter.mjs` (cifra que rueda de `from_value` a `to_value` y se para en la palabra; pasos precalculados, números en español), `motifs/strike.mjs` (tarjeta tachada con aspa a rotulador, dos trazos de 0,22 s) y `motifs/lowerThird.mjs` (rótulo nombre + cargo). Contrato y registro actualizados; 99 tests.
+- Backend: `GraphicIn` (campos `from_value`, `to_value`, `prefix`, `suffix`, `label`, `name`, `role`), programador (los tres son «grandes»; el contador entra 0,8 s antes) y planner (el modelo puede proponer `counter` y `strike`; el rótulo de nombre automático es el siguiente punto).
+- Editor: botones «+ Contador», «+ Tachar», «+ Rótulo» y campos por tipo.
+- Verificado con un render real de prueba (fotogramas en cada motivo).

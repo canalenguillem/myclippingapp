@@ -140,3 +140,13 @@ def test_plan_adds_the_map_at_the_first_mention_unless_the_model_already_did():
     model = lambda s, u: {"beats": [{"word_index": 4, "motif": "image", "asset_id": 7, "style": "card", "reason": "mapa"}]}
     out2 = run(ws, model, assets=[{"id": 7, "name": "Mapa de Francia", "tags": []}], maps={"Francia": 7})
     assert [b["style"] for b in out2.beats if b["type"] == "image"] == ["card"]   # el del modelo no se duplica
+
+
+def test_model_counter_and_strike_beats_are_validated():
+    ws = words("El déficit llegó a 700 millones y el PSOE lo niega todo.", step=1.0)
+    ok = gp.beat_from_model({"word_index": 4, "motif": "counter", "to_value": 700, "suffix": " M€", "label": " déficit ", "reason": "cifra"}, ws, set())
+    assert ok == {"at": 4.0, "reason": "cifra", "type": "counter", "from_value": 0.0, "to_value": 700.0, "suffix": " M€", "label": "déficit"}
+    for bad in ({"to_value": "mucho"}, {"to_value": True}, {"to_value": 1e12}, {"to_value": 5, "from_value": "x"}, {}):
+        assert gp.beat_from_model({"word_index": 4, "motif": "counter", **bad}, ws, set()) is None, bad
+    assert gp.beat_from_model({"word_index": 8, "motif": "strike", "text": " psoe "}, ws, set())["text"] == "PSOE"
+    assert gp.beat_from_model({"word_index": 8, "motif": "strike", "text": " "}, ws, set()) is None

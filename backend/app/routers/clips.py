@@ -86,7 +86,7 @@ class GraphicIn(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    type: Literal["keyword", "emoji", "image"]
+    type: Literal["keyword", "emoji", "image", "counter", "strike", "lower_third"]
     at: float = Field(ge=0)
     text: str | None = Field(default=None, max_length=40)
     emoji: str | None = Field(default=None, max_length=16)
@@ -96,14 +96,25 @@ class GraphicIn(BaseModel):
     style: Literal["original", "card", "silhouette", "red"] | None = None            # cómo se viste la imagen
     entry: Literal["pop", "punch", "slide_left", "slide_right", "slide_top", "drop"] | None = None   # cómo entra (imagen)
     effect: Literal["pop", "vaporize", "break", "explode"] | None = None             # qué pasa en la palabra (emoji: pop | vaporize | explode)
+    from_value: float | None = Field(default=None, ge=-1e9, le=1e9)                  # contador: cifra de partida
+    to_value: float | None = Field(default=None, ge=-1e9, le=1e9)                    # contador: cifra a la que llega en la palabra
+    prefix: str | None = Field(default=None, max_length=8)
+    suffix: str | None = Field(default=None, max_length=12)
+    label: str | None = Field(default=None, max_length=40)
+    name: str | None = Field(default=None, max_length=40)                             # rótulo: nombre
+    role: str | None = Field(default=None, max_length=60)                            # rótulo: cargo
     lead: float | None = Field(default=None, ge=0, le=1)
     duration: float | None = Field(default=None, ge=1, le=6)
     priority: float | None = Field(default=None, ge=0, le=100)
 
     @model_validator(mode="after")
     def _fields(self):
-        if self.type == "keyword" and not (self.text or "").strip():
+        if self.type in ("keyword", "strike") and not (self.text or "").strip():
             raise ValueError("la tarjeta necesita texto")
+        if self.type == "counter" and (self.to_value is None):
+            raise ValueError("el contador necesita la cifra final")
+        if self.type == "lower_third" and not (self.name or "").strip():
+            raise ValueError("el rótulo necesita un nombre")
         if self.type == "image":
             if self.asset_id is None:
                 raise ValueError("falta la imagen")
@@ -123,8 +134,11 @@ def _beats(items: list[GraphicIn]) -> list[dict]:
     out = []
     for g in items:
         beat = {k: v for k, v in g.model_dump().items() if v not in (None, "")}
-        if "text" in beat:
-            beat["text"] = beat["text"].strip()
+        for key in ("text", "name", "role"):
+            if key in beat:
+                beat[key] = beat[key].strip()
+        if beat["type"] == "counter":
+            beat.setdefault("from_value", 0.0)
         out.append(beat)
     return sorted(out, key=lambda b: b["at"])
 
