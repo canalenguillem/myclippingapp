@@ -235,3 +235,4 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 ## Tarjetas de clip: render, cola y subido
 
 - `ClipOut` añade `render_job_status` (queued/running), `render_job_progress` y `upload_job_status`. Las tarjetas del proyecto muestran «En cola para renderizar», «Renderizando N %», «Subiendo a YouTube…», «Borrador/Final listo», fallos de render y de subida, y para un clip subido: fecha, privacidad y enlace «Ver en YouTube». La lista se refresca sola cada 3 s mientras haya algo en marcha.
+- Cola: una subida a YouTube (solo red) ya no espera al render de su usuario (`max_concurrent_jobs` solo cuenta los jobs que no son de subida; máximo una subida a la vez por usuario). Antes, con límite 1, el clip 64 esperaba en cola «subiendo» detrás de los renders.

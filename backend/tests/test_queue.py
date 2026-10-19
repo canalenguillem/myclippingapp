@@ -76,3 +76,16 @@ def test_jobs_api_isolated_between_users(client):
     assert b.post(f"/api/jobs/{jid}/cancel", headers=h(b)).status_code == 404
     assert b.get(f"/api/jobs/{jid}/log").status_code == 404
     assert a.post("/api/jobs", json={"type": "render"}, headers=h(a)).status_code == 400
+
+
+def test_an_upload_does_not_wait_for_the_users_render_but_only_one_upload_runs_per_user(client):
+    db = client.session_factory()
+    a = mkuser(db, "a@x.com", 1)
+    render, up1, up2, other = (queue.enqueue(db, a.id, t) for t in ("render", "upload", "upload", "demo"))
+    assert queue.claim_next(db, "w1").id == render.id              # el render ocupa el único hueco de CPU del usuario
+    assert queue.claim_next(db, "w1").id == up1.id                 # la subida pasa por delante: es solo red
+    assert queue.claim_next(db, "w1") is None                      # otra subida del mismo usuario espera a la primera; el demo, al render
+    queue.finish(db, up1.id)
+    assert queue.claim_next(db, "w1").id == up2.id
+    queue.finish(db, render.id)
+    assert queue.claim_next(db, "w1").id == other.id

@@ -4,7 +4,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import exists, func, or_, select, update
+from sqlalchemy import case, exists, func, or_, select, update
 from sqlalchemy.orm import Session, aliased
 
 from app.config import get_settings
@@ -13,6 +13,7 @@ from app.db.models import Job, User  # noqa: F401
 STALE_AFTER = timedelta(minutes=2)
 MAX_ATTEMPTS = 3
 TERMINAL = {"completed", "failed", "cancelled"}
+UPLOAD_TYPE = "upload"  # solo red: no espera a los jobs de CPU de su usuario (ni ellos a él), pero solo una subida a la vez por usuario
 RENDER_TYPE = "render"  # carril global: solo un job de este tipo en marcha en todo el sistema
 
 
@@ -60,7 +61,12 @@ def _claim_lock(db: Session):
 def claim_next(db: Session, worker_id: str) -> Job | None:
     running = (
         select(func.count()).select_from(Job)
-        .where(Job.user_id == User.id, Job.status == "running")
+        .where(Job.user_id == User.id, Job.status == "running", Job.type != UPLOAD_TYPE)
+        .correlate(User).scalar_subquery()
+    )
+    running_uploads = (
+        select(func.count()).select_from(Job)
+        .where(Job.user_id == User.id, Job.status == "running", Job.type == UPLOAD_TYPE)
         .correlate(User).scalar_subquery()
     )
     # Carril de render: un `render` en cola no se reclama mientras haya otro en marcha (de cualquier usuario).
@@ -72,7 +78,8 @@ def claim_next(db: Session, worker_id: str) -> Job | None:
             return None
         job = db.scalars(
             select(Job).join(User, User.id == Job.user_id)
-            .where(Job.status == "queued", User.is_active.is_(True), running < User.max_concurrent_jobs,
+            .where(Job.status == "queued", User.is_active.is_(True),
+                   case((Job.type == UPLOAD_TYPE, running_uploads < 1), else_=running < User.max_concurrent_jobs),
                    or_(Job.type != RENDER_TYPE, ~render_busy))
             .order_by(Job.created_at, Job.id).limit(1).with_for_update(skip_locked=True)
         ).first()
