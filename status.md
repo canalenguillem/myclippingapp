@@ -173,3 +173,8 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 ## Subir el borrador (2026-10-19)
 
 - `POST /api/clips/{id}/upload` admite `source: "final" | "draft"` (por defecto `final`). Con `draft` sube el borrador vigente (540×960, más comprimido) sin esperar al render final; el panel «Subir a YouTube» ofrece los dos, elige el final si existe, y avisa de la menor calidad del borrador. El job guarda en el log cuál se subió.
+
+## Objeto que orbita elegible y canal por defecto del proyecto (2026-10-19)
+
+- **Plantillas:** la cortinilla tiene un selector «Objeto que orbita» con las imágenes de la librería (`cortinilla.orbit_asset_id`); la vista previa muestra la imagen elegida (data URI de 160 px) y el render la usa (gana a `logo_path`, que queda de respaldo). Borrar una imagen usada por una plantilla da 409.
+- **Proyecto:** selector «Canal de YouTube al que irán los vídeos» (`PATCH /api/projects/{id}` con `default_channel_id`): lo toman los clips nuevos y los existentes aún sin canal (nunca se pisa el de un clip que ya lo tiene ni los subidos). 451 tests.

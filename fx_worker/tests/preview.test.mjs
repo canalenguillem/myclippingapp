@@ -45,3 +45,13 @@ test("POST /previews devuelve html y duración; una petición mala da 400", asyn
   assert.ok(body.html.startsWith("<!doctype html>") && body.duration === 8.3);
   assert.equal((await post({ cortinilla: { duration: 99 } })).status, 400);
 });
+
+
+test("la vista previa admite el objeto que orbita como data URI png y rechaza cualquier otra cosa", () => {
+  const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+  const html = buildPreviewHtml(parsePreview({ cortinilla: { orbit: png } }));
+  assert.ok(html.includes(`<img src="${png}"`) && !html.includes("<i></i>"), "el objeto es la imagen, no el cuadrado");
+  assert.ok(buildPreviewHtml(parsePreview({})).includes("<i></i>"));
+  for (const bad of ["http://x/y.png", "data:text/html;base64,AAAA", `data:image/png;base64,${"A".repeat(200001)}`, "data:image/png;base64,\"onerror=x", "u1/a.png"])
+    assert.throws(() => parsePreview({ cortinilla: { orbit: bad } }), ContractError, bad.slice(0, 40));
+});

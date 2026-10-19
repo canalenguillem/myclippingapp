@@ -12,8 +12,10 @@ from sqlalchemy.orm import Session
 
 from app.auth.deps import current_user, get_owned
 from app.db import get_db
-from app.db.models import BrandTemplate, Clip, Project, User
+from app.db.models import Asset, BrandTemplate, Clip, Project, User
+from app.services import assets as assets_service
 from app.services import clips as clips_service
+from app.services import storage
 from app.services import fx_request
 from app.services.fx_client import FxError, make_fx_client
 
@@ -36,6 +38,7 @@ class CortinillaIn(BaseModel):
     outro_duration: float = Field(default=2.5, ge=1.0, le=10.0)
     like: str = Field(default="ME GUSTA", min_length=1, max_length=20)
     subscribe: str = Field(default="SUSCRÍBETE", min_length=1, max_length=20)
+    orbit_asset_id: int | None = Field(default=None, ge=1)   # imagen de la librería que orbita por la píldora (None: un cuadrado de color)
 
     @field_validator("color")
     @classmethod
@@ -105,8 +108,14 @@ def list_templates(user: User = Depends(current_user), db: Session = Depends(get
     return [_out(t) for t in db.scalars(select(BrandTemplate).where(BrandTemplate.user_id == user.id).order_by(BrandTemplate.id)).all()]
 
 
+def _check_orbit(db: Session, user: User, cortinilla: "CortinillaIn | None") -> None:
+    if cortinilla is not None and cortinilla.orbit_asset_id is not None:
+        get_owned(db, Asset, cortinilla.orbit_asset_id, user)   # una imagen ajena o inexistente responde 404
+
+
 @router.post("", response_model=TemplateOut, status_code=201)
 def create_template(body: TemplateIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    _check_orbit(db, user, body.cortinilla)
     t = BrandTemplate(user_id=user.id, name=body.name.strip(), preset=body.preset, colors=_dump(body.colors), sfx=body.sfx,
                       cortinilla_default=body.cortinilla_default, cortinilla=_dump(body.cortinilla))
     db.add(t)
@@ -122,6 +131,7 @@ def get_template(template_id: int, user: User = Depends(current_user), db: Sessi
 @router.patch("/{template_id}", response_model=TemplateOut)
 def patch_template(template_id: int, body: TemplatePatch, user: User = Depends(current_user), db: Session = Depends(get_db)):
     t = get_owned(db, BrandTemplate, template_id, user)
+    _check_orbit(db, user, body.cortinilla)
     changes = body.model_dump(exclude_unset=True, exclude_none=True)
     if "name" in changes:
         t.name = changes["name"].strip()
@@ -162,7 +172,7 @@ class PreviewIn(BaseModel):
 
 
 @router.post("/preview")
-def preview(body: PreviewIn, user: User = Depends(current_user)):
+def preview(body: PreviewIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
     """HTML autocontenido de la cortinilla de inicio y la final, para <hyperframes-player srcdoc>. No guarda nada."""
     client = make_fx_client()
     if client is None:
@@ -170,6 +180,12 @@ def preview(body: PreviewIn, user: User = Depends(current_user)):
     config, colors = _dump(body.cortinilla), _dump(body.colors)
     start = fx_request.cortinilla_params(config, colors, at=1.0, orbit=None)
     start.pop("at")
+    if body.cortinilla.orbit_asset_id is not None:       # la imagen elegida, pequeña y embebida, para verla orbitar en la vista previa
+        asset = get_owned(db, Asset, body.cortinilla.orbit_asset_id, user)
+        try:
+            start["orbit"] = assets_service.thumbnail_data_uri(storage.absolute(asset.path))
+        except (OSError, ValueError):
+            pass                                          # sin fichero: la vista previa muestra el cuadrado
     request = {"cortinilla": start, "outro": fx_request.outro_params(config, colors)}
     try:
         return client.preview(request)

@@ -4,7 +4,7 @@ import { api, ApiError } from "../api";
 import ClipCard from "../components/ClipCard";
 import SpeakerPanel from "../components/SpeakerPanel";
 import TranscriptView from "../components/TranscriptView";
-import type { Clip, Project, Speaker, Template, Transcript } from "../types";
+import type { Channel, Clip, Project, Speaker, Template, Transcript } from "../types";
 import { STATUS_LABEL } from "./Projects";
 
 const BUSY = new Set(["downloading", "transcribing"]);
@@ -19,6 +19,7 @@ export default function ProjectDetail() {
   const [clipsPerPart, setClipsPerPart] = useState(5);
   const [targetDur, setTargetDur] = useState(40);
   const [templates, setTemplates] = useState<Template[]>([]);
+  const [channels, setChannels] = useState<Channel[]>([]);
 
   const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
 
@@ -33,6 +34,15 @@ export default function ProjectDetail() {
   );
 
   useEffect(() => { api<Template[]>("/api/templates").then(setTemplates).catch(() => setTemplates([])); }, []);
+  useEffect(() => { api<Channel[]>("/api/channels").then(setChannels).catch(() => setChannels([])); }, []);
+  const setDefaultChannel = async (value: string) => {
+    setError("");
+    try {
+      setProject(await api<Project>(`/api/projects/${id}`, { method: "PATCH", json: { default_channel_id: value === "" ? null : Number(value) } }));
+      await loadClips();   // los clips sin canal reciben el nuevo
+      setNotice("Canal por defecto guardado; los clips que no tenían canal lo usan ahora.");
+    } catch (e) { fail(e); }
+  };
   const setDefaultTemplate = async (value: string) => {
     setError("");
     try {
@@ -128,6 +138,15 @@ export default function ProjectDetail() {
             {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
           {" "}<Link to="/templates">Editar plantillas</Link>
+        </label>
+      )}
+      {project && (
+        <label className="check">Canal de YouTube al que irán los vídeos
+          <select value={project.default_channel_id == null ? "" : String(project.default_channel_id)} onChange={(e) => setDefaultChannel(e.target.value)}>
+            <option value="">Sin elegir (se elige al subir cada clip)</option>
+            {channels.map((c) => <option key={c.id} value={c.id}>{c.name}{c.linked ? ` — ${c.yt_title ?? "conectado"}` : " (sin conectar)"}</option>)}
+          </select>
+          {" "}<Link to="/channels">Editar canales</Link>
         </label>
       )}
       {error && <p className="error">{error}</p>}

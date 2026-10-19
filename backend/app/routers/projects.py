@@ -3,12 +3,12 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.auth.deps import current_user, get_owned
 from app.db import get_db
-from app.db.models import BrandTemplate, Job, Project, ProjectStatus, User
+from app.db.models import BrandTemplate, Clip, Job, Project, ProjectStatus, User, YouTubeChannel
 from app.jobs import queue
 from app.services import media_sign, storage, transcription
 from app.services.video_download import is_youtube_url
@@ -25,6 +25,7 @@ class ProjectOut(BaseModel):
     error: str | None
     speakers: dict
     default_template_id: int | None = None
+    default_channel_id: int | None = None
     created_at: datetime | None
     model_config = {"from_attributes": True}
 
@@ -73,15 +74,26 @@ class ProjectPatch(BaseModel):
     model_config = {"extra": "forbid"}
 
     default_template_id: int | None = Field(default=None, ge=1)
+    default_channel_id: int | None = Field(default=None, ge=1)
 
 
 @router.patch("/{project_id}", response_model=ProjectOut)
 def patch_project(project_id: int, body: ProjectPatch, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    """Plantilla por defecto del proyecto: la que toman los clips que se detecten a partir de ahora."""
+    """Plantilla y canal de YouTube por defecto del proyecto. Los toman los clips que se detecten a partir de ahora; el canal se
+    pone además a los clips existentes que aún no tienen uno (nunca se pisa el de un clip que ya lo tiene)."""
     project = get_owned(db, Project, project_id, user)
-    if body.default_template_id is not None:
-        get_owned(db, BrandTemplate, body.default_template_id, user)
-    project.default_template_id = body.default_template_id
+    sent = body.model_fields_set
+    if "default_template_id" in sent:
+        if body.default_template_id is not None:
+            get_owned(db, BrandTemplate, body.default_template_id, user)
+        project.default_template_id = body.default_template_id
+    if "default_channel_id" in sent:
+        if body.default_channel_id is not None:
+            get_owned(db, YouTubeChannel, body.default_channel_id, user)
+        project.default_channel_id = body.default_channel_id
+        if body.default_channel_id is not None:
+            db.execute(update(Clip).where(Clip.project_id == project.id, Clip.user_id == user.id, Clip.channel_id.is_(None),
+                                          Clip.status.in_(("detected", "approved"))).values(channel_id=body.default_channel_id))
     db.commit()
     return project
 

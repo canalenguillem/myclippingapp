@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.deps import current_user, get_owned
 from app.db import get_db
-from app.db.models import Asset, Clip, User
+from app.db.models import Asset, BrandTemplate, Clip, User
 from app.services import assets as assets_service
 from app.services import media_sign, storage
 
@@ -41,10 +41,12 @@ class AssetPatch(BaseModel):
     tags: list[str] | None = Field(default=None, max_length=10)
 
 
-def used_by(db: Session, user_id: int, asset_id: int) -> int:
-    """Cuántos clips del usuario llevan un gráfico con esta imagen."""
+def used_by(db: Session, user_id: int, asset_id: int) -> tuple[int, int]:
+    """(clips con un gráfico de esta imagen, plantillas que la usan como objeto que orbita)."""
     clips = db.scalars(select(Clip).where(Clip.user_id == user_id)).all()
-    return sum(1 for c in clips if any(g.get("asset_id") == asset_id for g in (c.graphics_json or []) if isinstance(g, dict)))
+    templates = db.scalars(select(BrandTemplate).where(BrandTemplate.user_id == user_id)).all()
+    return (sum(1 for c in clips if any(g.get("asset_id") == asset_id for g in (c.graphics_json or []) if isinstance(g, dict))),
+            sum(1 for t in templates if (t.cortinilla or {}).get("orbit_asset_id") == asset_id))
 
 
 @router.get("", response_model=list[AssetOut])
@@ -89,9 +91,10 @@ def patch_asset(asset_id: int, body: AssetPatch, user: User = Depends(current_us
 @router.delete("/{asset_id}", status_code=204)
 def delete_asset(asset_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     asset = get_owned(db, Asset, asset_id, user)
-    n = used_by(db, user.id, asset.id)
-    if n:
-        raise HTTPException(409, f"La imagen se usa en {n} clip{'s' if n != 1 else ''}: quita primero esos gráficos")
+    clips, templates = used_by(db, user.id, asset.id)
+    if clips or templates:
+        parts = ([f"{clips} clip{'s' if clips != 1 else ''}"] if clips else []) + ([f"{templates} plantilla{'s' if templates != 1 else ''}"] if templates else [])
+        raise HTTPException(409, f"La imagen se usa en {' y '.join(parts)}: quítala primero de ahí")
     if asset.path:
         try:
             storage.absolute(asset.path).unlink(missing_ok=True)

@@ -456,3 +456,47 @@ def test_a_missing_or_foreign_image_is_dropped_with_a_reason_and_the_render_goes
     run_job(e)
     assert "graphics" not in e.fx.requests[0]
     assert log(e).count("la imagen ya no existe en la librería") == 3 and e.clip.render_state is RenderState.DRAFT
+
+
+def test_the_orbit_image_comes_from_the_asset_chosen_in_the_template_before_the_logo(client, tmp_path, monkeypatch, source_file):
+    e = setup(client, tmp_path, monkeypatch, source_file, intro_enabled=True)
+    with_silences(e, SILENCE)
+    from app.db.models import Asset
+    mapa = storage.project_dir(e.user.id, e.project.id) / "mapa.png"
+    mapa.write_bytes(b"png")
+    logo = storage.project_dir(e.user.id, e.project.id) / "logo.png"
+    logo.write_bytes(b"png")
+    a = Asset(user_id=e.user.id, name="mapa", path=storage.rel(mapa))
+    e.db.add(a)
+    e.db.commit()
+    t = BrandTemplate(user_id=e.user.id, name="m", logo_path=storage.rel(logo), cortinilla={"orbit_asset_id": a.id})
+    e.db.add(t)
+    e.db.commit()
+    e.clip.template_id = t.id
+    e.db.commit()
+    run_job(e)
+    assert e.fx.requests[0]["cortinilla"]["orbit"] == storage.rel(mapa)          # gana la imagen elegida
+    mapa.unlink()
+    run_job(e)
+    assert e.fx.requests[1]["cortinilla"]["orbit"] == storage.rel(logo)          # sin ella, el logo de la plantilla
+
+
+def test_a_foreign_orbit_asset_is_ignored(client, tmp_path, monkeypatch, source_file):
+    from app.db.models import Asset, User
+    e = setup(client, tmp_path, monkeypatch, source_file, intro_enabled=True)
+    with_silences(e, SILENCE)
+    other = User(email="o@x.com", password_hash="x")
+    e.db.add(other)
+    e.db.commit()
+    foreign = storage.project_dir(e.user.id, e.project.id) / "ajena.png"
+    foreign.write_bytes(b"png")
+    a = Asset(user_id=other.id, name="ajena", path=storage.rel(foreign))
+    e.db.add(a)
+    e.db.commit()
+    t = BrandTemplate(user_id=e.user.id, name="m", cortinilla={"orbit_asset_id": a.id})
+    e.db.add(t)
+    e.db.commit()
+    e.clip.template_id = t.id
+    e.db.commit()
+    run_job(e)
+    assert "orbit" not in e.fx.requests[0]["cortinilla"]

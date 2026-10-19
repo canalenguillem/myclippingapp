@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
-import type { Template, TemplateCortinilla } from "../types";
+import type { Asset, Template, TemplateCortinilla } from "../types";
 import { EMPTY_CORTINILLA } from "../types";
 
 // <hyperframes-player> es un elemento personalizado; se carga bajo demanda (pesa ~560 KB).
@@ -24,12 +24,13 @@ const formOf = (t: Template): Form => ({
 });
 const bodyOf = (f: Form) => ({
   name: f.name, preset: f.preset, colors: { primary: f.primary }, sfx: f.sfx, cortinilla_default: f.cortinilla_default,
-  cortinilla: { ...f.cortinilla, color: f.cortinilla.color || undefined },
+  cortinilla: { ...f.cortinilla, color: f.cortinilla.color || undefined, orbit_asset_id: f.cortinilla.orbit_asset_id || undefined },
 });
 const PREVIEW_DELAY_MS = 600;
 
 export default function Templates() {
   const [list, setList] = useState<Template[]>([]);
+  const [assets, setAssets] = useState<Asset[]>([]);
   const [selected, setSelected] = useState<number | "new">("new");
   const [form, setForm] = useState<Form>(blank());
   const [error, setError] = useState("");
@@ -41,6 +42,7 @@ export default function Templates() {
 
   const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
   const load = () => api<Template[]>("/api/templates").then(setList).catch(fail);
+  useEffect(() => { api<Asset[]>("/api/assets").then(setAssets).catch(() => setAssets([])); }, []);
   useEffect(() => { load(); import("@hyperframes/player").then(() => setReady(true)).catch(fail); }, []);
 
   const choose = (t: Template | "new") => {
@@ -54,7 +56,7 @@ export default function Templates() {
   // La vista previa se pide al servicio con lo que hay en el formulario (sin guardar y sin renderizar nada).
   useEffect(() => {
     const timer = setTimeout(() => {
-      api<{ html: string; duration: number }>("/api/templates/preview", { json: { colors: { primary: form.primary }, cortinilla: { ...form.cortinilla, color: form.cortinilla.color || undefined } } })
+      api<{ html: string; duration: number }>("/api/templates/preview", { json: { colors: { primary: form.primary }, cortinilla: { ...form.cortinilla, color: form.cortinilla.color || undefined, orbit_asset_id: form.cortinilla.orbit_asset_id || undefined } } })
         .then((r) => { setPreview(r); setPreviewError(""); })
         .catch((e) => setPreviewError(e instanceof Error ? e.message : String(e)));
     }, PREVIEW_DELAY_MS);
@@ -114,6 +116,13 @@ export default function Templates() {
           <label>Título (la última palabra sale en cursiva)<input value={form.cortinilla.title} maxLength={40} onChange={(e) => setC({ title: e.target.value })} /></label>
           <label>Antetítulo<input value={form.cortinilla.kicker} maxLength={60} onChange={(e) => setC({ kicker: e.target.value })} /></label>
           <label>Duración (s)<input type="number" min={1} max={10} step={0.1} value={form.cortinilla.duration} onChange={(e) => setC({ duration: Number(e.target.value) })} /></label>
+          <label>Objeto que orbita por la píldora
+            <select value={form.cortinilla.orbit_asset_id ?? ""} onChange={(e) => setC({ orbit_asset_id: e.target.value ? Number(e.target.value) : null })}>
+              <option value="">Un cuadrado del color de marca</option>
+              {assets.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+            <span className="muted hint">Elige una imagen de tu librería (se sube en el editor de un clip, «Mis imágenes»). Mejor un PNG con fondo transparente.</span>
+          </label>
           <label className="check"><input type="checkbox" checked={form.cortinilla_default} onChange={(e) => set({ cortinilla_default: e.target.checked })} /> Activarla por defecto en los clips nuevos</label>
           <h3>Cortinilla final (siempre)</h3>
           <label>Llamada a la acción<input value={form.cortinilla.outro_text} maxLength={80} placeholder="Parte 2 en el canal" onChange={(e) => setC({ outro_text: e.target.value })} /></label>

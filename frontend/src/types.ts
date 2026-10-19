@@ -4,6 +4,7 @@ export type Speaker = { name: string; role: string; caption_style: CaptionStyle;
 
 export type Project = {
   default_template_id?: number | null;
+  default_channel_id?: number | null;
   id: number; source_url: string; title: string; duration: number | null;
   status: string; error: string | null; created_at: string | null;
   speakers: Record<string, Speaker>;
@@ -43,6 +44,7 @@ export const speakerColor = (label: string | undefined, labels: string[]): strin
 export type TemplateCortinilla = {
   title: string; kicker: string; color?: string; duration: number; handle: string;
   outro_text: string; outro_duration: number; like: string; subscribe: string;
+  orbit_asset_id?: number | null;   // imagen de la librería que orbita por la píldora
 };
 export type Template = {
   id: number; name: string; preset: "editorial" | "hormozi" | "minimal"; colors: { primary?: string };

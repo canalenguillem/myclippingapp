@@ -142,7 +142,10 @@ export class ContractError extends Error {
 export const previewRequest = z
   .object({
     // `{}` y ausente dan los valores por defecto de cada plantilla (preprocess: `.default({})` no los aplica en zod 4)
-    cortinilla: z.preprocess((v) => v ?? {}, cortinilla.omit({ at: true, orbit: true })),
+    // `orbit` en la vista previa es la imagen ya embebida (data URI png, pequeña): no hay volumen de medios que leer en el navegador
+    cortinilla: z.preprocess((v) => v ?? {}, cortinilla.omit({ at: true, orbit: true }).extend({
+      orbit: z.string().max(200000).regex(/^data:image\/png;base64,[A-Za-z0-9+/=]+$/, { message: "orbit debe ser un data URI png" }).optional(),
+    })),
     outro: z.preprocess((v) => v ?? {}, outro),
   })
   .strict();

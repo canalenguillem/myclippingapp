@@ -49,3 +49,14 @@ def process_upload(data: bytes) -> tuple[bytes, int, int]:
     out = io.BytesIO()
     img.save(out, "PNG", optimize=True)                  # PNG nuevo: sin metadatos (EXIF, GPS…) del original
     return out.getvalue(), img.width, img.height
+
+
+def thumbnail_data_uri(png_path, side: int = 160) -> str:
+    """PNG pequeño en base64 (data URI) de una imagen de la librería, para incrustarlo en una vista previa."""
+    import base64
+    with Image.open(png_path) as img:
+        img = img.convert("RGBA")
+        img.thumbnail((side, side), Image.LANCZOS)
+        out = io.BytesIO()
+        img.save(out, "PNG", optimize=True)
+    return "data:image/png;base64," + base64.b64encode(out.getvalue()).decode("ascii")

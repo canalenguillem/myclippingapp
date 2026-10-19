@@ -89,9 +89,21 @@ def _resolve_images(db, user_id: int, beats: list[dict]) -> tuple[list[dict], li
     return out, missing
 
 
-def _orbit_path(template: BrandTemplate | None) -> str | None:
-    """Imagen que orbita en la cortinilla: el logo de la plantilla, si existe en el disco."""
-    if not template or not template.logo_path:
+def _orbit_path(db, template: BrandTemplate | None, user_id: int) -> str | None:
+    """Imagen que orbita en la cortinilla: la de la librería que eligió el usuario en la plantilla (si es suya y existe en el
+    disco) o, si no, el `logo_path` de la plantilla."""
+    if not template:
+        return None
+    asset_id = (template.cortinilla or {}).get("orbit_asset_id")
+    if asset_id:
+        asset = db.get(Asset, int(asset_id))
+        if asset is not None and asset.user_id == user_id and asset.path:
+            try:
+                if storage.absolute(asset.path).is_file():
+                    return asset.path
+            except ValueError:
+                pass
+    if not template.logo_path:
         return None
     try:
         return template.logo_path if storage.absolute(template.logo_path).is_file() else None
@@ -171,7 +183,7 @@ def render(ctx: JobContext, payload: dict) -> None:
                 ctx.log("Sin cortinilla de inicio: " + notes[-1])
         config = (template.cortinilla if template else None) or {}
         colors = template.colors if template else {}
-        start_params = fx_request.cortinilla_params(config, colors, at=at, orbit=_orbit_path(template)) if at is not None else None
+        start_params = fx_request.cortinilla_params(config, colors, at=at, orbit=_orbit_path(db, template, ctx.user_id)) if at is not None else None
         end_params = fx_request.outro_params(config, colors)
         # Gráficos ligados a la transcripción: el programador deja solo los que caben (sin cruzar la cortinilla ni el gancho).
         beats, missing = _resolve_images(db, ctx.user_id, clip.graphics_json or [])
