@@ -1,6 +1,6 @@
 // Genera el proyecto HyperFrames de un render: index.html + medios, en un directorio de trabajo propio.
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { extname, join } from "node:path";
 import { bandLayer, ROOM } from "./layers/band.mjs";
@@ -18,10 +18,20 @@ const require = createRequire(import.meta.url);
 
 const assetPath = (spec) => require.resolve(spec);
 
-/** Un fotograma del clip vertical en `at` segundos, como PNG (el que se ve bajo los barridos de la cortinilla). */
+/**
+ * Un fotograma del clip vertical en `at` segundos, como PNG (el que se ve bajo los barridos de la cortinilla). Si `at`
+ * cae pasado el final real del vídeo (el clip dura unas milésimas menos de lo pedido), ffmpeg termina sin error y SIN
+ * fichero: se comprueba y se prueba con instantes cada vez más atrás, y al final con el último fotograma (`-sseof`).
+ */
 function extractFrame(video, at, out) {
-  const r = spawnSync("ffmpeg", ["-v", "error", "-y", "-ss", String(Math.max(0, at)), "-i", video, "-frames:v", "1", out]);
-  if (r.status !== 0) throw new Error(`ffmpeg no pudo extraer el fotograma en ${at} s: ${r.stderr}`);
+  const run = (args) => spawnSync("ffmpeg", ["-v", "error", "-y", ...args, "-i", video, "-frames:v", "1", out]);
+  let r;
+  for (const back of [0, 0.1, 0.25, 0.5]) {
+    r = run(["-ss", String(Math.max(0, at - back))]);
+    if (r.status === 0 && existsSync(out)) return;
+  }
+  r = run(["-sseof", "-0.2"]);
+  if (r.status !== 0 || !existsSync(out)) throw new Error(`ffmpeg no pudo extraer un fotograma en ${at} s: ${r.stderr}`);
 }
 
 /** `video` es la ruta ABSOLUTA ya resuelta (y comprobada) del clip vertical. */

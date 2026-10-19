@@ -233,3 +233,14 @@ test("efectos de sonido: whoosh en cada barrido y brillo en la píldora, con id,
   buildProject({ request: parseRequest({ video: "a.mp4", output: "b.mp4", duration: 6 }), video, workDir: work3 });
   assert.ok(!readFileSync(join(work3, "index.html"), "utf8").includes("<audio"));
 });
+
+test("la cortinilla final no depende de que el clip dure exactamente lo pedido: un vídeo unas décimas más corto también genera su fotograma congelado", async () => {
+  const dir = tmp();
+  const video = makeVideo(join(dir, "src.mp4"), 3);              // dura 3,0 s...
+  for (const duration of [3.04, 3.3]) {                           // ...pero el backend pide 3,04 o 3,3 s (redondeos, última trama incompleta)
+    const work = join(dir, `w${duration}`);
+    buildProject({ request: parseRequest({ video: "a.mp4", output: "b.mp4", duration, outro: { handle: "@x" } }), video, workDir: work });
+    assert.ok(existsSync(join(work, "freezeEnd.png")), `sin fotograma final con duration ${duration}`);
+    assert.equal((await checkProject(work)).totalErrors, 0);
+  }
+});
