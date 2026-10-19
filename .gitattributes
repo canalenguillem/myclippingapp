@@ -1,0 +1,7 @@
+# Fin de línea LF en todo lo que entra en un contenedor Linux: en Windows, git convertiría a CRLF y rompería shells, Dockerfiles y configuraciones.
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.png binary
+*.jpg binary
+*.woff2 binary
+*.mp4 binary

@@ -29,9 +29,9 @@ services:
       mariadb:
         condition: service_healthy
     ports:
-      - "8800:8000"
+      - "127.0.0.1:8800:8000"        # solo desde esta máquina: la API se usa por el nginx del frontend, nunca directa desde la red
     volumes:
-      - ./media:/media
+      - ${MEDIA_HOST_DIR:-./media}:/media
     command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --timeout-graceful-shutdown 5"
     restart: unless-stopped
 
@@ -48,7 +48,7 @@ services:
       backend:
         condition: service_started
     volumes:
-      - ./media:/media
+      - ${MEDIA_HOST_DIR:-./media}:/media
       - ./backend/assets:/app/assets:ro
     command: python -m app.worker
     restart: unless-stopped
@@ -62,7 +62,7 @@ services:
     depends_on:
       - backend
     ports:
-      - "5074:80"
+      - "${FRONTEND_PORT:-5074}:80"   # el único puerto que se abre a la red; en Windows lo elige deploy/windows/install.ps1
     restart: unless-stopped
 
   # Render de motion graphics (HyperFrames). Solo atiende un render a la vez; el backend aplica el carril global.
@@ -76,7 +76,7 @@ services:
       FX_WORKERS: "2"               # workers de captura por render: 2 = 98 s y 2,6 GB, 4 apenas mejora y duplica la memoria
       HYPERFRAMES_TELEMETRY: "0"
     volumes:
-      - ./media:/media
+      - ${MEDIA_HOST_DIR:-./media}:/media
     ports:
       - "127.0.0.1:8910:3000"       # solo para depurar desde esta máquina; el backend usa http://fx_worker:3000
     healthcheck:
