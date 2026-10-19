@@ -1,0 +1,1 @@
+`countries-50m.json`: límites de países de [world-atlas](https://github.com/topojson/world-atlas) 2.0.2 (ISC), derivados de Natural Earth (dominio público). Lo usa `app/services/country_maps.py` para dibujar los mapas de países.

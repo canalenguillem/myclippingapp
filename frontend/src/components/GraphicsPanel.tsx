@@ -51,6 +51,21 @@ export default function GraphicsPanel({ clip, list, onChange, start, end, layout
   const [planError, setPlanError] = useState("");
   const problem = graphicsProblem(list, duration);
 
+  const [mapOpen, setMapOpen] = useState(false);
+  const [countries, setCountries] = useState<{ name: string; group: string }[]>([]);
+  const [mapPick, setMapPick] = useState<string[]>([]);
+  const [addingMaps, setAddingMaps] = useState(false);
+  const toggleMaps = () => {
+    setMapOpen((o) => !o);
+    if (countries.length === 0) api<{ name: string; group: string }[]>("/api/assets/maps/countries").then(setCountries).catch((e) => setAssetError(e instanceof Error ? e.message : String(e)));
+  };
+  const addMaps = async () => {
+    setAssetError(""); setAddingMaps(true);
+    try {
+      const made = await api<Asset[]>("/api/assets/maps", { json: { countries: mapPick } });
+      setAssets((xs) => [...made, ...xs]); setMapPick([]);
+    } catch (e) { setAssetError(e instanceof Error ? e.message : String(e)); } finally { setAddingMaps(false); }
+  };
   const loadAssets = () => api<Asset[]>("/api/assets").then(setAssets).catch((e) => setAssetError(e instanceof Error ? e.message : String(e)));
   useEffect(() => { loadAssets(); }, []);
   const assetOf = (id?: number) => assets.find((a) => a.id === id);
@@ -178,6 +193,35 @@ export default function GraphicsPanel({ clip, list, onChange, start, end, layout
         </label>
         <span className="muted hint">PNG con fondo transparente queda mejor (hucha, logo…). Solo se usan las imágenes que subes tú.</span>
       </div>
+      <div className="gfx-lib">
+        <button className="ghost" onClick={toggleMaps}>{mapOpen ? "▾" : "▸"} Mapas de países</button>
+        <span className="muted hint">Genera el mapa de un país (rojo, con los vecinos tenues) y úsalo como una imagen más o como objeto que orbita en la cortinilla.</span>
+      </div>
+      {mapOpen && (
+        <div className="gfx-maps">
+          {["Europa", "Otros"].map((group) => (
+            <div key={group}>
+              <div className="gfx-maps-head">
+                <strong>{group}</strong>
+                <button className="ghost" onClick={() => { const names = countries.filter((c) => c.group === group).map((c) => c.name); setMapPick((p) => [...new Set([...p, ...names])]); }}>Marcar todos</button>
+              </div>
+              <div className="gfx-maps-chips">
+                {countries.filter((c) => c.group === group).map((c) => {
+                  const have = assets.some((a) => a.kind === "map" && a.name === `Mapa de ${c.name}`);
+                  return (
+                    <label key={c.name} className={`check gfx-chip${have ? " have" : ""}`}>
+                      <input type="checkbox" disabled={have} checked={have || mapPick.includes(c.name)}
+                        onChange={(e) => setMapPick((p) => e.target.checked ? [...p, c.name] : p.filter((n) => n !== c.name))} />
+                      {c.name}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+          <button disabled={mapPick.length === 0 || addingMaps} onClick={addMaps}>{addingMaps ? "Generando…" : `Añadir ${mapPick.length} mapa${mapPick.length === 1 ? "" : "s"}`}</button>
+        </div>
+      )}
       {assetError && <p className="error">{assetError}</p>}
       {assets.length > 0 && (
         <div className="gfx-assets">

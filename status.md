@@ -194,3 +194,9 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 - UI: opción «Sigue al hablante» en Encuadre y slider «Posición en el plano» por speaker. Guardar speakers invalida los renders.
 - Tests: `tests/test_focus.py` (recorrido, suavizado y render real con ffmpeg sobre un vídeo mitad rojo / mitad azul).
 - ASD automático (como mymoviepy): `ASD_WORKER_URL` (worker TalkNet de `asd_worker/` del repo viejo, GPU). Con worker, el render corta el tramo (720 p, 25 fps), lo manda a `POST /asd` y usa `speakers[].center_norm` + `segments`; cacheado por clip en `asd_<start>_<end>.json`. Sin URL o si falla, usa los sliders de posición de los speakers. En 2026-10-19 el worker antiguo (192.168.1.46:8900) no respondía: sin probar contra un worker real.
+
+## Mapas de países
+
+- `app/data/countries-50m.json` (world-atlas 2.0.2, ISC; Natural Earth) + `app/services/country_maps.py`: PNG transparente del país en el rojo de marca, contorno crema y vecinos tenues; solo Pillow. 57 países (Europa entera + los que salen más en política), con recuadros que quitan ultramar (Francia, España, Noruega…).
+- API: `GET /api/assets/maps/countries` y `POST /api/assets/maps {countries}` (crea assets `kind="map"` «Mapa de X», sin duplicar). UI: sección «Mapas de países» en la librería del panel de gráficos. Sirven como imagen en un gráfico o como objeto que orbita (Plantillas).
+- Tests en `tests/test_assets_api.py` (todos los países renderizan).

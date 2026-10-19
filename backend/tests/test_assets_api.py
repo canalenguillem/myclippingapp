@@ -98,3 +98,28 @@ def test_assets_are_isolated_between_users(client, tmp_path, monkeypatch):
     assert other.patch(f"/api/assets/{a['id']}", json={"name": "x"}, headers=hb).status_code == 404
     assert other.delete(f"/api/assets/{a['id']}", headers=hb).status_code == 404
     assert TestClient(client.app).post("/api/assets", files={"file": ("a.png", png(), "image/png")}).status_code in (401, 403)
+
+
+def test_country_maps_are_generated_once_and_listed(client, tmp_path, monkeypatch):
+    h, db, p = _project(client, tmp_path, monkeypatch)
+    countries = client.get("/api/assets/maps/countries").json()
+    assert {"name": "Francia", "group": "Europa"} in countries and {"name": "Marruecos", "group": "Otros"} in countries
+    r = client.post("/api/assets/maps", json={"countries": ["Francia", "Italia", "Francia"]}, headers=h)
+    assert r.status_code == 201 and [a["name"] for a in r.json()] == ["Mapa de Francia", "Mapa de Italia"]
+    assert all(a["kind"] == "map" and a["width"] > 100 and client.get(a["url"]).status_code == 200 for a in r.json())
+    again = client.post("/api/assets/maps", json={"countries": ["Francia", "Portugal"]}, headers=h).json()
+    assert [a["name"] for a in again] == ["Mapa de Portugal"]                      # Francia ya estaba
+    assert len(client.get("/api/assets").json()) == 3
+
+
+def test_country_maps_reject_unknown_country(client, tmp_path, monkeypatch):
+    h, db, p = _project(client, tmp_path, monkeypatch)
+    r = client.post("/api/assets/maps", json={"countries": ["Atlantida"]}, headers=h)
+    assert r.status_code == 422 and "Atlantida" in r.json()["detail"]
+    assert client.get("/api/assets").json() == []
+
+
+def test_every_listed_country_renders():
+    from app.services import country_maps
+    for c in country_maps.available():
+        assert country_maps.render(c["name"])[:4] == b"\x89PNG"
