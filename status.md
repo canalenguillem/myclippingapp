@@ -157,3 +157,9 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 - Conviven con otra copia antigua de la app (`intro_python_*`, puertos 5074/8800/8910): por eso los puertos de depuración son configurables en `.env`.
 - Actualizar: `cd ~/code/clippingWill && git pull --ff-only && docker compose up -d --build`. Copia de la BD: `docker compose exec -T mariadb sh -c 'mariadb-dump -uroot -p"$MARIADB_ROOT_PASSWORD" --single-transaction clipping' > backup.sql`.
 - Pendiente del usuario: publicar `clipp.enguillem.es` con su proxy hacia `192.168.1.75:8093`, cambiar `PUBLIC_BASE_URL` a https, y registrar el URI de OAuth de Google. Pendiente mío: límite de intentos de login antes de exponerla.
+
+## Migración a la Debian hecha (2026-10-19)
+
+- Copiados a `192.168.1.75:~/code/clippingWill`: la base de datos entera (1 usuario, 1 proyecto, 10 clips, 3 imágenes, 1 canal, 1 plantilla), la carpeta `media/` (60 ficheros, 689 MB; sin `media/ref`) y las **mismas `APP_ENCRYPTION_KEY` y `JWT_SECRET`** del equipo de desarrollo, por lo que el `client_secret` y el token de YouTube se descifran y el canal sigue conectado. `PUBLIC_BASE_URL=https://clipp.enguillem.es` y `ALLOW_REGISTRATION=false`. Copia del volcado en `~/code/clippingWill/backups/` (permisos 600).
+- Las dos instancias (desarrollo y Debian) comparten el mismo canal y token de YouTube: no pasa nada por renovar el acceso desde las dos, pero conviene trabajar en una sola para no duplicar subidas.
+- La carpeta `media/` de la Debian es del usuario `guillem` (la dejó creada Docker como root; se reasignó con un contenedor).
