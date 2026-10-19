@@ -138,3 +138,8 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 - Hecho: canales de YouTube por usuario (`/api/channels`) con `client_secret.json` **subible y reemplazable desde la web** (validado: solo servidores de Google; cifrado con Fernet; nunca se devuelve; sustituirlo desconecta el canal), OAuth con `state` firmado (HMAC, caduca a 10 min), callback `/api/youtube/callback`, lectura del nombre y avatar del canal, página **Canales** (URI de redirección a registrar, subir o cambiar JSON, conectar, reconectar con otra cuenta y desconectar). 382 tests.
 - Falta: job `upload` (con `publishAt` y privacidad por defecto privada), SEO (título, descripción y etiquetas), botón «Subir» en el clip y subida real del short del clip 40.
 - Aviso: `client_secret*.json` está en `.gitignore`; el usuario lo tenía en la raíz del repo y se sube desde la web.
+
+## F8: subida a YouTube hecha, pendiente de la primera subida real (2026-10-19)
+
+- Hecho: textos SEO con el modelo (título, descripción con `#Shorts` y etiquetas, según idioma y reglas del canal; plan B sin modelo; siempre revisables), guardado de textos, job `upload` con subida reanudable (renueva el acceso con el refresh_token, errores de la API traducidos, no duplica en reintentos, cancelable), API (`/seo/generate`, `/seo`, `/upload`) y panel «Subir a YouTube» en el editor con el canal de destino bien visible y confirmación antes de subir. Migración 0006. 404 tests.
+- **Pendiente:** primera subida real. El canal conectado hoy es «Salud Senior +60», NO @SpainFactsjjj: hay que reconectar eligiendo la cuenta correcta en Canales. No se ha subido nada a YouTube.

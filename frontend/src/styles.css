@@ -136,3 +136,7 @@ input[type="range"] { padding: 0; }
 .chan-avatar { flex: 0 0 48px; width: 48px; height: 48px; border-radius: 50%; object-fit: cover; } .chan-avatar.empty { background: var(--line, #2a2a2a); }
 .chan-uri { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; } .chan-uri code { padding: 6px 10px; background: var(--line, #1d1d1d); border-radius: 6px; word-break: break-all; }
 .chan-card h3 { margin: 8px 0 0; } .chan-card textarea { width: 100%; }
+
+/* --- F8: subida --- */
+.yt-panel { margin: 24px 0; display: flex; flex-direction: column; gap: 10px; max-width: 760px; }
+.yt-panel textarea { width: 100%; } .yt-target { margin: 0; } .yt-warn { margin: 0; padding: 8px 12px; border-radius: 8px; background: #4a2a12; color: #ffd9b0; }

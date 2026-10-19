@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
 import GraphicsPanel, { graphicsProblem } from "../components/GraphicsPanel";
 import RenderPanel from "../components/RenderPanel";
+import YouTubePanel from "../components/YouTubePanel";
 import type { Clip, Project, Template, Transcript } from "../types";
 import { EDITABLE_CLIP, fmtTime } from "../types";
 
@@ -287,6 +288,8 @@ export default function ClipEditor() {
         picked={picked !== null ? { start: words[picked].start, text: words[picked].text } : null} seek={seek} />
 
       <RenderPanel clip={clip} dirty={dirty} editable={editable} onClip={setClip} />
+
+      <YouTubePanel clip={clip} dirty={dirty} onClip={setClip} />
 
       <section>
         <h2>Transcripción del tramo</h2>
