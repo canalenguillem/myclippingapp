@@ -17,10 +17,11 @@ SCALE = 4
 MAX_FRAMES = 150
 MIN_FRAMES = 10
 PRESENT = 0.02           # fracción de la fila con píxeles de texto para contar como «hay texto»
-MIN_PERSISTENCE = 0.25   # en al menos el 25 % de los fotogramas
+MIN_PERSISTENCE = 0.40   # en al menos el 40 % de los fotogramas (con 0,25 un brillo de la frente en un clip con zoom pasaba por texto)
 MIN_CHANGE = 0.006       # cambio medio entre fotogramas consecutivos
 MAX_GAP_ROWS = 2         # huecos entre filas candidatas que se unen (8 px reales)
 MIN_ROWS, MAX_ROWS = 2, 30  # 8–120 px reales
+LOWER_PART = 0.45        # los subtítulos quemados van en la parte BAJA del plano: no se buscan en el 45 % de arriba (ojos, frente)
 
 
 class AnalysisError(RuntimeError):
@@ -54,6 +55,7 @@ def detect_in_frames(frames: np.ndarray, top_ratio: float) -> dict | None:
     persistence = (row_frac > PRESENT).mean(axis=0)
     change = np.abs(np.diff(row_frac, axis=0)).mean(axis=0)
     candidate = (persistence >= MIN_PERSISTENCE) & (change >= MIN_CHANGE)
+    candidate[: int(top_rows * LOWER_PART)] = False      # la banda nunca se mueve a la cara por culpa de un brillo que cambia
 
     runs: list[tuple[int, int]] = []
     start = last = None

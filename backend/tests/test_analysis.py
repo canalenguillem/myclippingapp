@@ -91,11 +91,11 @@ def test_picks_the_most_persistent_block():
     f = frames()
     for i in range(len(f)):
         if i % 4 < 2:
-            f[i, 170:180, 40:230] = 255           # aparece la mitad del tiempo
+            f[i, 200:210, 40:230] = 255           # aparece la mitad del tiempo
         if i % 4 < 3:
-            f[i, 90:100, 40:230] = 255            # aparece más
+            f[i, 150:160, 40:230] = 255           # aparece más (los dos en la parte baja del plano: arriba no se busca)
     r = analysis.detect_in_frames(f, 0.5)
-    assert r["y0"] <= 90 * 4 and r["y1"] >= 100 * 4
+    assert r["y0"] <= 150 * 4 and r["y1"] >= 160 * 4
 
 
 # --- con vídeo real (ffmpeg + drawtext) -------------------------------------------------------------------
@@ -148,3 +148,19 @@ def test_a_broken_video_raises_a_clear_error(tmp_path):
     bad.write_bytes("no soy un vídeo".encode())
     with pytest.raises(analysis.AnalysisError, match="decodificar"):
         analysis.detect_burned_subtitles(bad, top_ratio=0.5, duration=SECONDS)
+
+
+def test_text_like_flicker_in_the_upper_part_of_the_shot_is_not_a_subtitle():
+    # un brillo que aparece y desaparece justo en la zona de los ojos (arriba del plano) no debe mover la banda
+    r = analysis.detect_in_frames(frames(text_rows=(36, 54)), 0.65)           # filas 144–216 px: el falso positivo del clip 33
+    assert r is None
+    low = analysis.detect_in_frames(frames(text_rows=(250, 262)), 0.65)       # el mismo parpadeo, pero abajo (donde van los subtítulos)
+    assert low and low["y0"] <= 250 * 4 and low["y1"] >= 262 * 4
+
+
+def test_weakly_persistent_text_is_not_enough():
+    f = frames(text_rows=None)
+    for i in range(len(f)):
+        if i % 10 < 3:                                                         # aparece en el 30 % de los fotogramas: por debajo del 40 %
+            f[i, 170:180, 40:230] = 255
+    assert analysis.detect_in_frames(f, 0.5) is None
