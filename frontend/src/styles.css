@@ -190,3 +190,10 @@ select, input, textarea { max-width: 100%; min-width: 0; }
 .gfx-maps-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
 .gfx-maps-chips { display: flex; flex-wrap: wrap; gap: 6px 14px; }
 .gfx-chip { font-size: .88rem; } .gfx-chip.have { opacity: .5; }
+
+/* gráficos: a qué frase corresponde cada uno */
+.gfx-phrase { flex: 1 1 100%; display: flex; gap: 8px; align-items: baseline; cursor: pointer; font-size: .88rem; line-height: 1.35; }
+.gfx-phrase:hover { color: #fff; }
+.gfx-num { flex: 0 0 auto; min-width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 800; font-size: .78rem; display: inline-flex; align-items: center; justify-content: center; }
+.gfx-time { flex: 0 0 auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+.gfx-phrase mark { background: #5a1a0e; color: var(--ink); border-radius: 3px; padding: 0 3px; font-weight: 700; }

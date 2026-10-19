@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
-import type { Asset, Clip, Graphic, GraphicsPlan, Interpreted } from "../types";
+import type { Asset, Clip, Graphic, GraphicsPlan, Interpreted, Word } from "../types";
 import { fmtTime } from "../types";
 
 const EMOJI = /^[\p{So}\p{Sk}\p{Cf}\p{Mn}]{1,16}$/u;
@@ -35,9 +35,11 @@ type Props = {
   /** Palabra elegida en la transcripción (inicio absoluto y texto), si hay. */
   picked: { start: number; text: string } | null;
   seek: (sourceSeconds: number) => void;
+  /** Palabras de la transcripción: para mostrar en qué frase cae cada gráfico. */
+  words?: Word[];
 };
 
-export default function GraphicsPanel({ clip, list, onChange, start, end, layout, introEnabled, cortinillaAt, trimDirty, editable, currentTime, picked, seek }: Props) {
+export default function GraphicsPanel({ clip, list, onChange, start, end, layout, introEnabled, cortinillaAt, trimDirty, editable, currentTime, picked, seek, words = [] }: Props) {
   const duration = end - start;
   const [assets, setAssets] = useState<Asset[]>([]);
   const [assetError, setAssetError] = useState("");
@@ -145,6 +147,18 @@ export default function GraphicsPanel({ clip, list, onChange, start, end, layout
     return lost ? { ok: false, text: `no entra: ${lost.reason}` } : { ok: true, text: "" };
   };
   const pct = (s: number) => `${(Math.min(Math.max(s, 0), duration) / duration) * 100}%`;
+  // Los gráficos se listan por orden de aparición y con un número que también sale en la línea de tiempo.
+  const order = list.map((_, i) => i).sort((a, b) => list[a].at - list[b].at || a - b);
+  const numberOf = (type: string, at: number) => { const k = order.findIndex((i) => list[i].type === type && list[i].at === at); return k >= 0 ? k + 1 : null; };
+  /** La frase donde cae el gráfico: unas palabras antes y después, con la palabra ancla resaltada. */
+  const phraseAt = (at: number) => {
+    const abs = start + at;
+    let k = -1, best = Infinity;
+    words.forEach((w, j) => { const d = Math.abs(w.start - abs); if (d < best) { best = d; k = j; } });
+    if (k < 0 || best > 1.5) return null;
+    const lo = Math.max(0, k - 6), hi = Math.min(words.length, k + 9);
+    return { before: words.slice(lo, k).map((w) => w.text).join(" "), word: words[k].text, after: words.slice(k + 1, hi).map((w) => w.text).join(" "), lead: lo > 0, tail: hi < words.length };
+  };
   const rows = useMemo(() => ({ keyword: 0, image: 1, emoji: 2 } as const), []);
 
   return (
@@ -164,7 +178,7 @@ export default function GraphicsPanel({ clip, list, onChange, start, end, layout
         {plan?.beats.map((b, i) => (
           <div key={`b${i}`} className={`gfx-beat ${b.type}`} style={{ left: pct(b.start), width: `calc(${pct(b.end)} - ${pct(b.start)})`, top: 8 + rows[b.type] * 18 }}
             title={`${b.type === "keyword" ? b.text : b.type === "image" ? assetOf(b.asset_id)?.name : b.emoji} · ${b.start.toFixed(1)}–${b.end.toFixed(1)} s`}>
-            {b.type === "keyword" ? b.text : b.type === "image" ? (assetOf(b.asset_id)?.name ?? "imagen") : `${b.emoji}${b.target ? "→" + b.target : ""}`}
+            {numberOf(b.type, b.at) ?? "?"} · {b.type === "keyword" ? b.text : b.type === "image" ? (assetOf(b.asset_id)?.name ?? "imagen") : `${b.emoji}${b.target ? "→" + b.target : ""}`}
           </div>
         ))}
         {plan?.dropped.map((d, i) => <div key={`d${i}`} className="gfx-drop" style={{ left: pct(d.beat.at) }} title={`Descartado: ${d.reason}`} />)}
@@ -239,11 +253,18 @@ export default function GraphicsPanel({ clip, list, onChange, start, end, layout
 
       {list.length === 0 && <p className="muted">Aún no hay gráficos en este clip.</p>}
       <ul className="gfx-list">
-        {list.map((g, i) => {
+        {order.map((i, n) => {
+          const g = list[i];
           const st = statusOf(g);
+          const ph = phraseAt(g.at);
           const bad = g.type === "emoji" && (!EMOJI.test(g.emoji ?? "") || (g.target && !EMOJI.test(g.target)));
           return (
             <li key={i}>
+              <div className="gfx-phrase" onClick={() => seek(start + g.at)} title="Ir a ese punto del vídeo">
+                <span className="gfx-num">{n + 1}</span>
+                <span className="gfx-time">{g.at.toFixed(1)} s</span>
+                {ph ? <span>{ph.lead && "… "}{ph.before} <mark>{ph.word}</mark> {ph.after}{ph.tail && " …"}</span> : <span className="muted">(sin transcripción en ese punto)</span>}
+              </div>
               <select value={g.type} disabled={!editable} onChange={(e) => {
                 const t = e.target.value;
                 if (t === "emoji") update(i, { type: "emoji", emoji: "🔥", text: undefined, asset_id: undefined, style: undefined, effect: "pop" });

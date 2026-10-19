@@ -286,7 +286,7 @@ export default function ClipEditor() {
       <GraphicsPanel clip={clip} list={draft.graphics} onChange={(graphics) => set({ graphics })} start={draft.start} end={draft.end}
         layout={draft.layout} introEnabled={draft.intro_enabled} cortinillaAt={draft.cortinilla_at}
         trimDirty={draft.start !== clip.start || draft.end !== clip.end} editable={editable} currentTime={t}
-        picked={picked !== null ? { start: words[picked].start, text: words[picked].text } : null} seek={seek} />
+        picked={picked !== null ? { start: words[picked].start, text: words[picked].text } : null} seek={seek} words={words} />
 
       <RenderPanel clip={clip} dirty={dirty} editable={editable} onClip={setClip} />
 
