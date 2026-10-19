@@ -16,6 +16,7 @@ from app.pipeline import analysis as analysis_mod
 from app.pipeline import ass_fallback, ffops, vertical
 from app.pipeline import focus as focus_mod
 from app.services import asd_client
+from app.services import qa as qa_service
 from app.services import clips as clips_service
 from app.services import cortinilla as cortinilla_service
 from app.services import fx_request, graphics_schedule, silences as silences_mod, storage, transcription
@@ -89,6 +90,18 @@ def _resolve_images(db, user_id: int, beats: list[dict]) -> tuple[list[dict], li
         resolved["image"] = path
         out.append(resolved)
     return out, missing
+
+
+def _qa(ctx, folder, target, quality: str, expected: float, plan) -> None:
+    """Revisión automática y hoja de contactos del render. Nunca tumba el render: si algo falla, solo se anota en el log."""
+    try:
+        ffops.contact_sheet(target, folder / f"contact_{quality}.jpg", duration=expected)
+        results = qa_service.check(target, expected_duration=expected, beats=plan.beats, dropped=plan.dropped)
+        (folder / f"qa_{quality}.json").write_text(json.dumps({"quality": quality, "checks": results, "level": qa_service.worst(results)}), encoding="utf-8")
+        bad = [r["message"] for r in results if r["level"] != "ok"]
+        ctx.log("Revisión automática: " + ("; ".join(bad) if bad else "todo correcto"))
+    except Exception as exc:  # noqa: BLE001
+        ctx.log(f"No se pudo hacer la revisión automática ({type(exc).__name__}: {exc})")
 
 
 def _speaker_track(ctx, clip, project, source, folder, words, cancel) -> list[tuple[float, float]]:
@@ -253,6 +266,8 @@ def render(ctx: JobContext, payload: dict) -> None:
         if start_params and thumb_at >= at:
             thumb_at += start_params["duration"]  # en tiempo de salida: nunca dentro de la cortinilla
         ffops.make_thumbnail(target, thumb, at=thumb_at)
+        ctx.progress(97)
+        _qa(ctx, folder, target, quality, out_total, plan)
         ctx.progress(98)
 
         if draft:

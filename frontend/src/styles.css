@@ -199,3 +199,10 @@ select, input, textarea { max-width: 100%; min-width: 0; }
 .gfx-phrase mark { background: #5a1a0e; color: var(--ink); border-radius: 3px; padding: 0 3px; font-weight: 700; }
 .gfx-beat.counter { background: #ffd27a; } .gfx-beat.strike { background: #ff9a8a; } .gfx-beat.lower_third { background: #b6e3c0; }
 .gfx-short { width: 90px; }
+
+/* revisión automática del render */
+.qa { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); max-width: 760px; }
+.qa ul { margin: 0; padding-left: 4px; list-style: none; display: flex; flex-direction: column; gap: 2px; font-size: .9rem; }
+.qa-ok > strong { color: #7fd8a1; } .qa-warn > strong { color: #ffd27a; } .qa-error > strong { color: #ff7a6b; }
+li.qa-warn { color: #ffd27a; } li.qa-error { color: #ff7a6b; } li.qa-ok { color: var(--muted); }
+.qa-contact { width: 100%; border-radius: 6px; display: block; }

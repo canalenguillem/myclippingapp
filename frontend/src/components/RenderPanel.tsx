@@ -3,6 +3,9 @@ import { api } from "../api";
 import type { Clip } from "../types";
 
 type Job = { id: number; status: string; progress: number; error: string | null };
+type QaCheck = { id: string; level: "ok" | "warn" | "error"; message: string };
+type QaReport = { level: "ok" | "warn" | "error"; checks: QaCheck[]; contact: { url: string } | null };
+type Qa = { draft: QaReport | null; final: QaReport | null };
 type Urls = { draft: { url: string } | null; final: { url: string } | null; thumbnail: { url: string } | null };
 
 type Props = {
@@ -21,6 +24,7 @@ const STATE_LABEL: Record<Clip["render_state"], string> = {
 
 export default function RenderPanel({ clip, dirty, editable, onClip }: Props) {
   const [urls, setUrls] = useState<Urls | null>(null);
+  const [qa, setQa] = useState<Qa | null>(null);
   const [job, setJob] = useState<Job | null>(null);
   const [view, setView] = useState<"draft" | "final">("draft");
   const [error, setError] = useState("");
@@ -45,6 +49,12 @@ export default function RenderPanel({ clip, dirty, editable, onClip }: Props) {
     const timer = setInterval(load, 50 * 60 * 1000);
     return () => clearInterval(timer);
   }, [clip.id, clip.has_draft, clip.has_final, clip.render_state]);
+
+  // Revisión automática del render (comprobaciones y hoja de contactos); se vuelve a pedir al terminar un render.
+  useEffect(() => {
+    if (!clip.has_draft && !clip.has_final) { setQa(null); return; }
+    api<Qa>(`/api/clips/${clip.id}/qa`).then(setQa).catch(() => setQa(null));
+  }, [clip.id, clip.has_draft, clip.has_final, clip.render_state, stamp]);
 
   // Mientras se renderiza: progreso del job y estado del clip.
   useEffect(() => {
@@ -133,6 +143,19 @@ export default function RenderPanel({ clip, dirty, editable, onClip }: Props) {
             Descargar {shownQuality === "final" ? "el vídeo final" : "el borrador"}
           </a>
           <video key={shown.url.split("?")[0] + stamp} src={shown.url} controls playsInline className="render-video" />
+          {qa?.[shownQuality] && (
+            <div className={`qa qa-${qa[shownQuality]!.level}`}>
+              <strong>Revisión automática {qa[shownQuality]!.level === "ok" ? "✔ todo correcto" : qa[shownQuality]!.level === "warn" ? "⚠ avisos" : "✖ hay fallos"}</strong>
+              <ul>
+                {qa[shownQuality]!.checks.map((c) => <li key={c.id} className={`qa-${c.level}`}>{c.level === "ok" ? "✔" : c.level === "warn" ? "⚠" : "✖"} {c.message}</li>)}
+              </ul>
+              {qa[shownQuality]!.contact && (
+                <a href={qa[shownQuality]!.contact!.url} target="_blank" rel="noreferrer" title="Abrir la hoja de contactos a tamaño completo">
+                  <img className="qa-contact" alt="Hoja de contactos del render (un fotograma cada 2,5 s)" loading="lazy" src={qa[shownQuality]!.contact!.url} />
+                </a>
+              )}
+            </div>
+          )}
           <div className="stills">
             {STILL_POINTS.map((p) => {
               const t = Math.min(duration - 0.1, p * duration);

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
@@ -62,5 +63,21 @@ def cut_for_analysis(video: Path, start: float, end: float, out_path: Path, *, f
         raise FfopsError(f"No se pudo preparar el tramo para el análisis: {exc}") from exc
     if not part.exists():
         raise FfopsError("No se generó el tramo de análisis")
+    os.replace(part, out_path)
+    return out_path
+
+
+def contact_sheet(video: Path, out_path: Path, *, every: float = 2.5, cols: int = 6, width: int = 180, ffmpeg: str = "ffmpeg",
+                  duration: float | None = None) -> Path:
+    """Hoja de contactos: un fotograma cada `every` segundos en una rejilla de `cols` columnas (para revisar el render de un vistazo)."""
+    out_path = Path(out_path)
+    part = out_path.with_name(out_path.stem + ".part" + out_path.suffix)
+    frames = max(1, int((duration or 60.0) / every) + 1)
+    rows = max(1, -(-frames // cols))
+    cmd = [ffmpeg, "-y", "-v", "error", "-i", str(video), "-an", "-vf", f"fps=1/{every},scale={width}:-2,tile={cols}x{rows}:padding=4:color=0x111111",
+           "-frames:v", "1", "-q:v", "4", str(part)]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+    if proc.returncode != 0 or not part.exists():
+        raise FfopsError(f"No se pudo generar la hoja de contactos: {proc.stderr.strip()[-200:]}")
     os.replace(part, out_path)
     return out_path

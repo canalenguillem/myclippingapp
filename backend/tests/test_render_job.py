@@ -112,7 +112,7 @@ def test_draft_end_to_end(client, tmp_path, monkeypatch, source_file):
     assert [(s["codec_type"], s.get("width"), s.get("height")) for s in v] == [("video", 540, 960), ("audio", None, None)]
     assert storage.absolute(c.thumbnail_path).suffix == ".jpg" and storage.absolute(c.thumbnail_path).exists()
     assert json.loads(storage.absolute(c.analysis_path).read_text()) == {"version": 1, "burned_subtitles": None}
-    assert files(e) == ["analysis.json", "draft.mp4", "thumb.jpg"]  # los intermedios (vertical y fx_full) se borran
+    assert files(e) == ["analysis.json", "contact_draft.jpg", "draft.mp4", "qa_draft.json", "thumb.jpg"]  # los intermedios (vertical y fx_full) se borran
     assert e.db.get(Job, e.ctx.job_id).progress >= 98
     assert "Servicio de render: listo" in log(e)
 
@@ -147,7 +147,7 @@ def test_final_render_is_full_size_and_a_later_draft_keeps_the_final_state(clien
     assert (v["width"], v["height"]) == (1080, 1920)
     run_job(e, "draft")  # un borrador posterior no degrada el estado: el final sigue siendo válido
     assert c.render_state is RenderState.FINAL and c.draft_path and c.rendered_path
-    assert files(e) == ["analysis.json", "draft.mp4", "final.mp4", "thumb.jpg"]
+    assert files(e) == ["analysis.json", "contact_draft.jpg", "contact_final.jpg", "draft.mp4", "final.mp4", "qa_draft.json", "qa_final.json", "thumb.jpg"]
 
 
 def test_a_second_render_replaces_the_first(client, tmp_path, monkeypatch, source_file):
@@ -155,7 +155,7 @@ def test_a_second_render_replaces_the_first(client, tmp_path, monkeypatch, sourc
     run_job(e)
     first = e.clip.rendered_at
     run_job(e)
-    assert e.clip.render_state is RenderState.DRAFT and e.clip.rendered_at >= first and files(e) == ["analysis.json", "draft.mp4", "thumb.jpg"]
+    assert e.clip.render_state is RenderState.DRAFT and e.clip.rendered_at >= first and files(e) == ["analysis.json", "contact_draft.jpg", "draft.mp4", "qa_draft.json", "thumb.jpg"]
 
 
 def test_burned_subtitles_become_the_band_rows(client, tmp_path, monkeypatch, source_file):
@@ -206,7 +206,7 @@ def test_falls_back_to_ass_subtitles_when_the_service_is_not_usable(client, tmp_
     v = probe(storage.absolute(c.draft_path), "stream=width,height")["streams"][0]
     assert (v["width"], v["height"]) == (540, 960)
     assert c.render_error.startswith("Aviso:") and needle in c.render_error
-    assert "subtítulos ASS" in log(e) and files(e) == ["analysis.json", "draft.mp4", "thumb.jpg"]
+    assert "subtítulos ASS" in log(e) and files(e) == ["analysis.json", "contact_draft.jpg", "draft.mp4", "qa_draft.json", "thumb.jpg"]
 
 
 def test_cancelling_restores_the_state_that_matches_the_files(client, tmp_path, monkeypatch, source_file):
@@ -500,3 +500,12 @@ def test_a_foreign_orbit_asset_is_ignored(client, tmp_path, monkeypatch, source_
     e.db.commit()
     run_job(e)
     assert "orbit" not in e.fx.requests[0]["cortinilla"]
+
+
+def test_draft_writes_the_automatic_review(client, tmp_path, monkeypatch, source_file):
+    import json
+    e = setup(client, tmp_path, monkeypatch, source_file, status="detected")
+    run_job(e)
+    report = json.loads((e.folder / "qa_draft.json").read_text())
+    assert report["quality"] == "draft" and {c["id"] for c in report["checks"]} >= {"duration", "audio", "black"}
+    assert "Revisión automática:" in log(e)

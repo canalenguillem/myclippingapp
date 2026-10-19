@@ -225,3 +225,9 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 - `projects.source_handle` (migración 0008): el @ del canal de YouTube de donde viene el vídeo. Se rellena solo al ingerir (`uploader_id` de yt-dlp) y se edita en la pantalla del proyecto («Canal del vídeo original (@)»; acepta `esRadio`, `@esRadio` o la URL del canal). Los proyectos anteriores lo tienen vacío: se escribe a mano.
 - «Generar SEO» antepone a la descripción `@canal` (lo primero, para etiquetarlo) y `Vídeo original: <enlace>` con `&t=` al segundo donde empieza el clip (enlace tal cual si no es de YouTube). No duplica lo que ya esté; lo que se guarda es lo que el usuario deja en el cuadro.
 - Pantalla completa: la banda de subtítulos va bajo la parte nítida (`topH + 30…110`), ignorando los subtítulos quemados del original (el render ya no los detecta en este diseño). Gráficos debajo de la banda.
+
+## F9 (parte 1): revisión automática y hoja de contactos
+
+- Al acabar cada render (borrador y final) se genera `contact_<calidad>.jpg` (un fotograma cada 2,5 s en rejilla) y `qa_<calidad>.json` con comprobaciones (`app/services/qa.py`): duración = clip + cortinillas, audio (sin audio, casi mudo, pico > −0,1 dB), pantalla negra ≥ 1 s, gráficos grandes solapados, gráficos visibles < 0,8 s y gráficos descartados. Solo informan: nunca tumban el render.
+- `GET /api/clips/{id}/qa` y bloque «Revisión automática» (✔/⚠/✖ + hoja de contactos) en el panel de render.
+- Sin hacer (necesita visión por ordenador): gráfico sobre una cara, estilo de subtítulo que no corresponde al hablante, destellos < 0,3 s. Tampoco están el bucle notas → reglas ni los límites/borrado de media antigua.

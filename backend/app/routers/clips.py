@@ -1,3 +1,4 @@
+import json
 import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -341,6 +342,29 @@ def render_urls(clip_id: int, user: User = Depends(current_user), db: Session = 
     clip = get_owned(db, Clip, clip_id, user)
     sign = lambda rel: media_sign.signed_url(rel) if rel else None  # noqa: E731
     return {"draft": sign(clip.draft_path), "final": sign(clip.rendered_path), "thumbnail": sign(clip.thumbnail_path)}
+
+
+@router.get("/api/clips/{clip_id}/qa")
+def clip_qa(clip_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Revisión automática y hoja de contactos del borrador y del final (solo los que existen)."""
+    clip = get_owned(db, Clip, clip_id, user)
+    project = db.get(Project, clip.project_id)
+    folder = storage.project_dir(project.user_id, project.id) / f"clip_{clip.id}"
+    out: dict = {}
+    for quality, rel in (("draft", clip.draft_path), ("final", clip.rendered_path)):
+        report = folder / f"qa_{quality}.json"
+        if not rel or not report.is_file():
+            out[quality] = None
+            continue
+        try:
+            data = json.loads(report.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            out[quality] = None
+            continue
+        sheet = folder / f"contact_{quality}.jpg"
+        data["contact"] = media_sign.signed_url(storage.rel(sheet)) if sheet.is_file() else None
+        out[quality] = data
+    return out
 
 
 @router.get("/api/clips/{clip_id}/still")
