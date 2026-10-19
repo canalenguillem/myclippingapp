@@ -140,3 +140,5 @@ input[type="range"] { padding: 0; }
 /* --- F8: subida --- */
 .yt-panel { margin: 24px 0; display: flex; flex-direction: column; gap: 10px; max-width: 760px; }
 .yt-panel textarea { width: 100%; } .yt-target { margin: 0; } .yt-warn { margin: 0; padding: 8px 12px; border-radius: 8px; background: #4a2a12; color: #ffd9b0; }
+
+.yt-source { border: 1px solid var(--line, #2a2a2a); border-radius: 8px; padding: 8px 12px; display: flex; flex-direction: column; gap: 4px; } .yt-source legend { padding: 0 6px; font-size: .85rem; }

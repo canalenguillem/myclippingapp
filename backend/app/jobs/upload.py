@@ -35,18 +35,20 @@ def upload(ctx: JobContext, payload: dict) -> None:
             raise UploadJobError("El canal de destino ya no existe")
         if not channel.token_enc or not channel.client_secret_enc:
             raise UploadJobError("El canal no está conectado: conéctalo en Canales")
-        if not clip.rendered_path:
-            raise UploadJobError("El clip no tiene render final")
-        video = storage.absolute(clip.rendered_path)
+        source = payload.get("source", "final")
+        rel = clip.draft_path if source == "draft" else clip.rendered_path
+        if not rel:
+            raise UploadJobError("El clip no tiene borrador" if source == "draft" else "El clip no tiene render final")
+        video = storage.absolute(rel)
         if not video.is_file():
-            raise UploadJobError("No se encuentra el vídeo final en el disco")
+            raise UploadJobError(f"No se encuentra el {'borrador' if source == 'draft' else 'vídeo final'} en el disco")
         secret = ClientSecret(**crypto.decrypt_json(channel.client_secret_enc))
         token = crypto.decrypt_json(channel.token_enc)
     except (UploadJobError, crypto.CryptoError, TypeError, ValueError) as exc:
         fail(str(exc))
         raise UploadJobError(str(exc)) from exc
 
-    ctx.log(f"Subiendo a «{channel.yt_title or channel.name}» ({'programado' if clip.publish_at else clip.privacy}): {clip.seo_title}")
+    ctx.log(f"Subiendo el {'BORRADOR (540x960)' if payload.get('source') == 'draft' else 'vídeo final'} a «{channel.yt_title or channel.name}» ({'programado' if clip.publish_at else clip.privacy}): {clip.seo_title}")
     last = {"p": -1}
 
     def on_progress(fraction: float) -> None:

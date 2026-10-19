@@ -169,3 +169,7 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 - Ventana deslizante de 15 min guardada en la BD (`login_failures`, migración 0007): **5 fallos por email** y **20 por IP** bloquean con 429 y `Retry-After`; durante el bloqueo ni se comprueba la contraseña; el bloqueo caduca solo; un login correcto borra los fallos de ese email; un email inexistente se cuenta igual (no se revela si existe). Ajustable con `LOGIN_WINDOW_SECONDS`, `LOGIN_MAX_PER_EMAIL`, `LOGIN_MAX_PER_IP`.
 - IP real: solo se confía en `X-Forwarded-For` si el vecino TCP es de una red de confianza (privada, loopback, CGNAT); se recorre de derecha a izquierda y manda la primera dirección no privada, así que una IP falseada a la izquierda no sirve. Llegando directo desde fuera, la cabecera se ignora.
 - F8 verificada con Google real por el usuario (subida automática a su canal funciona). 439 tests.
+
+## Subir el borrador (2026-10-19)
+
+- `POST /api/clips/{id}/upload` admite `source: "final" | "draft"` (por defecto `final`). Con `draft` sube el borrador vigente (540×960, más comprimido) sin esperar al render final; el panel «Subir a YouTube» ofrece los dos, elige el final si existe, y avisa de la menor calidad del borrador. El job guarda en el log cuál se subió.

@@ -457,6 +457,7 @@ class UploadIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     channel_id: int = Field(ge=1)   # el canal que el usuario VE en pantalla: si no coincide con el guardado, no se sube
+    source: Literal["final", "draft"] = "final"   # «draft»: sube el borrador (540x960) sin esperar al render final
 
 
 def _editable_for_seo(clip: Clip) -> None:
@@ -508,8 +509,10 @@ def upload_clip(clip_id: int, body: UploadIn, user: User = Depends(current_user)
         raise HTTPException(409, "Ya se está subiendo")
     if clip.status != "approved":
         raise HTTPException(409, "Solo se suben clips aprobados")
-    if not clip.rendered_path or clip.render_state is not RenderState.FINAL:
-        raise HTTPException(409, "Primero hay que hacer el render final del clip")
+    if body.source == "final" and (not clip.rendered_path or clip.render_state is not RenderState.FINAL):
+        raise HTTPException(409, "Primero hay que hacer el render final del clip (o elige subir el borrador)")
+    if body.source == "draft" and (not clip.draft_path or clip.render_state not in (RenderState.DRAFT, RenderState.FINAL)):
+        raise HTTPException(409, "No hay un borrador vigente: renderiza el borrador otra vez")
     if not clip.seo_title.strip() or clip.channel_id is None:
         raise HTTPException(409, "Guarda antes los textos de YouTube (título, descripción y etiquetas) para un canal")
     if clip.channel_id != body.channel_id:
@@ -519,7 +522,7 @@ def upload_clip(clip_id: int, body: UploadIn, user: User = Depends(current_user)
         raise HTTPException(409, "El canal no está conectado a YouTube: conéctalo en Canales")
     if queue.active_job(db, user.id, clip.project_id, ignore_types=("render",)):
         raise HTTPException(409, "Hay un job en marcha para este proyecto")
-    job = queue.enqueue(db, user.id, "upload", {"clip_id": clip.id, "project_id": clip.project_id})
+    job = queue.enqueue(db, user.id, "upload", {"clip_id": clip.id, "project_id": clip.project_id, "source": body.source})
     clip.status, clip.upload_error = "uploading", None
     db.commit()
     return JobRef(job_id=job.id)

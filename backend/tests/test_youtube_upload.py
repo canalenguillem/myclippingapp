@@ -74,7 +74,7 @@ def test_http_errors_are_explained():
 
 # --- datos de prueba ----------------------------------------------------------------------------------
 
-def world(client, tmp_path, monkeypatch, *, linked=True, state="approved", final=True, seo_saved=True):
+def world(client, tmp_path, monkeypatch, *, linked=True, state="approved", final=True, seo_saved=True, draft=False):
     monkeypatch.setattr(get_settings(), "media_dir", tmp_path)
     h = _login(client)
     db = client.session_factory()
@@ -85,8 +85,12 @@ def world(client, tmp_path, monkeypatch, *, linked=True, state="approved", final
     video = storage.project_dir(user.id, project.id) / "clip_1" / "final.mp4"
     video.parent.mkdir(parents=True)
     video.write_bytes(b"mp4")
+    draft_video = video.with_name("draft.mp4")
+    if draft:
+        draft_video.write_bytes(b"borrador")
     clip = Clip(project_id=project.id, user_id=user.id, start=1.0, end=40.0, title="Título", hook="Gancho", status=state, transcript="hola",
-                rendered_path=storage.rel(video) if final else None, render_state=RenderState.FINAL if final else RenderState.NONE)
+                rendered_path=storage.rel(video) if final else None, draft_path=storage.rel(draft_video) if draft else None,
+                render_state=RenderState.FINAL if final else (RenderState.DRAFT if draft else RenderState.NONE))
     ch = YouTubeChannel(user_id=user.id, name="Spain Facts", language="es", yt_title="Spain facts", client_secret_enc=crypto.encrypt_json(SECRET),
                         token_enc=crypto.encrypt_json(TOKEN) if linked else None)
     db.add_all([clip, ch])
@@ -141,7 +145,7 @@ def test_upload_enqueues_a_job_marks_the_clip_and_never_uploads_twice_or_to_anot
     r = client.post(f"/api/clips/{clip.id}/upload", json={"channel_id": ch.id}, headers=h)
     assert r.status_code == 202
     job = db.query(Job).one()
-    assert job.type == "upload" and job.payload == {"clip_id": clip.id, "project_id": clip.project_id} and job.id == r.json()["job_id"]
+    assert job.type == "upload" and job.payload == {"clip_id": clip.id, "project_id": clip.project_id, "source": "final"} and job.id == r.json()["job_id"]
     db.refresh(clip)
     assert clip.status == "uploading" and client.get(f"/api/clips/{clip.id}").json()["upload_job_id"] == job.id
     assert "Ya se está subiendo" in client.post(f"/api/clips/{clip.id}/upload", json={"channel_id": ch.id}, headers=h).json()["detail"]
@@ -279,3 +283,44 @@ def test_job_refuses_a_channel_of_another_user(client, tmp_path, monkeypatch):
     db.commit()
     with pytest.raises(upload_job.UploadJobError, match="ya no existe"):
         run(client, db, clip, user, monkeypatch, FakeUploader())
+
+
+def test_the_draft_can_be_uploaded_without_a_final_render(client, tmp_path, monkeypatch):
+    h, db, clip, ch, user, video = world(client, tmp_path, monkeypatch, final=False, draft=True)
+    assert "render final" in client.post(f"/api/clips/{clip.id}/upload", json={"channel_id": ch.id}, headers=h).json()["detail"]      # por defecto, el final
+    r = client.post(f"/api/clips/{clip.id}/upload", json={"channel_id": ch.id, "source": "draft"}, headers=h)
+    assert r.status_code == 202
+    job = db.query(Job).one()
+    assert job.payload["source"] == "draft"
+    up = FakeUploader()
+    ctx = run(client, db, clip, user, monkeypatch, up)
+    assert up.calls[0]["video"].name == "draft.mp4" and clip.youtube_video_id == "VIDEO123"
+    assert "BORRADOR" in (get_settings().media_dir / "j.log").read_text()
+
+
+def test_draft_upload_needs_a_current_draft_and_a_valid_source(client, tmp_path, monkeypatch):
+    h, db, clip, ch, *_ = world(client, tmp_path, monkeypatch, final=False, draft=False)
+    assert "borrador vigente" in client.post(f"/api/clips/{clip.id}/upload", json={"channel_id": ch.id, "source": "draft"}, headers=h).json()["detail"]
+    assert client.post(f"/api/clips/{clip.id}/upload", json={"channel_id": ch.id, "source": "otro"}, headers=h).status_code == 422
+    assert db.query(Job).count() == 0
+
+
+def test_with_both_renders_the_final_is_the_default_and_the_draft_is_still_possible(client, tmp_path, monkeypatch):
+    h, db, clip, ch, user, video = world(client, tmp_path, monkeypatch, final=True, draft=True)
+    up = FakeUploader()
+    client.post(f"/api/clips/{clip.id}/upload", json={"channel_id": ch.id}, headers=h)
+    run(client, db, clip, user, monkeypatch, up)
+    assert up.calls[0]["video"].name == "final.mp4"
+
+
+def test_the_job_fails_clearly_if_the_draft_file_is_gone(client, tmp_path, monkeypatch):
+    h, db, clip, ch, user, _ = world(client, tmp_path, monkeypatch, state="uploading", final=False, draft=True)
+    (tmp_path / clip.draft_path).unlink()
+    monkeypatch.setattr(upload_job, "make_uploader", lambda: FakeUploader())
+    job = queue.enqueue(db, user.id, "upload", {"clip_id": clip.id, "project_id": clip.project_id, "source": "draft"})
+    claimed = queue.claim_next(db, "w")
+    ctx = JobContext(db=db, job_id=claimed.id, user_id=user.id, log_file=tmp_path / "j.log")
+    with pytest.raises(upload_job.UploadJobError, match="borrador en el disco"):
+        upload_job.upload(ctx, claimed.payload)
+    db.refresh(clip)
+    assert clip.status == "approved"

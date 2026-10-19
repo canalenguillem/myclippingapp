@@ -31,6 +31,10 @@ export default function YouTubePanel({ clip, dirty, onClip }: Props) {
   const uploading = clip.status === "uploading";
   const uploaded = clip.status === "uploaded" || !!clip.youtube_video_id;
   const hasFinal = clip.render_state === "final" && clip.has_final;
+  const hasDraft = clip.has_draft && (clip.render_state === "draft" || clip.render_state === "final");
+  // por defecto se sube el final; si solo hay borrador (540x960), se sube ese, avisando de la calidad
+  const [source, setSource] = useState<"final" | "draft">(hasFinal ? "final" : "draft");
+  const chosen: "final" | "draft" = source === "final" && !hasFinal ? "draft" : source === "draft" && !hasDraft ? "final" : source;
   const canEdit = clip.status === "approved" && !uploading;
 
   useEffect(() => { api<Channel[]>("/api/channels").then(setChannels).catch(() => setChannels([])); }, []);
@@ -82,16 +86,17 @@ export default function YouTubePanel({ clip, dirty, onClip }: Props) {
     const saved = await save();      // se sube lo que se ve: primero se guarda
     if (!saved) return;
     const when2 = saved.publish_at ? `se publicará el ${new Date(saved.publish_at.endsWith("Z") ? saved.publish_at : saved.publish_at + "Z").toLocaleString()}` : `quedará ${PRIVACY[saved.privacy].toLowerCase()}`;
-    if (!window.confirm(`¿Subir a YouTube?\n\nCanal: ${channel.yt_title ?? channel.name}\nTítulo: ${saved.seo_title}\n${when2}`)) return;
+    const quality = chosen === "draft" ? "\nVídeo: el BORRADOR (540×960, menos calidad que el final)" : "\nVídeo: el render final (1080×1920)";
+    if (!window.confirm(`¿Subir a YouTube?\n\nCanal: ${channel.yt_title ?? channel.name}\nTítulo: ${saved.seo_title}\n${when2}${quality}`)) return;
     setBusy("upload");
     try {
-      await api(`/api/clips/${clip.id}/upload`, { json: { channel_id: channel.id } });
+      await api(`/api/clips/${clip.id}/upload`, { json: { channel_id: channel.id, source: chosen } });
       onClip(await api<Clip>(`/api/clips/${clip.id}`));
     } catch (e) { fail(e); } finally { setBusy(""); }
   };
 
-  if (!hasFinal && !uploaded) {
-    return <section className="yt-panel"><h2>Subir a YouTube</h2><p className="muted hint">Primero aprueba el clip y haz el <strong>render final</strong>: es el vídeo que se sube.</p></section>;
+  if (!hasFinal && !hasDraft && !uploaded) {
+    return <section className="yt-panel"><h2>Subir a YouTube</h2><p className="muted hint">Primero renderiza el clip (un <strong>borrador</strong> para subirlo ya, o el <strong>render final</strong> para la mejor calidad).</p></section>;
   }
   if (clip.status !== "approved" && !uploading && !uploaded) {
     return <section className="yt-panel"><h2>Subir a YouTube</h2><p className="muted hint">Aprueba el clip para poder subirlo.</p></section>;
@@ -125,6 +130,14 @@ export default function YouTubePanel({ clip, dirty, onClip }: Props) {
             <p className="yt-warn">⚠ Este canal de la app se llama «{channel.name}», pero la cuenta conectada es el canal de YouTube «{channel.yt_title}». Si no es el que quieres, reconéctalo eligiendo la cuenta correcta en <Link to="/channels">Canales</Link>.</p>
           )}
           {channel && <p className="yt-target">Se subirá a: <strong>{channel.yt_title ?? channel.name}</strong></p>}
+          <fieldset className="yt-source" disabled={!canEdit}>
+            <legend>Vídeo que se sube</legend>
+            <label className="check"><input type="radio" name={`src${clip.id}`} checked={chosen === "final"} disabled={!hasFinal} onChange={() => setSource("final")} />
+              Render final (1080×1920){!hasFinal && " — aún no hay"}</label>
+            <label className="check"><input type="radio" name={`src${clip.id}`} checked={chosen === "draft"} disabled={!hasDraft} onChange={() => setSource("draft")} />
+              Borrador (540×960, menos calidad){!hasDraft && " — aún no hay"}</label>
+          </fieldset>
+          {chosen === "draft" && <p className="yt-warn">El borrador se ve más blando (la mitad de resolución y más compresión). Para el mejor resultado haz antes el «Render final».</p>}
           <div className="clip-actions">
             <button className="ghost" onClick={generate} disabled={!canEdit || channelId === null || busy !== ""}>{busy === "generate" ? "Generando…" : "Generar textos con IA"}</button>
           </div>
