@@ -150,3 +150,10 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 - Política de contenido: sin emojis de colectivos (tonos de piel, banderas salvo 🇪🇸); el prompt lo prohíbe y el código lo filtra.
 - Editor: botón «✨ Sugerir gráficos con IA» en el panel «Gráficos»; añade lo propuesto a la lista con su razón y se revisa, cambia o quita antes de guardar. Probado con el clip 31: 9 propuestas razonables. 420 tests.
 - **Deuda:** no tiene en cuenta el plano (caras) ni el contenido visual; las propuestas con imágenes de la librería dependen de que el nombre del asset encaje con la palabra.
+
+## Despliegue en la Debian de la LAN (2026-10-19)
+
+- Instalada en `192.168.1.75`, carpeta `~/code/clippingWill` (clon de GitHub por SSH), frontend en el puerto **8093** (`http://192.168.1.75:8093`). La API (18800) y el servicio de render (18910) solo escuchan en `127.0.0.1`. Instalación nueva y vacía (sin datos ni vídeos del equipo de desarrollo); `ALLOW_REGISTRATION=true` hasta que el usuario cree su cuenta, `FX_WORKERS=1` por la memoria (11 GB con otros servicios).
+- Conviven con otra copia antigua de la app (`intro_python_*`, puertos 5074/8800/8910): por eso los puertos de depuración son configurables en `.env`.
+- Actualizar: `cd ~/code/clippingWill && git pull --ff-only && docker compose up -d --build`. Copia de la BD: `docker compose exec -T mariadb sh -c 'mariadb-dump -uroot -p"$MARIADB_ROOT_PASSWORD" --single-transaction clipping' > backup.sql`.
+- Pendiente del usuario: publicar `clipp.enguillem.es` con su proxy hacia `192.168.1.75:8093`, cambiar `PUBLIC_BASE_URL` a https, y registrar el URI de OAuth de Google. Pendiente mío: límite de intentos de login antes de exponerla.
