@@ -208,3 +208,15 @@ def test_counter_strike_and_lower_third_are_saved_scheduled_and_validated(client
     assert [b["type"] for b in plan["beats"]] == ["counter", "strike", "lower_third"] and plan["beats"][0]["lead"] == 0.8
     for bad in ({"type": "counter", "at": 5}, {"type": "counter", "at": 5, "to_value": "x"}, {"type": "strike", "at": 5}, {"type": "lower_third", "at": 5, "name": " "}):
         assert client.patch(f"/api/clips/{c.id}", json={"graphics": [bad]}, headers=h).status_code == 422, bad
+
+
+def test_suggest_adds_the_name_label_of_a_named_speaker(client, tmp_path, monkeypatch):
+    from app.config import get_settings
+    h, db, p, ws = _words_project(client, tmp_path, monkeypatch)
+    monkeypatch.setattr(get_settings(), "openai_api_key", "")
+    p.speakers = {"A": {"name": "Ana López", "role": "periodista", "caption_style": "sans_upper", "is_source": False}}
+    db.commit()
+    c = _clip(db, p, 0.0, 30.0)
+    beats = client.post(f"/api/clips/{c.id}/graphics-plan/suggest", json={"graphics": []}, headers=h).json()["beats"]
+    lt = [b for b in beats if b["type"] == "lower_third"]
+    assert len(lt) == 1 and lt[0]["name"] == "Ana López" and lt[0]["role"] == "periodista" and lt[0]["at"] >= 2.6

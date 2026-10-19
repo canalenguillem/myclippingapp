@@ -204,7 +204,7 @@ def beat_from_model(raw: dict, words: list[dict], asset_ids: set[int]) -> dict |
 
 def plan(*, words: list[dict], duration: float, hook: str, assets: list[dict], existing: list[dict], cortinilla_at: float | None,
          single_lane: bool, llm: Callable[[str, str], dict | None] | None = default_llm,
-         maps: dict[str, int] | None = None) -> Plan:
+         maps: dict[str, int] | None = None, speakers: dict | None = None) -> Plan:
     """Propuesta ya programada: solo lo que cabe junto a lo que el usuario ya puso (que manda sobre lo propuesto)."""
     limit = max_beats(duration)
     asset_ids = {a["id"] for a in assets}
@@ -218,8 +218,9 @@ def plan(*, words: list[dict], duration: float, hook: str, assets: list[dict], e
         notes.append("No se pudo usar el modelo (¿falta la clave de OpenAI?) o no propuso nada: propuesta básica por palabras clave.")
         proposals = from_dictionary(words, duration, limit=limit)
     proposals += _map_beats(words, maps or {}, proposals)
+    proposals += speaker_beats(words, speakers or {})
     fixed = [{**b, "priority": 1000} for b in existing]           # lo del usuario manda: lo propuesto solo entra si cabe
-    scheduled = graphics_schedule.schedule(fixed + [{**p, "priority": graphics_schedule.PRIORITY_BY_TYPE.get(p["type"], 0)} for p in proposals],
+    scheduled = graphics_schedule.schedule(fixed + [{**p, "priority": p.get("priority", graphics_schedule.PRIORITY_BY_TYPE.get(p["type"], 0))} for p in proposals],
                                            duration, cortinilla_at=cortinilla_at, single_lane=single_lane)
     keep = {_key(b) for b in existing}
     reasons = {_key(p): p.get("reason", "") for p in proposals}
@@ -232,6 +233,37 @@ def plan(*, words: list[dict], duration: float, hook: str, assets: list[dict], e
     if dropped:
         notes.append(f"{dropped} propuesta{'s' if dropped != 1 else ''} no cabe{'n' if dropped != 1 else ''} (solapes, gancho o cortinilla).")
     return Plan(accepted[:limit], source, notes)
+
+
+LOWER_THIRD_MIN_START = 2.6   # tras el gancho (los primeros 2,2 s)
+LOWER_THIRD_MIN_TURN = 1.5    # el rótulo sale cuando el speaker lleva al menos esto hablando seguido
+LOWER_THIRD_PRIORITY = 8      # identificar a quien habla pesa más que un contador
+
+
+def speaker_beats(words: list[dict], speakers: dict) -> list[dict]:
+    """Un rótulo de nombre y cargo cuando empieza a hablar en serio cada speaker con nombre (turno de al menos 1,5 s, tras el gancho)."""
+    out: list[dict] = []
+    seen: set[str] = set()
+    run_start: float | None = None
+    run_first = 0
+    run_label: str | None = None
+    for i, w in enumerate(words):
+        label = w.get("speaker")
+        if label != run_label:
+            run_label, run_start, run_first = label, w["start"], i
+        if not label or label in seen:
+            continue
+        card = speakers.get(label) or {}
+        name = str(card.get("name") or "").strip()
+        if not name:
+            continue
+        first = next((words[j] for j in range(run_first, i + 1) if words[j]["start"] >= LOWER_THIRD_MIN_START), None)
+        if first is not None and w["end"] - (run_start or 0.0) >= LOWER_THIRD_MIN_TURN:
+            seen.add(label)
+            role = str(card.get("role") or "").strip()
+            out.append({"type": "lower_third", "at": round(first["start"], 3), "name": name[:40], **({"role": role[:60]} if role else {}),
+                        "priority": LOWER_THIRD_PRIORITY, "reason": f"«{name}» habla"})
+    return out
 
 
 MAX_MAP_BEATS = 4

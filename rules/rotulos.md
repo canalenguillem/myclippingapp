@@ -5,3 +5,5 @@
 - El golpe cae EN la palabra (el objeto llega acelerando, rebota y el plano tiembla) y el efecto final (explotar, vaporizar, partir) empieza en ese instante. Las entradas con recorrido necesitan más antelación: 0,7 s de media (la ventana sigue entre 0,3 y 0,8 s). La frase libre del editor solo elige piezas conocidas; no inventa animaciones.
 
 - Los gráficos (emojis, tarjetas, imágenes) nunca van sobre la banda de papel ni sobre los subtítulos: si la banda baja del corte (subtítulos quemados abajo), la zona de los gráficos empieza justo debajo de su borde inferior (`graphicZones(layout, bandBottom)`).
+
+- El rótulo de nombre y cargo sale una sola vez por speaker, al empezar su primer turno de al menos 1,5 s y nunca durante el gancho; los speakers sin nombre en su ficha no llevan rótulo.

@@ -566,7 +566,7 @@ def suggest_graphics(clip_id: int, body: PlanIn, user: User = Depends(current_us
     assets = [{"id": a.id, "name": a.name, "tags": a.tags or []} for a in db.scalars(select(Asset).where(Asset.user_id == user.id).order_by(Asset.id)).all()]
     maps = {name: a.id for name, a in map_library.existing(db, user.id).items()}
     result = graphics_planner.plan(words=words, duration=duration, hook=clip.hook, assets=assets, existing=_beats(body.graphics),
-                                   cortinilla_at=at, single_lane=(body.layout or clip.layout) == "full", maps=maps)
+                                   cortinilla_at=at, single_lane=(body.layout or clip.layout) == "full", maps=maps, speakers=project.speakers)
     clean = []
     for beat in result.beats:
         reason = beat.pop("reason", "")

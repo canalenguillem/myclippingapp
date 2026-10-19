@@ -215,3 +215,7 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 - Backend: `GraphicIn` (campos `from_value`, `to_value`, `prefix`, `suffix`, `label`, `name`, `role`), programador (los tres son «grandes»; el contador entra 0,8 s antes) y planner (el modelo puede proponer `counter` y `strike`; el rótulo de nombre automático es el siguiente punto).
 - Editor: botones «+ Contador», «+ Tachar», «+ Rótulo» y campos por tipo.
 - Verificado con un render real de prueba (fotogramas en cada motivo).
+
+## Rótulo de nombre automático
+
+- `graphics_planner.speaker_beats`: al sugerir gráficos, cada speaker con nombre recibe un `lower_third` (nombre + cargo de su ficha) cuando empieza un turno de ≥ 1,5 s, tras el gancho (≥ 2,6 s). Prioridad 8, por encima de contadores y mapas; es editable como cualquier gráfico. Sin nombre en la ficha, no hay rótulo.

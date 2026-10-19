@@ -150,3 +150,24 @@ def test_model_counter_and_strike_beats_are_validated():
         assert gp.beat_from_model({"word_index": 4, "motif": "counter", **bad}, ws, set()) is None, bad
     assert gp.beat_from_model({"word_index": 8, "motif": "strike", "text": " psoe "}, ws, set())["text"] == "PSOE"
     assert gp.beat_from_model({"word_index": 8, "motif": "strike", "text": " "}, ws, set()) is None
+
+
+def test_speaker_beats_name_each_known_speaker_once_after_the_hook_and_a_real_turn():
+    def w(text, start, speaker):
+        return {"text": text, "start": start, "end": start + 0.4, "speaker": speaker}
+    ws = [w("hola", 0.0, "A"), w("a", 0.5, "A"), w("todos", 1.0, "A"), w("sí", 1.5, "B"), w("claro", 2.0, "A"), w("vamos", 2.5, "A"),
+          w("con", 3.0, "A"), w("ello", 3.5, "A"), w("bien", 4.0, "B"), w("gracias", 4.5, "B"), w("mucho", 5.0, "B"), w("más", 5.5, "B")]
+    cards = {"A": {"name": "Ana López", "role": "periodista"}, "B": {"name": "", "role": ""}, "C": {"name": "Sin voz"}}
+    out = gp.speaker_beats(ws, cards)
+    assert out == [{"type": "lower_third", "at": 3.0, "name": "Ana López", "role": "periodista", "priority": 8, "reason": "«Ana López» habla"}]
+    assert gp.speaker_beats(ws, {"B": {"name": "Beto"}})[0]["at"] == 4.0           # B: turno real desde los 4,0 s, ya tras el gancho
+    assert gp.speaker_beats(ws, {}) == []
+
+
+def test_plan_includes_the_speaker_lower_third():
+    ws = words("uno dos tres cuatro cinco seis siete ocho nueve diez once doce trece catorce quince dieciséis", step=1.0)
+    for x in ws:
+        x["speaker"] = "A"
+    out = run(ws, lambda s, u: {"beats": []}, speakers={"A": {"name": "Ana López", "role": "periodista"}})
+    lt = [b for b in out.beats if b["type"] == "lower_third"]
+    assert len(lt) == 1 and lt[0]["name"] == "Ana López" and lt[0]["role"] == "periodista" and lt[0]["at"] >= 2.6
