@@ -120,3 +120,23 @@ def test_default_llm_needs_a_key(monkeypatch):
     from app.config import get_settings
     monkeypatch.setattr(get_settings(), "openai_api_key", "")
     assert gp.default_llm("s", "u") is None
+
+
+# --- mapas de países ------------------------------------------------------------------------------------
+
+def test_mentions_find_countries_multiword_names_and_europe():
+    from app.services import country_maps
+    ws = words("Francia y Estados Unidos hablan de Europa, pero los europeos y la India no. Otra vez Francia.")
+    assert [n for n, _ in country_maps.mentions(ws)] == ["Francia", "Estados Unidos", "Europa", "India"]   # una vez cada uno; «europeos» no es «Europa»
+    assert dict(country_maps.mentions(ws))["Francia"] == 0
+    assert country_maps.mentions(words("Nada de países aquí")) == []
+
+
+def test_plan_adds_the_map_at_the_first_mention_unless_the_model_already_did():
+    ws = words("Hoy hablamos hoy de Francia, que debe mucho dinero, y luego de Italia que tampoco paga nada y así seguimos hasta el final del vídeo.", step=1.0)
+    out = run(ws, lambda s, u: {"beats": []}, maps={"Francia": 7, "Italia": 8})
+    imgs = [b for b in out.beats if b["type"] == "image"]
+    assert [(b["asset_id"], b["at"], b["style"]) for b in imgs] == [(7, 4.0, "original"), (8, 12.0, "original")]
+    model = lambda s, u: {"beats": [{"word_index": 4, "motif": "image", "asset_id": 7, "style": "card", "reason": "mapa"}]}
+    out2 = run(ws, model, assets=[{"id": 7, "name": "Mapa de Francia", "tags": []}], maps={"Francia": 7})
+    assert [b["style"] for b in out2.beats if b["type"] == "image"] == ["card"]   # el del modelo no se duplica

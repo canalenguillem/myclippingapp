@@ -16,7 +16,7 @@ from app.jobs import queue
 from app.pipeline import ffops
 from app.services import clips as clips_service
 from app.services import cortinilla as cortinilla_service
-from app.services import fx_request, graphics_planner, graphics_schedule, seo as seo_service, media_sign, silences as silences_service, storage, transcription
+from app.services import country_maps, map_library, fx_request, graphics_planner, graphics_schedule, seo as seo_service, media_sign, silences as silences_service, storage, transcription
 
 router = APIRouter(tags=["clips"])
 
@@ -546,9 +546,13 @@ def suggest_graphics(clip_id: int, body: PlanIn, user: User = Depends(current_us
         raise HTTPException(409, "El recorte no tiene palabras transcritas")
     intro = clip.intro_enabled if body.intro_enabled is None else body.intro_enabled
     at = cortinilla_service.resolve_position(body.cortinilla_at, words, silences, duration) if intro else None
+    # los países que se nombran en el recorte tienen su mapa en la librería (se crean los que faltan)
+    mentioned = [name for name, _ in country_maps.mentions(words)][:graphics_planner.MAX_MAP_BEATS]
+    map_library.ensure(db, user.id, mentioned)
     assets = [{"id": a.id, "name": a.name, "tags": a.tags or []} for a in db.scalars(select(Asset).where(Asset.user_id == user.id).order_by(Asset.id)).all()]
+    maps = {name: a.id for name, a in map_library.existing(db, user.id).items()}
     result = graphics_planner.plan(words=words, duration=duration, hook=clip.hook, assets=assets, existing=_beats(body.graphics),
-                                   cortinilla_at=at, single_lane=(body.layout or clip.layout) == "full")
+                                   cortinilla_at=at, single_lane=(body.layout or clip.layout) == "full", maps=maps)
     clean = []
     for beat in result.beats:
         reason = beat.pop("reason", "")

@@ -98,6 +98,7 @@ Cada beat: {"word_index": <índice de la palabra gancho>, "motif": "emoji" | "ke
 - keyword: {"text": "<1-3 palabras CLAVE en mayúsculas, ej. DEUDA>"} (tarjeta de texto; úsala poco, para una cifra o una idea).
 - image: {"asset_id": <id de la lista de imágenes>, "style": "original" | "card" | "silhouette" | "red", "entry": "pop" | "punch" | "drop" | "slide_left" | "slide_right" | "slide_top", "effect": "pop" | "vaporize" | "break" | "explode"}.
   Solo si el nombre de la imagen encaja con lo que se dice; nunca inventes un asset_id.
+  Las imágenes «Mapa de X» son el mapa de ese país: úsalas con style "original" justo cuando se nombra el país (y «Mapa de Europa» cuando se habla de Europa en general).
 Reglas:
 - Como máximo {MAX} beats, repartidos por todo el clip (≈ uno cada 5-6 s, nunca dos seguidos). El primero, pasados los 2,5 s.
 - La acción cae EN la palabra gancho: elige la palabra del objeto o la idea (p. ej. «pensionistas», «petado», «deuda»), no una conjunción.
@@ -185,7 +186,8 @@ def beat_from_model(raw: dict, words: list[dict], asset_ids: set[int]) -> dict |
 
 
 def plan(*, words: list[dict], duration: float, hook: str, assets: list[dict], existing: list[dict], cortinilla_at: float | None,
-         single_lane: bool, llm: Callable[[str, str], dict | None] | None = default_llm) -> Plan:
+         single_lane: bool, llm: Callable[[str, str], dict | None] | None = default_llm,
+         maps: dict[str, int] | None = None) -> Plan:
     """Propuesta ya programada: solo lo que cabe junto a lo que el usuario ya puso (que manda sobre lo propuesto)."""
     limit = max_beats(duration)
     asset_ids = {a["id"] for a in assets}
@@ -198,6 +200,7 @@ def plan(*, words: list[dict], duration: float, hook: str, assets: list[dict], e
         source = "plan_b"
         notes.append("No se pudo usar el modelo (¿falta la clave de OpenAI?) o no propuso nada: propuesta básica por palabras clave.")
         proposals = from_dictionary(words, duration, limit=limit)
+    proposals += _map_beats(words, maps or {}, proposals)
     fixed = [{**b, "priority": 1000} for b in existing]           # lo del usuario manda: lo propuesto solo entra si cabe
     scheduled = graphics_schedule.schedule(fixed + [{**p, "priority": graphics_schedule.PRIORITY_BY_TYPE.get(p["type"], 0)} for p in proposals],
                                            duration, cortinilla_at=cortinilla_at, single_lane=single_lane)
@@ -212,6 +215,27 @@ def plan(*, words: list[dict], duration: float, hook: str, assets: list[dict], e
     if dropped:
         notes.append(f"{dropped} propuesta{'s' if dropped != 1 else ''} no cabe{'n' if dropped != 1 else ''} (solapes, gancho o cortinilla).")
     return Plan(accepted[:limit], source, notes)
+
+
+MAX_MAP_BEATS = 4
+MAP_MIN_START = 2.5          # el gancho ocupa los primeros 2,2 s: la primera mención posterior es la que lleva mapa
+
+
+def _map_beats(words: list[dict], maps: dict[str, int], proposals: list[dict]) -> list[dict]:
+    """Un mapa en la primera mención de cada país (los que el modelo no haya puesto ya), hasta MAX_MAP_BEATS."""
+    from app.services import country_maps
+
+    taken = {p.get("asset_id") for p in proposals if p["type"] == "image"}
+    out: list[dict] = []
+    for name, index in country_maps.mentions(words, MAP_MIN_START):
+        asset_id = maps.get(name)
+        if asset_id is None or asset_id in taken:
+            continue
+        out.append({"type": "image", "at": round(words[index]["start"], 3), "asset_id": asset_id, "style": "original",
+                    "reason": f"«{words[index]['text'].strip('.,;:!?¿¡')}» → mapa de {name}"})
+        if len(out) >= MAX_MAP_BEATS:
+            break
+    return out
 
 
 def _key(beat: dict) -> tuple:

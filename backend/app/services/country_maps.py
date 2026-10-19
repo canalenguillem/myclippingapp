@@ -169,3 +169,38 @@ def render(country_es: str) -> bytes:
     out = io.BytesIO()
     img.save(out, "PNG")
     return out.getvalue()
+
+
+ALIASES = {"eeuu": "Estados Unidos", "bosnia": "Bosnia y Herzegovina", "macedonia": "Macedonia del Norte", "holanda": "Países Bajos",
+           "inglaterra": "Reino Unido", "gran bretaña": "Reino Unido", "checa": "República Checa", "chequia": "República Checa"}
+
+
+def _norm(text: str) -> str:
+    import re
+    import unicodedata
+
+    plain = "".join(c for c in unicodedata.normalize("NFD", text.lower()) if unicodedata.category(c) != "Mn")
+    return re.sub(r"[^a-z0-9ñ ]", "", plain).strip()
+
+
+@lru_cache(maxsize=1)
+def _phrases() -> list[tuple[tuple[str, ...], str]]:
+    """(palabras normalizadas, nombre) de todo lo que se reconoce en un texto; las frases largas primero."""
+    items = {_norm(n): n for n in [*NAMES, CONTINENT]}
+    items.update({_norm(a): n for a, n in ALIASES.items()})
+    return sorted(((tuple(k.split()), v) for k, v in items.items()), key=lambda kv: -len(kv[0]))
+
+
+def mentions(words: list[dict], min_start: float = 0.0) -> list[tuple[str, int]]:
+    """Países (y «Europa») nombrados en las palabras del clip: [(nombre, índice de su primera mención desde `min_start`)] en orden."""
+    tokens = [_norm(w["text"]) for w in words]
+    found: dict[str, int] = {}
+    for i in range(len(tokens)):
+        if words[i]["start"] < min_start:
+            continue
+        for phrase, name in _phrases():
+            n = len(phrase)
+            if tuple(tokens[i:i + n]) == phrase:
+                found.setdefault(name, i)
+                break
+    return sorted(found.items(), key=lambda kv: kv[1])

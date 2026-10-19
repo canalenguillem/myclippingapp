@@ -12,7 +12,7 @@ from app.auth.deps import current_user, get_owned
 from app.db import get_db
 from app.db.models import Asset, BrandTemplate, Clip, User
 from app.services import assets as assets_service
-from app.services import country_maps
+from app.services import country_maps, map_library
 from app.services import media_sign, storage
 
 router = APIRouter(prefix="/api/assets", tags=["assets"])
@@ -74,25 +74,10 @@ def add_country_maps(body: MapsIn, user: User = Depends(current_user), db: Sessi
     unknown = [n for n in names if n not in country_maps.names()]
     if unknown:
         raise HTTPException(422, f"País desconocido: {', '.join(unknown)}")
-    have = {a.source for a in db.scalars(select(Asset).where(Asset.user_id == user.id, Asset.kind == "map")).all()}
-    todo = [n for n in names if f"country:{n}" not in have]
-    total = len(db.scalars(select(Asset.id).where(Asset.user_id == user.id)).all())
-    if total + len(todo) > MAX_ASSETS:
-        raise HTTPException(409, f"Superarías el máximo de {MAX_ASSETS} imágenes: borra alguna")
-    folder = storage.media_root() / f"u{user.id}" / "assets"
-    folder.mkdir(parents=True, exist_ok=True)
-    created: list[Asset] = []
-    for name in todo:
-        png, width, height = assets_service.process_upload(country_maps.render(name))
-        asset = Asset(user_id=user.id, kind="map", name=f"Mapa de {name}", tags=["mapa", name.lower()], source=f"country:{name}",
-                      license_note="Natural Earth (dominio público) vía world-atlas", width=width, height=height, size_bytes=len(png))
-        db.add(asset)
-        db.commit()
-        target = folder / f"{asset.id}.png"
-        target.write_bytes(png)
-        asset.path = storage.rel(target)
-        db.commit()
-        created.append(asset)
+    try:
+        created = map_library.ensure(db, user.id, names, strict=True)
+    except map_library.LibraryFull as exc:
+        raise HTTPException(409, str(exc)) from exc
     return [_out(a) for a in created]
 
 

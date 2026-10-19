@@ -13,10 +13,15 @@ export function graphicWindow(item, clipDuration) {
  * abajo es una copia difuminada del vídeo (la hace ffmpeg) y las dos comparten ese hueco bajo la banda de papel. En ambos
  * casos por encima del 15 % inferior que tapa la interfaz de Shorts (y ≥ 1632).
  */
-export function graphicZones(layout) {
-  if (layout.mode !== "full") return { card: 1290, strip: 1100 };
-  const topH = Math.floor((1920 * layout.top_ratio) / 2) * 2;
-  return { card: Math.min(topH + 70, 1632 - 230), strip: Math.min(topH + 85, 1632 - 200) };
+export function graphicZones(layout, bandBottom = 0) {
+  const base = layout.mode !== "full"
+    ? { card: 1290, strip: 1100 }
+    : (() => {
+        const topH = Math.floor((1920 * layout.top_ratio) / 2) * 2;
+        return { card: Math.min(topH + 70, 1632 - 230), strip: Math.min(topH + 85, 1632 - 200) };
+      })();
+  // Si la banda de papel (subtítulos) está más abajo que el corte, los gráficos van debajo de ella y no sobre los subtítulos.
+  return { card: Math.min(Math.max(base.card, bandBottom + 12), 1632 - 230), strip: Math.min(Math.max(base.strip, bandBottom + 12), 1632 - 200) };
 }
 
 export function graphicsLayer({ items, map, clipDuration, zones = graphicZones({ mode: "split" }), files = {} }) {

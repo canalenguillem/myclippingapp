@@ -79,7 +79,7 @@ export function buildProject({ request, video, workDir, orbit = null, images = {
     copyFileSync(abs, join(workDir, name));
     gfxFiles[rel] = name;
   });
-  const graphics = graphicsLayer({ items: request.graphics, map, clipDuration: duration, zones: graphicZones(layout), files: gfxFiles });
+  const graphics = graphicsLayer({ items: request.graphics, map, clipDuration: duration, zones: graphicZones(layout, preset.band ? core.y1 + ROOM : 0), files: gfxFiles });
   const treatment = treatmentLayer({ intervals: sourceSpans });
   let orbitFile = null;
   if (C && orbit) {

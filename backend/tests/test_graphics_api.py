@@ -172,8 +172,11 @@ def test_suggest_returns_anchored_scheduled_proposals_and_saves_nothing(client, 
     out = r.json()
     assert out["source"] == "plan_b" and out["notes"] and 0 < len(out["beats"]) <= out["max_beats"] == 5
     starts = {round(w["start"], 3) for w in ws}
-    assert all(b["at"] in starts and b["reason"] and b["type"] == "emoji" for b in out["beats"])
-    assert {b["emoji"] for b in out["beats"]} & {"🧓", "💥", "💸"}
+    assert all(b["at"] in starts and b["reason"] and b["type"] in ("emoji", "image") for b in out["beats"])
+    assert {b.get("emoji") for b in out["beats"]} & {"🧓", "💥", "💸"}
+    maps = [b for b in out["beats"] if b["type"] == "image"]                                # el texto nombra España: su mapa entra solo
+    assert len(maps) == 1 and "mapa de España" in maps[0]["reason"] and maps[0]["style"] == "original"
+    assert [a["name"] for a in client.get("/api/assets").json()] == ["Mapa de España"]
     db.refresh(c)
     assert c.graphics_json == []                                                           # no guarda nada
 

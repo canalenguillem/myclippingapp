@@ -201,3 +201,10 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 - API: `GET /api/assets/maps/countries` y `POST /api/assets/maps {countries}` (crea assets `kind="map"` «Mapa de X», sin duplicar). UI: sección «Mapas de países» en la librería del panel de gráficos. Sirven como imagen en un gráfico o como objeto que orbita (Plantillas).
 - Tests en `tests/test_assets_api.py` (todos los países renderizan).
 - «Europa» (continente entero en rojo, vecinos tenues) en la lista de mapas; los anillos que cruzan el antimeridiano (Rusia) se desenvuelven.
+
+## El planner pone los mapas de los países
+
+- `country_maps.mentions(words, min_start)` reconoce países (nombres de varias palabras, alias como EEUU, y «Europa») en las palabras del clip. «europeos» no cuenta.
+- `POST /api/clips/{id}/graphics-plan/suggest` crea en la librería los mapas que falten de los países nombrados (hasta 4; `services/map_library.py`) y el planner pone el mapa (`style original`) en la primera mención posterior al gancho (≥ 2,5 s), salvo que el modelo ya haya puesto esa imagen. El prompt del modelo también sabe qué son las imágenes «Mapa de X».
+- Efecto secundario: sugerir gráficos puede añadir mapas a la librería del usuario.
+- Arreglo (clip 42): los emojis caían sobre los subtítulos cuando la banda iba más abajo que el corte. `graphicZones` recibe ahora el borde inferior de la banda y coloca los gráficos debajo.

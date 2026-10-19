@@ -106,6 +106,9 @@ test("builder: una escena de emoji compone, pasa el linter y no nombra fuentes s
 test("zonas de los gráficos: fijas en split; en full cuelgan de la parte nítida y no pasan del 15 % inferior de Shorts", () => {
   assert.deepEqual(graphicZones({ mode: "split", top_ratio: 0.5 }), { card: 1290, strip: 1100 });
   assert.deepEqual(graphicZones({ mode: "full", top_ratio: 0.66 }), { card: 1336, strip: 1351 });
+  // banda de papel más abajo que el corte (subtítulos quemados abajo): los gráficos van por debajo de ella, sin tapar los subtítulos
+  assert.deepEqual(graphicZones({ mode: "split", top_ratio: 0.5 }, 1360), { card: 1372, strip: 1372 });
+  assert.deepEqual(graphicZones({ mode: "split", top_ratio: 0.5 }, 1000), { card: 1290, strip: 1100 });   // banda alta: no cambia nada
   const low = graphicZones({ mode: "full", top_ratio: 0.9 });
   assert.ok(low.card + 230 <= 1632 && low.strip + 200 <= 1632);
   const request = parseRequest({ ...base, layout: { mode: "full", top_ratio: 0.66 }, graphics: [kw({ at: 5 })] });
