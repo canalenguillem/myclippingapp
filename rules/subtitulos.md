@@ -2,3 +2,5 @@
 - Al asignar speakers, el usuario necesita ver y oír el vídeo mientras lee: la transcripción va con un reproductor sincronizado (palabra que suena iluminada, «habla ahora»). Los hablantes que ya usó en otros vídeos se ofrecen con su cargo para no reescribirlos. (Petición del usuario, 2026-10-19.)
 
 - En pantalla completa (abajo difuminado) los subtítulos van siempre en una banda justo bajo la parte nítida, en la zona difuminada, aunque el vídeo original traiga subtítulos quemados (no se detectan): así no tapan caras. Los demás gráficos van debajo de la banda.
+
+- «Clip citado (B/N)» se marca a mano, speaker a speaker y vídeo a vídeo: al elegir a alguien de «mis otros vídeos» solo se copian nombre, cargo y estilo de subtítulo, nunca esa casilla. Un speaker principal marcado como citado pone todo el vídeo en blanco y negro.

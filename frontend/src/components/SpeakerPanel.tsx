@@ -21,8 +21,8 @@ export default function SpeakerPanel({ speakers, onSave, projectId, speakingNow 
   const dirty = JSON.stringify(draft) !== JSON.stringify(speakers);
   const set = (label: string, patch: Partial<Speaker>) => setDraft((d) => ({ ...d, [label]: { ...d[label], ...patch } }));
 
-  // Rellena nombre, cargo, estilo y «clip citado» con alguien que ya has usado en otro vídeo.
-  const useKnown = (label: string, k: KnownSpeaker) => set(label, { name: k.name, role: k.role, caption_style: k.caption_style, is_source: k.is_source });
+  // Rellena nombre, cargo y estilo con alguien que ya has usado en otro vídeo.
+  const useKnown = (label: string, k: KnownSpeaker) => set(label, { name: k.name, role: k.role, caption_style: k.caption_style });   // «clip citado» (B/N) depende del vídeo, no de la persona: no se copia
   const byName = (name: string) => known.find((k) => k.name.toLowerCase() === name.trim().toLowerCase());
   const taken = new Set(Object.values(draft).map((c) => c.name.trim().toLowerCase()).filter(Boolean));
 
@@ -50,7 +50,7 @@ export default function SpeakerPanel({ speakers, onSave, projectId, speakingNow 
               const name = e.target.value;
               const k = byName(name);
               // al escribir (o elegir de la lista) el nombre exacto de alguien conocido, se completa lo que aún esté vacío
-              set(label, k && !draft[label].role ? { name: k.name, role: k.role, caption_style: k.caption_style, is_source: k.is_source } : { name });
+              set(label, k && !draft[label].role ? { name: k.name, role: k.role, caption_style: k.caption_style } : { name });
             }} />
           <input placeholder="Cargo" value={draft[label].role} maxLength={120} onChange={(e) => set(label, { role: e.target.value })} />
           <select value={draft[label].caption_style} onChange={(e) => set(label, { caption_style: e.target.value as CaptionStyle })}>
