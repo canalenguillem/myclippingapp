@@ -163,3 +163,9 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 - Copiados a `192.168.1.75:~/code/clippingWill`: la base de datos entera (1 usuario, 1 proyecto, 10 clips, 3 imágenes, 1 canal, 1 plantilla), la carpeta `media/` (60 ficheros, 689 MB; sin `media/ref`) y las **mismas `APP_ENCRYPTION_KEY` y `JWT_SECRET`** del equipo de desarrollo, por lo que el `client_secret` y el token de YouTube se descifran y el canal sigue conectado. `PUBLIC_BASE_URL=https://clipp.enguillem.es` y `ALLOW_REGISTRATION=false`. Copia del volcado en `~/code/clippingWill/backups/` (permisos 600).
 - Las dos instancias (desarrollo y Debian) comparten el mismo canal y token de YouTube: no pasa nada por renovar el acceso desde las dos, pero conviene trabajar en una sola para no duplicar subidas.
 - La carpeta `media/` de la Debian es del usuario `guillem` (la dejó creada Docker como root; se reasignó con un contenedor).
+
+## Límite de intentos de login (2026-10-19)
+
+- Ventana deslizante de 15 min guardada en la BD (`login_failures`, migración 0007): **5 fallos por email** y **20 por IP** bloquean con 429 y `Retry-After`; durante el bloqueo ni se comprueba la contraseña; el bloqueo caduca solo; un login correcto borra los fallos de ese email; un email inexistente se cuenta igual (no se revela si existe). Ajustable con `LOGIN_WINDOW_SECONDS`, `LOGIN_MAX_PER_EMAIL`, `LOGIN_MAX_PER_IP`.
+- IP real: solo se confía en `X-Forwarded-For` si el vecino TCP es de una red de confianza (privada, loopback, CGNAT); se recorre de derecha a izquierda y manda la primera dirección no privada, así que una IP falseada a la izquierda no sirve. Llegando directo desde fuera, la cabecera se ignora.
+- F8 verificada con Google real por el usuario (subida automática a su canal funciona). 439 tests.

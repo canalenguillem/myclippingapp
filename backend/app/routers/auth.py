@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.auth import ratelimit
 from app.auth.deps import CSRF_COOKIE, SESSION_COOKIE, current_user
 from app.auth.security import SESSION_TTL, hash_password, make_session_token, new_csrf, verify_password
 from app.config import get_settings
@@ -63,11 +64,15 @@ def register(body: RegisterIn, response: Response, db: Session = Depends(get_db)
 
 
 @router.post("/login", response_model=UserOut)
-def login(body: Credentials, response: Response, db: Session = Depends(get_db)):
-    user = db.scalar(select(User).where(User.email == body.email.lower()))
+def login(body: Credentials, request: Request, response: Response, db: Session = Depends(get_db)):
+    email, ip = body.email.lower(), ratelimit.client_ip(request)
+    ratelimit.check(db, email, ip)                       # bloqueado: ni se comprueba la contraseña
+    user = db.scalar(select(User).where(User.email == email))
     ok = verify_password(body.password, user.password_hash if user else _DUMMY_HASH)
     if not user or not ok or not user.is_active:
+        ratelimit.record_failure(db, email, ip)
         raise HTTPException(401, "Email o contrasena incorrectos")
+    ratelimit.clear_email(db, email)
     _set_session(response, user)
     return user
 

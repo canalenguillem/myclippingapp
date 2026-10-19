@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     jwt_secret: str = ""
     app_encryption_key: str = ""
     allow_registration: bool = True
+    login_window_seconds: int = 900         # ventana del límite de intentos de login
+    login_max_per_email: int = 5            # fallos por email en la ventana
+    login_max_per_ip: int = 20              # fallos por IP en la ventana (más holgado: varias personas pueden compartir IP)
     public_base_url: str = "http://localhost:5074"
 
     openai_api_key: str = ""

@@ -217,3 +217,14 @@ class Asset(Base):
     height: Mapped[int] = mapped_column(Integer, default=0)
     size_bytes: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=_now())
+
+
+class LoginFailure(Base):
+    """Un intento de login fallido, para el límite de intentos (ventana deslizante por email y por IP)."""
+
+    __tablename__ = "login_failures"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String(255), index=True)
+    ip: Mapped[str] = mapped_column(String(45), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, index=True)
