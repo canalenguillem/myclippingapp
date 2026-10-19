@@ -156,3 +156,31 @@ input[type="range"] { padding: 0; }
 .turn.now { background: rgba(218, 46, 9, .08); }
 button.ts-btn { background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline dotted; color: var(--accent); }
 .speaker-card.speaking { box-shadow: 0 0 0 2px var(--accent); }
+
+/* --- móvil --- */
+select, input, textarea { max-width: 100%; min-width: 0; }
+@media (max-width: 760px) {
+  .page { margin: 2vh auto; padding: 0 12px; }
+  .bar { flex-wrap: wrap; gap: 8px; }
+  .bar h1 { flex: 1 1 100%; font-size: 1.3rem; overflow-wrap: anywhere; }
+  button { padding: 12px 14px; }                      /* objetivos táctiles más grandes */
+  button.ghost { padding: 8px 12px; }
+  .editor { gap: 16px; }
+  .editor-video, .tpl-preview { position: static; }
+  .editor-video video { max-height: 55vh; }
+  .grid2 { grid-template-columns: 1fr; }              /* Diseño y Encuadre uno bajo otro: sus textos son largos */
+  .trim { grid-template-columns: 1fr; }
+  .nudge { flex-wrap: wrap; }
+  /* cada gráfico es una tarjeta, no una fila suelta */
+  .gfx-list { gap: 12px; }
+  .gfx-list li { padding: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+  .gfx-list li > select { flex: 1 1 40%; }
+  .gfx-text, .gfx-describe input { flex: 1 1 100%; min-width: 0; }
+  .gfx-timeline { height: 76px; }
+  .speaker-card { width: 100%; }
+  .gfx-add button { flex: 1 1 auto; }
+  .yt-panel, .gfx-panel { max-width: 100%; }
+  .clip-actions button, .clip-actions a.btn { flex: 1 1 auto; text-align: center; }
+  table { display: block; overflow-x: auto; }
+  .transcript { max-height: 50vh; }
+}
