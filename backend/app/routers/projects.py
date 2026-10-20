@@ -148,6 +148,25 @@ def retranscribe(
     return JobRef(job_id=queue.enqueue(db, user.id, "ingest", payload).id)
 
 
+@router.post("/{project_id}/retry", response_model=JobRef, status_code=202)
+def retry_project(project_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Reintenta un proyecto que falló (sin créditos de OpenAI, red caída…): si ya tiene transcripción, solo vuelve a detectar los
+    clips; si no, repite la descarga y la transcripción desde el principio."""
+    project = get_owned(db, Project, project_id, user)
+    if project.status is not ProjectStatus.FAILED:
+        raise HTTPException(409, "Solo se pueden reintentar los proyectos que han fallado")
+    if queue.active_job(db, user.id, project.id):
+        raise HTTPException(409, "Hay un job en marcha para este proyecto")
+    if project.words_path:
+        project.status, project.error = ProjectStatus.DETECTING, None
+        job = queue.enqueue(db, user.id, "detect", {"project_id": project.id, "clips_per_part": 5, "target_dur": 40})
+    else:
+        project.status, project.error = ProjectStatus.DOWNLOADING, None
+        job = queue.enqueue(db, user.id, "ingest", {"project_id": project.id, "language": "auto"})
+    db.commit()
+    return JobRef(job_id=job.id)
+
+
 @router.get("/{project_id}/video-url")
 def video_url(project_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     """URL firmada y con caducidad del vídeo fuente, para reproducirlo en el navegador."""

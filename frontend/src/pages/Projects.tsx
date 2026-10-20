@@ -57,6 +57,15 @@ export default function Projects() {
     } catch (err) { setError((err as Error).message); }
   };
 
+  const retry = async (p: Project) => {
+    setError(""); setNotice("");
+    try {
+      await api(`/api/projects/${p.id}/retry`, { method: "POST" });
+      setNotice(`Reintentando «${p.title}»…`);
+      refresh();
+    } catch (err) { setError((err as Error).message); }
+  };
+
   const remove = async (p: Project) => {
     if (!confirm(`¿Borrar «${p.title}» y todos sus ficheros?`)) return;
     try {
@@ -101,6 +110,7 @@ export default function Projects() {
               <td className="muted">{(() => { const u = disk?.projects.find((x) => x.id === p.id); return u ? fmtBytes(u.bytes) : "—"; })()}</td>
               <td>
                 {(() => { const u = disk?.projects.find((x) => x.id === p.id); return u && u.heavy_bytes > 0 ? <button className="ghost" disabled={BUSY.has(p.status)} onClick={() => free(p, u.heavy_bytes)} title="Borra el vídeo original y los renders (se regeneran)">Liberar {fmtBytes(u.heavy_bytes)}</button> : null; })()}
+                {p.status === "failed" && <button onClick={() => retry(p)} title="Vuelve a intentarlo: si ya hay transcripción, solo detecta los clips otra vez">Reintentar</button>}
                 {" "}<button className="ghost" disabled={BUSY.has(p.status)} onClick={() => remove(p)}>Borrar</button>
               </td>
             </tr>

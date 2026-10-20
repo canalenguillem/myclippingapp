@@ -77,3 +77,24 @@ def test_storage_endpoints_report_sizes_free_and_cannot_touch_other_users(client
     hb = _login(other, "b@x.com")
     assert other.post(f"/api/projects/{p.id}/free-space", headers=hb).status_code == 404
     assert other.get("/api/storage").json()["projects"] == []
+
+
+def test_retry_a_failed_project_redetects_or_restarts_by_whether_it_has_a_transcription(client, tmp_path, monkeypatch):
+    from app.db.models import Job, ProjectStatus
+    h, db, p, c, folder = world(client, tmp_path, monkeypatch)
+    assert client.post(f"/api/projects/{p.id}/retry", headers=h).status_code == 409                 # no ha fallado
+    p.status, p.error = ProjectStatus.FAILED, "DetectionError: sin créditos"
+    p.words_path = storage.rel(folder / "words.json")
+    db.commit()
+    r = client.post(f"/api/projects/{p.id}/retry", headers=h)
+    assert r.status_code == 202
+    job = db.get(Job, r.json()["job_id"])
+    assert job.type == "detect" and job.payload["project_id"] == p.id
+    db.refresh(p)
+    assert p.status is ProjectStatus.DETECTING and p.error is None
+    assert client.post(f"/api/projects/{p.id}/retry", headers=h).status_code == 409                 # ya no está fallado
+    p.status, p.words_path = ProjectStatus.FAILED, None
+    db.execute(Job.__table__.update().values(status="completed"))
+    db.commit()
+    job2 = db.get(Job, client.post(f"/api/projects/{p.id}/retry", headers=h).json()["job_id"])
+    assert job2.type == "ingest" and job2.payload == {"project_id": p.id, "language": "auto"}
