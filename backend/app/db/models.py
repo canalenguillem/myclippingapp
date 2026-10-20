@@ -153,6 +153,7 @@ class Clip(Base):
     )
     layout: Mapped[str] = mapped_column(String(16), default="split")  # split | full | facecam
     focus: Mapped[str] = mapped_column(String(16), default="center")
+    auto_publish: Mapped[str | None] = mapped_column(String(16), nullable=True)  # public | unlisted | private: se publica sola al acabar el render final
     zoom: Mapped[float] = mapped_column(Float, default=1.0)
     top_ratio: Mapped[float] = mapped_column(Float, default=0.5)
     # Estado editorial: detected | approved | uploading | uploaded | failed. El render va en `render_state`.

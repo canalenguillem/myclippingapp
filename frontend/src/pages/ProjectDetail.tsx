@@ -238,7 +238,11 @@ export default function ProjectDetail() {
         {project?.status === "detecting" && <p className="muted">Detectando clips…</p>}
         <div className="clip-grid">
           {clips.map((c) => (
-            <ClipCard key={c.id} clip={c} onApprove={() => clipAction(c, "approve")} onUnapprove={() => clipAction(c, "unapprove")} onDelete={() => deleteClip(c)} />
+            <ClipCard key={c.id} clip={c} onApprove={() => clipAction(c, "approve")} onUnapprove={() => clipAction(c, "unapprove")} onDelete={() => deleteClip(c)} hasChannel={project?.default_channel_id != null || c.channel_id !== null}
+              onAutoPublish={async (privacy) => {
+                try { await api(`/api/clips/${c.id}/auto-publish`, { method: "PUT", json: { privacy } }); await loadClips(); setNotice(privacy ? "Se publicará solo al terminar el render: genera el SEO y sube el vídeo." : "Ya no se publicará solo."); }
+                catch (e) { fail(e); }
+              }} />
           ))}
         </div>
         {clips.length === 0 && project?.status !== "detecting" && <p className="muted">Aún no hay clips.</p>}

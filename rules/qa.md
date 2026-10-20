@@ -5,3 +5,5 @@
 - Las caras de los monigotes se preparan en la pestaña «Imágenes»: quitar fondo y recorte en óvalo o círculo, de frente y con la cara centrada; una foto con el fondo sin quitar se recorta en círculo pero se ve peor.
 
 - Un render de un proyecto limpiado tarda lo que la descarga del vídeo original más el render: el log del job debe decir «descargándolo de nuevo»; si YouTube ya no sirve el vídeo, el render falla con un mensaje claro (no se queda colgado).
+
+- La publicación automática en YouTube solo sale si la revisión automática del render final no encuentra fallos (duración, audio, pantalla negra, gráficos solapados); con fallos se queda sin publicar y con el motivo a la vista. Público es una elección explícita del usuario clip a clip, nunca un valor por defecto de la app.

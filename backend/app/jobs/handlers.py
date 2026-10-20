@@ -191,7 +191,24 @@ def detect(ctx: JobContext, payload: dict) -> None:
         raise
 
 
+def publish(ctx: JobContext, payload: dict) -> None:
+    """Job `publish`: tras el render final de un clip con publicación automática, genera el SEO y encola la subida."""
+    from app.db.models import Clip
+    from app.services import publish as publish_service
+
+    clip = ctx.db.get(Clip, int(payload["clip_id"]))
+    if clip is None or clip.user_id != ctx.user_id:
+        raise RuntimeError("Clip no encontrado")
+    try:
+        publish_service.publish_now(ctx.db, clip, ctx.log)
+    except publish_service.PublishBlocked as exc:
+        # el clip sigue aprobado y con su render: queda el motivo a la vista y la publicación automática se apaga
+        clip.auto_publish, clip.upload_error = None, str(exc)[:2000]
+        ctx.db.commit()
+        ctx.log(f"No se publica: {exc}")
+
+
 from .render import render  # noqa: E402  (al final: render importa este paquete)
 from .upload import upload  # noqa: E402
 
-HANDLERS: dict[str, Handler] = {"demo": demo, "ingest": ingest, "detect": detect, "render": render, "upload": upload}
+HANDLERS: dict[str, Handler] = {"demo": demo, "ingest": ingest, "detect": detect, "render": render, "upload": upload, "publish": publish}

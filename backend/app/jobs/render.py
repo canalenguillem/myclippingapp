@@ -297,6 +297,9 @@ def render(ctx: JobContext, payload: dict) -> None:
         clip.render_error = "Aviso: " + "; ".join(notes) if notes else None
         db.commit()
         ctx.log("Render terminado")
+        if not draft and clip.auto_publish and clip.status == "approved":
+            queue.enqueue(db, ctx.user_id, "publish", {"clip_id": clip.id, "project_id": clip.project_id})
+            ctx.log("Publicación automática: generando textos y subiendo a YouTube")
     except Cancelled:
         clip.render_state, clip.render_error = clips_service.settled_state(clip), None
         db.commit()

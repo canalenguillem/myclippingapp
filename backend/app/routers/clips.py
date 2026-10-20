@@ -58,6 +58,7 @@ class ClipOut(BaseModel):
     youtube_video_id: str | None
     uploaded_at: datetime | None
     upload_error: str | None
+    auto_publish: str | None = None
     status: str
     render_state: str
     has_draft: bool
@@ -80,7 +81,7 @@ def _out(c: Clip, render_job_id: int | None = None, upload_job_id: int | None = 
         top_ratio=c.top_ratio, intro_enabled=c.intro_enabled, cortinilla_at=c.cortinilla_at, template_id=c.template_id, graphics=c.graphics_json or [],
         seo_title=c.seo_title or "", seo_description=c.seo_description or "", seo_tags=[t for t in (c.seo_tags or "").split(",") if t.strip()],
         channel_id=c.channel_id, privacy=c.privacy, publish_at=c.publish_at, youtube_video_id=c.youtube_video_id, uploaded_at=c.uploaded_at,
-        upload_error=c.upload_error,
+        upload_error=c.upload_error, auto_publish=c.auto_publish,
         status=c.status, render_state=c.render_state.value, has_draft=bool(c.draft_path),
         has_final=bool(c.rendered_path), render_error=c.render_error, render_job_id=render_job_id, upload_job_id=upload_job_id, created_at=c.created_at,
         render_job_status=(jobs.get(("render", render_job_id)) or (None, None))[0] if render_job_id else None,
@@ -296,6 +297,7 @@ def unapprove_clip(clip_id: int, user: User = Depends(current_user), db: Session
     if clip.status != "approved":
         raise HTTPException(409, f"Solo se puede desaprobar un clip aprobado (está «{clip.status}»)")
     clip.status = "detected"
+    clip.auto_publish = None          # un clip sin aprobar nunca se publica solo
     db.commit()
     return _out(clip)
 
@@ -547,6 +549,43 @@ def save_seo(clip_id: int, body: SeoIn, user: User = Depends(current_user), db: 
         raise HTTPException(422, "El título no puede quedar vacío")
     clip.channel_id, clip.seo_title, clip.seo_description, clip.seo_tags = ch.id, clean.title, clean.description, ",".join(clean.tags)
     clip.privacy, clip.publish_at, clip.upload_error = body.privacy, when, None
+    db.commit()
+    return _out(clip)
+
+
+class AutoPublishIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    privacy: Literal["public", "unlisted", "private"] | None = None    # None = desactivar
+
+
+@router.put("/api/clips/{clip_id}/auto-publish", response_model=ClipOut)
+def auto_publish(clip_id: int, body: AutoPublishIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Marca (o desmarca) el clip para publicarse solo al acabar el render final: se generan los textos SEO y se sube a YouTube.
+    Si aún no hay render final y no hay uno en cola, se encola."""
+    clip = get_owned(db, Clip, clip_id, user)
+    if body.privacy is None:
+        clip.auto_publish = None
+        db.commit()
+        return _out(clip)
+    if clip.youtube_video_id or clip.status in ("uploaded", "uploading"):
+        raise HTTPException(409, "Este clip ya está subido o subiéndose")
+    if clip.status != "approved":
+        raise HTTPException(409, "Solo se publican clips aprobados: aprueba primero el clip")
+    if clip.channel_id is None:
+        raise HTTPException(409, "Elige antes el canal de YouTube del proyecto")
+    ch = _channel(db, user, clip.channel_id)
+    if not ch.token_enc:
+        raise HTTPException(409, "El canal no está conectado a YouTube: conéctalo en Canales")
+    project = db.get(Project, clip.project_id)
+    clip.auto_publish, clip.upload_error = body.privacy, None
+    if clip.render_state is RenderState.FINAL and clip.rendered_path:
+        queue.enqueue(db, user.id, "publish", {"clip_id": clip.id, "project_id": clip.project_id})     # el final ya está: se publica ya
+    elif clip.render_state is not RenderState.RENDERING and not queue.active_job(db, user.id, project.id, ignore_types=("render",)):
+        if clip.layout not in ("split", "full") or not project.video_path or not project.words_path:
+            raise HTTPException(409, "El clip no se puede renderizar: revisa su diseño y que el proyecto tenga vídeo y transcripción")
+        queue.enqueue(db, user.id, "render", {"clip_id": clip.id, "project_id": project.id, "quality": "final"})
+        clip.render_state, clip.render_error = RenderState.RENDERING, None
     db.commit()
     return _out(clip)
 

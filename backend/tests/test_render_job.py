@@ -533,3 +533,13 @@ def test_draft_writes_the_automatic_review(client, tmp_path, monkeypatch, source
     report = json.loads((e.folder / "qa_draft.json").read_text())
     assert report["quality"] == "draft" and {c["id"] for c in report["checks"]} >= {"duration", "audio", "black"}
     assert "Revisión automática:" in log(e)
+
+
+def test_a_final_render_of_an_auto_publish_clip_queues_the_publication_but_a_draft_does_not(client, tmp_path, monkeypatch, source_file):
+    from app.db.models import Job
+    e = setup(client, tmp_path, monkeypatch, source_file, auto_publish="public")
+    run_job(e, "draft")
+    assert [j.type for j in e.db.query(Job).all() if j.type == "publish"] == []
+    run_job(e, "final")
+    pubs = [j for j in e.db.query(Job).all() if j.type == "publish"]
+    assert len(pubs) == 1 and pubs[0].payload["clip_id"] == e.clip.id and "Publicación automática" in log(e)

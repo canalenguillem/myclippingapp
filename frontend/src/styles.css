@@ -238,3 +238,5 @@ li.qa-warn { color: #ffd27a; } li.qa-error { color: #ff7a6b; } li.qa-ok { color:
 .img-result { display: flex; align-items: center; justify-content: center; min-height: 140px; border-radius: 8px; padding: 6px; }
 .img-result img { max-width: 100%; max-height: 220px; }
 @media (max-width: 860px) { .img-editor-body { grid-template-columns: 1fr; } }
+.clip-autopub { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.clip-autopub select { padding: 6px 8px; }
