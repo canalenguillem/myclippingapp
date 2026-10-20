@@ -85,9 +85,6 @@ export default function YouTubePanel({ clip, dirty, onClip }: Props) {
     if (channel === null) return;
     const saved = await save();      // se sube lo que se ve: primero se guarda
     if (!saved) return;
-    const when2 = saved.publish_at ? `se publicará el ${new Date(saved.publish_at.endsWith("Z") ? saved.publish_at : saved.publish_at + "Z").toLocaleString()}` : `quedará ${PRIVACY[saved.privacy].toLowerCase()}`;
-    const quality = chosen === "draft" ? "\nVídeo: el BORRADOR (540×960, menos calidad que el final)" : "\nVídeo: el render final (1080×1920)";
-    if (!window.confirm(`¿Subir a YouTube?\n\nCanal: ${channel.yt_title ?? channel.name}\nTítulo: ${saved.seo_title}\n${when2}${quality}`)) return;
     setBusy("upload");
     try {
       await api(`/api/clips/${clip.id}/upload`, { json: { channel_id: channel.id, source: chosen } });
