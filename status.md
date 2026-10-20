@@ -276,3 +276,23 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 - `clips.auto_publish` (migración 0009: `public`/`unlisted`/`private` o NULL). `PUT /api/clips/{id}/auto-publish {privacy|null}` (solo clips aprobados con canal conectado): si ya hay render final, encola el job `publish` ya; si no hay y no hay uno en cola, encola el render final. Al acabar el render final de un clip marcado, el render encola `publish`.
 - Job `publish` (`services/publish.py`): genera el SEO con el @ y el enlace del vídeo original (si el clip no tenía textos guardados), fija la privacidad y encola la subida del final. Salvaguardas: si la revisión automática (`qa_final.json`) encontró fallos, o el clip dejó de estar aprobado, o falta canal/conexión, NO publica: apaga la publicación automática y deja el motivo en `upload_error` (el clip sigue aprobado y con su render). Desaprobar apaga la publicación automática.
 - UI: en las tarjetas de clips aprobados, selector de privacidad (público por defecto) y «📤 Publicar al terminar»; chip «Se publicará (público) al terminar» y «✕ No publicar solo».
+
+## Ejemplo analizado: short de Soto con 173k vistas en 23 h (`videos_ejemplo/España： Juan Soto Ivars： ¿Por qué PSOE No Baja de 100 Escaños？.mp4`, canal @DatosAFondo)
+
+**Cómo está hecho** (480×854, 40,5 s, ~800 kbps: la calidad de imagen no es lo que importa):
+- Gancho directo: Soto a cámara dice la tesis en el primer segundo, sin intro ni logo.
+- Título fijo todo el vídeo arriba («DAME UNA SÍNTESIS», letras grandes verdes con borde) y debajo la pregunta «¿Por qué PSOE no baja de 100 escaños?».
+- ~12 cambios de plano en 40 s (uno cada ~3 s). Soto a cámara solo ~35 % del tiempo; el resto son cortes de archivo que ilustran literalmente la frase (Sánchez en un mitin, Begoña riéndose en «granja de gallinas», gente votando en «el 70 % de su electorado»).
+- Subtítulos amarillos con borde negro, 2–3 palabras cada vez, sin banda.
+- Rótulo fijo de nombre y cargo (banda negra) durante todo el vídeo; banner de marca del canal abajo con un clip en bucle.
+- Lenguaje muy cargado y con cifras concretas (100 escaños, 70 %).
+- Cautela: subtítulos como «no me preocupa un carajo» sobre la imagen de Sánchez; no se sabe si son cita literal o paráfrasis. Atribuir solo lo que de verdad dijo (regla: opiniones a quien las dice).
+
+**Ideas para la app, por impacto (sin empezar, a decidir):**
+1. Cortes de archivo sincronizados con la frase: «recursos de vídeo» (enlace de YouTube + inicio/fin) insertables en una palabra como un gráfico. Es lo que más pesa y lo que no tenemos; función grande, a diseñar aparte (permiso de uso de las imágenes de archivo).
+2. Título fijo arriba durante todo el clip (hoy el gancho dura 2,2 s).
+3. Banner fijo inferior con la marca del canal, en la plantilla.
+4. Cortes de ritmo automáticos: alternar zoom 1,0 / 1,15 en cada frase.
+5. Estilo de subtítulo con borde (amarillo sobre negro, 2–3 palabras) como alternativa a la banda de papel.
+6. Rótulo de nombre durante todo el vídeo (hoy sale 3 s).
+Recomendación: empezar por 2, 3 y 4 (pequeños y cambian el aspecto de golpe).
