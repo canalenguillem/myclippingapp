@@ -244,6 +244,6 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 
 ## Motivo `puppets`: monigotes de comic de la mano con las caras
 
-- `fx_worker/src/motifs/puppets.mjs`: 1–3 monigotes de palo (trazo grueso con contorno crema) con la cara de una imagen de la librería como cabeza en círculo, cogidos de la mano; entran andando desde la izquierda (piernas que se balancean) y en la palabra dan un saltito. Se ajusta al hueco bajo la banda (escala 0,5–1,3). Contrato `images` (png, 1–3); `server.mjs` copia las caras como las de `image`.
+- `fx_worker/src/motifs/puppets.mjs`: 1–3 monigotes (`look` «southpark» por defecto: recortables de cabeza enorme con traje, abrigo o parka y brazos cortos que caminan balanceándose; o «stick»: de palo, trazo grueso con contorno crema) con la cara de una imagen de la librería como cabeza en círculo, cogidos de la mano; entran andando desde la izquierda (piernas que se balancean) y en la palabra dan un saltito. Se ajusta al hueco bajo la banda (escala 0,5–1,3). Contrato `images` (png, 1–3); `server.mjs` copia las caras como las de `image`.
 - Backend: gráfico `puppets` con `asset_ids` (1–3 imágenes del usuario; el job las resuelve a rutas y descarta el gráfico si falta alguna); cuenta como «grande» en el programador y bloquea el borrado de sus imágenes. Editor: botón «+ Monigotes» y selector de caras por monigote.
 - Verificado con un render real (fotogramas del paseo y del saltito).

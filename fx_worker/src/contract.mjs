@@ -76,7 +76,8 @@ const graphic = z.discriminatedUnion("type", [
     prefix: z.string().max(8).default(""), suffix: z.string().max(12).default(""), label: z.string().max(40).default("") }).strict(),
   z.object({ type: z.literal("strike"), ...graphicBase, text: z.string().trim().min(1).max(40) }).strict(),
   // Monigotes de comic cogidos de la mano, cada uno con la cara de una imagen de la librería como cabeza (1–3).
-  z.object({ type: z.literal("puppets"), ...graphicBase, images: z.array(relPath.refine((v) => /\.png$/i.test(v), { message: "images debe ser png" })).min(1).max(3) }).strict(),
+  z.object({ type: z.literal("puppets"), ...graphicBase, images: z.array(relPath.refine((v) => /\.png$/i.test(v), { message: "images debe ser png" })).min(1).max(3),
+    look: z.enum(["southpark", "stick"]).default("southpark") }).strict(),
   z.object({ type: z.literal("lower_third"), ...graphicBase, name: z.string().trim().min(1).max(40), role: z.string().trim().max(60).default("") }).strict(),
 ]);
 

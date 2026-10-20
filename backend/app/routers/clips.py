@@ -109,6 +109,7 @@ class GraphicIn(BaseModel):
     prefix: str | None = Field(default=None, max_length=8)
     suffix: str | None = Field(default=None, max_length=12)
     label: str | None = Field(default=None, max_length=40)
+    look: Literal["southpark", "stick"] | None = None                                # monigotes: estilo del dibujo (por defecto South Park)
     asset_ids: list[int] | None = Field(default=None, min_length=1, max_length=3)    # monigotes: las caras (imágenes de la librería), de la mano
     name: str | None = Field(default=None, max_length=40)                             # rótulo: nombre
     role: str | None = Field(default=None, max_length=60)                            # rótulo: cargo

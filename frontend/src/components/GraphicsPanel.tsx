@@ -8,10 +8,10 @@ const round = (n: number) => Math.round(n * 100) / 100;
 const PLAN_DELAY_MS = 400;
 /** Campos propios de cada motivo: al cambiar de tipo se borran todos y se pone lo del nuevo. */
 const CLEAR: Partial<Graphic> = { text: undefined, emoji: undefined, target: undefined, asset_id: undefined, style: undefined, effect: undefined, entry: undefined,
-  asset_ids: undefined, from_value: undefined, to_value: undefined, prefix: undefined, suffix: undefined, label: undefined, name: undefined, role: undefined };
+  asset_ids: undefined, look: undefined, from_value: undefined, to_value: undefined, prefix: undefined, suffix: undefined, label: undefined, name: undefined, role: undefined };
 const beatLabel = (b: Graphic, assetName?: string) =>
   b.type === "keyword" || b.type === "strike" ? `${b.type === "strike" ? "✗ " : ""}${b.text}` : b.type === "image" ? (assetName ?? "imagen")
-  : b.type === "puppets" ? "🧍🧍 monigotes" : b.type === "counter" ? `${b.to_value}${b.suffix ?? ""}` : b.type === "lower_third" ? (b.name ?? "rótulo") : `${b.emoji}${b.target ? "→" + b.target : ""}`;
+  : b.type === "puppets" ? "👫 monigotes" : b.type === "counter" ? `${b.to_value}${b.suffix ?? ""}` : b.type === "lower_third" ? (b.name ?? "rótulo") : `${b.emoji}${b.target ? "→" + b.target : ""}`;
 const PRESETS: { label: string; emoji: string; target?: string }[] = [
   { label: "🐔 → 🗳️ votar", emoji: "🐔", target: "🗳️" }, { label: "🔥", emoji: "🔥" }, { label: "💰", emoji: "💰" },
   { label: "😱", emoji: "😱" }, { label: "👀", emoji: "👀" }, { label: "🚨", emoji: "🚨" }, { label: "✅", emoji: "✅" }, { label: "❌", emoji: "❌" },
@@ -352,6 +352,10 @@ export default function GraphicsPanel({ clip, list, onChange, start, end, layout
                       {assets.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                     </select>
                   ))}
+                  <select value={g.look ?? "southpark"} disabled={!editable} title="Estilo del dibujo" onChange={(e) => update(i, { look: e.target.value as Graphic["look"] })}>
+                    <option value="southpark">Estilo South Park</option>
+                    <option value="stick">Monigotes de palo</option>
+                  </select>
                 </>
               ) : g.type === "lower_third" ? (
                 <>

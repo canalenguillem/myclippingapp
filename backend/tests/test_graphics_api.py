@@ -236,6 +236,8 @@ def test_puppets_are_saved_scheduled_resolved_to_faces_and_block_deleting_their_
     item = {"type": "puppets", "at": 12.0, "asset_ids": [a.id, b.id]}
     out = client.patch(f"/api/clips/{c.id}", json={"graphics": [item]}, headers=h).json()["graphics"]
     assert out == [{"type": "puppets", "at": 12.0, "asset_ids": [a.id, b.id]}]
+    assert client.patch(f"/api/clips/{c.id}", json={"graphics": [{**item, "look": "stick"}]}, headers=h).json()["graphics"][0]["look"] == "stick"
+    assert client.patch(f"/api/clips/{c.id}", json={"graphics": [{**item, "look": "anime"}]}, headers=h).status_code == 422
     plan = client.post(f"/api/clips/{c.id}/graphics-plan", json={"graphics": [item]}, headers=h).json()
     assert [bt["type"] for bt in plan["beats"]] == ["puppets"] and plan["beats"][0]["lead"] == 0.8
     for bad in ({"type": "puppets", "at": 5}, {"type": "puppets", "at": 5, "asset_ids": []}, {"type": "puppets", "at": 5, "asset_ids": [1, 2, 3, 4]}, {"type": "puppets", "at": 5, "asset_ids": [0]}):

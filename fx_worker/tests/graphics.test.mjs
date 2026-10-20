@@ -337,7 +337,7 @@ test("pantalla completa: la banda de subtítulos va bajo la parte nítida aunque
 
 test("puppets: contrato (1–3 caras png), un monigote por imagen y el saltito cae en la palabra", () => {
   const g = parseRequest({ ...base, graphics: [{ type: "puppets", at: 8, images: ["u1/assets/1.png", "u1/assets/2.png"] }] }).graphics[0];
-  assert.deepEqual(g, { type: "puppets", at: 8, lead: 0.5, duration: 2.5, images: ["u1/assets/1.png", "u1/assets/2.png"] });
+  assert.deepEqual(g, { type: "puppets", at: 8, lead: 0.5, duration: 2.5, images: ["u1/assets/1.png", "u1/assets/2.png"], look: "southpark" });
   for (const bad of [[], ["a.png", "b.png", "c.png", "d.png"], ["a.jpg"], ["../x.png"]])
     assert.throws(() => parseRequest({ ...base, graphics: [{ type: "puppets", at: 8, images: bad }] }), ContractError, JSON.stringify(bad));
   const out = graphicsLayer({ items: [g], map: makeTimeMap(undefined), clipDuration: 20, files: { "u1/assets/1.png": "gfx_img0.png", "u1/assets/2.png": "gfx_img1.png" } });
