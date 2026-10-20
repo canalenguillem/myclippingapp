@@ -159,7 +159,7 @@ def retry_project(project_id: int, user: User = Depends(current_user), db: Sessi
         raise HTTPException(409, "Hay un job en marcha para este proyecto")
     if project.words_path:
         project.status, project.error = ProjectStatus.DETECTING, None
-        job = queue.enqueue(db, user.id, "detect", {"project_id": project.id, "clips_per_part": 5, "target_dur": 40})
+        job = queue.enqueue(db, user.id, "detect", {"project_id": project.id, "clips_per_part": 4, "target_dur": 40})
     else:
         project.status, project.error = ProjectStatus.DOWNLOADING, None
         job = queue.enqueue(db, user.id, "ingest", {"project_id": project.id, "language": "auto"})

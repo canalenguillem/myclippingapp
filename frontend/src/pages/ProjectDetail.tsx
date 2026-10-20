@@ -17,8 +17,9 @@ export default function ProjectDetail() {
   const [clips, setClips] = useState<Clip[]>([]);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [clipsPerPart, setClipsPerPart] = useState(5);
+  const [clipsPerPart, setClipsPerPart] = useState(4);
   const [targetDur, setTargetDur] = useState(40);
+  const [parts, setParts] = useState<number | "">("");   // vacío = automático (5 partes, menos en vídeos cortos)
   const [templates, setTemplates] = useState<Template[]>([]);
   const [channels, setChannels] = useState<Channel[]>([]);
   const [videoUrl, setVideoUrl] = useState("");
@@ -148,7 +149,7 @@ export default function ProjectDetail() {
 
   const detect = () =>
     run(async () => {
-      await api(`/api/projects/${id}/detect`, { json: { clips_per_part: clipsPerPart, target_dur: targetDur } });
+      await api(`/api/projects/${id}/detect`, { json: { clips_per_part: clipsPerPart, target_dur: targetDur, ...(parts === "" ? {} : { parts }) } });
       await loadProject();
     }, "Detección encolada: los clips sin trabajar se sustituirán; los aprobados se conservan.");
 
@@ -228,7 +229,8 @@ export default function ProjectDetail() {
         <div className="section-head">
           <h2>Clips</h2>
           <div className="row-inline">
-            <label className="inline">por parte <input type="number" min={1} max={10} value={clipsPerPart} onChange={(e) => setClipsPerPart(Number(e.target.value))} /></label>
+            <label className="inline" title="El texto se reparte en partes y de cada una se piden clips (vacío: 5 partes, menos si el vídeo es corto)">partes <input type="number" min={1} max={12} placeholder="5" value={parts} onChange={(e) => setParts(e.target.value === "" ? "" : Number(e.target.value))} /></label>
+            <label className="inline">clips por parte <input type="number" min={1} max={10} value={clipsPerPart} onChange={(e) => setClipsPerPart(Number(e.target.value))} /></label>
             <label className="inline">duración (s) <input type="number" min={15} max={90} value={targetDur} onChange={(e) => setTargetDur(Number(e.target.value))} /></label>
             <button onClick={detect} disabled={busy || !transcript}>{clips.length ? "Re-detectar clips" : "Detectar clips"}</button>
           </div>

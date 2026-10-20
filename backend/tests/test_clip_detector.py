@@ -144,8 +144,9 @@ def test_map_emphasis_never_reuses_a_word_twice():
 
 
 def test_resolve_parts():
-    assert cd.resolve_parts(14 * 60, None) == 1 and cd.resolve_parts(31 * 60, None) == 2
-    assert cd.resolve_parts(10, None) == 1 and cd.resolve_parts(10, 4) == 4
+    assert cd.resolve_parts(15.3 * 60, None) == 5 and cd.resolve_parts(63 * 60, None) == 5       # por defecto 5 partes, como mymoviepy
+    assert cd.resolve_parts(10 * 60, None) == 3 and cd.resolve_parts(10, None) == 1                # un vídeo corto, menos partes de al menos ~3 min
+    assert cd.resolve_parts(10, 4) == 4 and cd.resolve_parts(63 * 60, 8) == 8                      # lo explícito manda
 
 
 # --- detector -----------------------------------------------------------------------------------

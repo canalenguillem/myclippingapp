@@ -176,7 +176,7 @@ class ClipPatch(BaseModel):
 
 class DetectIn(BaseModel):
     parts: int | None = Field(default=None, ge=1, le=12)
-    clips_per_part: int = Field(default=5, ge=1, le=10)
+    clips_per_part: int = Field(default=4, ge=1, le=10)
     target_dur: int = Field(default=40, ge=15, le=90)
 
 

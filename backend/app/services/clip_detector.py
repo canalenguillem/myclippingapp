@@ -310,9 +310,16 @@ def _dedupe(clips: list[ClipCandidate]) -> list[ClipCandidate]:
     return sorted(kept, key=lambda c: c.start)
 
 
+DEFAULT_PARTS = 5            # como en mymoviepy: el texto se reparte en 5 partes y de cada una se piden clips (no toda la transcripción de golpe)
+DEFAULT_CLIPS_PER_PART = 4
+MIN_PART_SECONDS = 180       # sin valor explícito, una parte no baja de ~3 min (un vídeo corto se parte en menos)
+
+
 def resolve_parts(total_seconds: float, parts: int | None) -> int:
-    """Sin valor explícito: ~1 parte por cada 15 min de vídeo."""
-    return parts if parts and parts > 0 else max(1, round(total_seconds / 60 / 15))
+    """Con valor explícito, ese. Sin él, DEFAULT_PARTS (menos si el vídeo es corto: partes de al menos ~3 min)."""
+    if parts and parts > 0:
+        return parts
+    return max(1, min(DEFAULT_PARTS, int(total_seconds // MIN_PART_SECONDS)))
 
 
 # --- detector -----------------------------------------------------------------------------------
@@ -322,7 +329,7 @@ def detect_clips(
     *,
     client: Any = None,
     parts: int | None = None,
-    clips_per_part: int = 5,
+    clips_per_part: int = DEFAULT_CLIPS_PER_PART,
     target_dur: int = 40,
     model: str | None = None,
     silences: list[dict] | None = None,

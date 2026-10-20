@@ -172,7 +172,7 @@ def detect(ctx: JobContext, payload: dict) -> None:
             ctx.progress(int(fraction * 90))
 
         candidates = clip_detector.detect_clips(
-            data, parts=payload.get("parts"), clips_per_part=int(payload.get("clips_per_part", 5)),
+            data, parts=payload.get("parts"), clips_per_part=int(payload.get("clips_per_part", 4)),
             target_dur=int(payload.get("target_dur", 40)), silences=silences, log=ctx.log, progress=progress,
         )
         total = project.duration

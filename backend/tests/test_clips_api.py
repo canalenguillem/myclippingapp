@@ -135,7 +135,7 @@ def test_detect_endpoint_enqueues_job_with_params(client, tmp_path, monkeypatch)
 def test_detect_endpoint_defaults_and_validation(client, tmp_path, monkeypatch):
     h, db, p = _project(client, tmp_path, monkeypatch)
     jid = client.post(f"/api/projects/{p.id}/detect", json={}, headers=h).json()["job_id"]
-    assert db.get(Job, jid).payload == {"project_id": p.id, "clips_per_part": 5, "target_dur": 40}
+    assert db.get(Job, jid).payload == {"project_id": p.id, "clips_per_part": 4, "target_dur": 40}
     db.get(Job, jid).status = "completed"
     db.commit()
     for bad in ({"target_dur": 5}, {"clips_per_part": 99}, {"parts": 0}):
