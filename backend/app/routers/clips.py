@@ -333,6 +333,27 @@ def unapprove_clip(clip_id: int, user: User = Depends(current_user), db: Session
     return _out(clip)
 
 
+@router.post("/api/clips/{clip_id}/duplicate", response_model=ClipOut, status_code=201)
+def duplicate_clip(clip_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Copia editable de un clip (p. ej. uno ya subido a YouTube que se quiere rehacer): mismo recorte, diseño, gráficos y textos,
+    pero como clip «detectado» sin render ni enlace a YouTube. YouTube no deja reemplazar un vídeo publicado: lo rehecho se sube como
+    uno nuevo."""
+    src = get_owned(db, Clip, clip_id, user)
+    if src.status in ("uploading",) or src.render_state is RenderState.RENDERING:
+        raise HTTPException(409, "El clip está en proceso: espera a que termine")
+    copy = Clip(
+        project_id=src.project_id, user_id=src.user_id, start=src.start, end=src.end, title=src.title, reason=src.reason, score=src.score,
+        transcript=src.transcript, hook=src.hook, emphasis_json=list(src.emphasis_json or []), parts=list(src.parts or []),
+        layout=src.layout, focus=src.focus, zoom=src.zoom, top_ratio=src.top_ratio, intro_enabled=src.intro_enabled,
+        cortinilla_at=src.cortinilla_at, template_id=src.template_id, graphics_json=[dict(g) for g in src.graphics_json or []],
+        screen_ranges=[dict(r) for r in src.screen_ranges or []], channel_id=src.channel_id, seo_title=src.seo_title, seo_description=src.seo_description,
+        seo_tags=src.seo_tags, privacy=src.privacy, status="detected",
+    )
+    db.add(copy)
+    db.commit()
+    return _out(copy)
+
+
 @router.delete("/api/clips/{clip_id}", status_code=204)
 def delete_clip(clip_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     clip = get_owned(db, Clip, clip_id, user)

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import GraphicsPanel, { graphicsProblem } from "../components/GraphicsPanel";
 import ScreensPanel from "../components/ScreensPanel";
@@ -23,6 +23,8 @@ const URL_REFRESH_MS = 50 * 60 * 1000; // la URL firmada dura 1 h
 
 export default function ClipEditor() {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const [duplicating, setDuplicating] = useState(false);
   const [clip, setClip] = useState<Clip | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [project, setProject] = useState<Project | null>(null);
@@ -165,7 +167,19 @@ export default function ClipEditor() {
       </header>
       {error && <p className="error">{error}</p>}
       {notice && <p className="notice">{notice}</p>}
-      {!editable && <p className="muted">Un clip en estado «{clip.status}» ya no se puede editar.</p>}
+      {!editable && (
+        <p className="muted">
+          Un clip en estado «{clip.status}» ya no se puede editar.{" "}
+          {clip.status !== "uploading" && (
+            <button disabled={duplicating} onClick={async () => {
+              setDuplicating(true);
+              try { const c = await api<Clip>(`/api/clips/${clip.id}/duplicate`, { method: "POST" }); navigate(`/clips/${c.id}`); } catch (e) { fail(e); } finally { setDuplicating(false); }
+            }} title="Crea una copia editable (YouTube no deja reemplazar un vídeo ya publicado: lo rehecho se sube como uno nuevo)">
+              {duplicating ? "Creando…" : "↻ Crear copia para rehacerlo"}
+            </button>
+          )}
+        </p>
+      )}
 
       <div className="editor">
         <div className="editor-video">

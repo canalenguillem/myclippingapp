@@ -7,6 +7,8 @@ type Props = {
   clip: Clip; onApprove: () => void; onUnapprove: () => void; onDelete: () => void;
   /** Activa (o con null desactiva) la publicación automática en YouTube al acabar el render final. */
   onAutoPublish?: (privacy: Clip["auto_publish"]) => void;
+  /** Crea una copia editable (para rehacer un clip ya subido). */
+  onDuplicate?: () => void;
   hasChannel?: boolean;
 };
 
@@ -27,7 +29,7 @@ function activity(clip: Clip): { text: string; kind: "busy" | "queued" | "done" 
   return out;
 }
 
-export default function ClipCard({ clip, onApprove, onUnapprove, onDelete, onAutoPublish, hasChannel = true }: Props) {
+export default function ClipCard({ clip, onApprove, onUnapprove, onDelete, onAutoPublish, onDuplicate, hasChannel = true }: Props) {
   const [privacy, setPrivacy] = useState<NonNullable<Clip["auto_publish"]>>("public");
   const uploaded = clip.status === "uploaded";
   const acts = activity(clip);
@@ -70,6 +72,7 @@ export default function ClipCard({ clip, onApprove, onUnapprove, onDelete, onAut
         <Link className="btn" to={`/clips/${clip.id}`}>Editar</Link>
         {clip.status === "detected" && <button onClick={onApprove}>Aprobar</button>}
         {clip.status === "approved" && <button className="ghost" onClick={onUnapprove}>Desaprobar</button>}
+        {uploaded && onDuplicate && <button className="ghost" onClick={onDuplicate} title="Crea una copia editable para rehacerlo (se sube como vídeo nuevo)">↻ Rehacer</button>}
         <button className="ghost" onClick={onDelete}>Borrar</button>
       </div>
     </div>

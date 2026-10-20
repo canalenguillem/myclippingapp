@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, ApiError } from "../api";
 import ClipCard from "../components/ClipCard";
 import SourcePlayer from "../components/SourcePlayer";
@@ -11,6 +11,8 @@ import { STATUS_LABEL } from "./Projects";
 const BUSY = new Set(["downloading", "transcribing"]);
 
 export default function ProjectDetail() {
+
+  const navigate = useNavigate();
   const { id } = useParams();
   const [project, setProject] = useState<Project | null>(null);
   const [transcript, setTranscript] = useState<Transcript | null>(null);
@@ -239,6 +241,7 @@ export default function ProjectDetail() {
         <div className="clip-grid">
           {clips.map((c) => (
             <ClipCard key={c.id} clip={c} onApprove={() => clipAction(c, "approve")} onUnapprove={() => clipAction(c, "unapprove")} onDelete={() => deleteClip(c)} hasChannel={project?.default_channel_id != null || c.channel_id !== null}
+              onDuplicate={async () => { try { const n = await api<Clip>(`/api/clips/${c.id}/duplicate`, { method: "POST" }); navigate(`/clips/${n.id}`); } catch (e) { fail(e); } }}
               onAutoPublish={async (privacy) => {
                 try { await api(`/api/clips/${c.id}/auto-publish`, { method: "PUT", json: { privacy } }); await loadClips(); setNotice(privacy ? "Se publicará solo al terminar el render: genera el SEO y sube el vídeo." : "Ya no se publicará solo."); }
                 catch (e) { fail(e); }

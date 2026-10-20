@@ -189,3 +189,22 @@ def test_cortinilla_at_null_goes_back_to_automatic_and_invalidates_the_render(cl
     db.commit()
     out = client.patch(f"/api/clips/{c.id}", json={"cortinilla_at": None}, headers=h).json()
     assert out["cortinilla_at"] is None and out["render_state"] == "none"  # el borrador ya no corresponde
+
+
+def test_duplicate_makes_an_editable_copy_without_render_or_youtube_link(client, tmp_path, monkeypatch):
+    h, db, p = _project(client, tmp_path, monkeypatch)
+    c = _clip(db, p, 10.0, 40.0, status="uploaded", youtube_video_id="abc", graphics_json=[{"type": "keyword", "at": 5.0, "text": "X"}],
+              screen_ranges=[{"start": 12.0, "end": 20.0, "x": 0.3, "y": 0.0, "w": 0.7, "h": 1.0}], seo_title="Título", draft_path="u/x.mp4", render_state="final")
+    out = client.post(f"/api/clips/{c.id}/duplicate", headers=h)
+    assert out.status_code == 201
+    d = out.json()
+    assert d["id"] != c.id and d["status"] == "detected" and d["youtube_video_id"] is None and d["has_draft"] is False and d["render_state"] == "none"
+    assert (d["start"], d["end"], d["seo_title"]) == (10.0, 40.0, "Título") and d["graphics"] == c.graphics_json and d["screen_ranges"] == c.screen_ranges
+    assert client.patch(f"/api/clips/{d['id']}", json={"hook": "Nuevo"}, headers=h).status_code == 200            # y se puede editar
+    c.status = "uploading"
+    db.commit()
+    assert client.post(f"/api/clips/{c.id}/duplicate", headers=h).status_code == 409
+    from fastapi.testclient import TestClient
+    other = TestClient(client.app)
+    hb = _login(other, "b@x.com")
+    assert other.post(f"/api/clips/{c.id}/duplicate", headers=hb).status_code == 404
