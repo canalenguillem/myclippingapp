@@ -2,3 +2,5 @@
 - Diseño por clip: `split` (plano corto + escena) o `full` (orador a pantalla con la parte de abajo difuminada para gráficos). Para un orador que habla solo a cámara, `full`: la mitad de abajo en `split` repite la misma cara y no queda bien (corrección del usuario, 2026-10-18). En `full` los gráficos comparten un solo hueco: nunca dos a la vez.
 
 - Mesa de debate o varios hablantes lejos entre sí: encuadre «Sigue al hablante» y fijar la posición de cada speaker; un plano centrado fijo corta a quien habla. Las interjecciones de menos de 1 s no mueven el plano.
+
+- Cuando el original enseña una pantalla (tuit, web, documento) que el hablante lee o comenta, esa pantalla se ve entera durante todo el tiempo que está en el original (tramo de «pantalla compartida»), no recortada al hablante; se detecta sola y se ajusta a mano si falla.

@@ -296,3 +296,12 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 5. Estilo de subtítulo con borde (amarillo sobre negro, 2–3 palabras) como alternativa a la banda de papel.
 6. Rótulo de nombre durante todo el vídeo (hoy sale 3 s).
 Recomendación: empezar por 2, 3 y 4 (pequeños y cambian el aspecto de golpe).
+
+## Pantallas compartidas (tuits, webs): plano completo automático
+
+- Problema (clip 119): el original es una grabación de pantalla 1920×1080 con la webcam a la izquierda y, cuando Juan lee un tuit, el tuit ocupa la derecha (~64 % del ancho); el recorte vertical del hablante lo cortaba.
+- `pipeline/screens.py`: detector por CPU (2 fps a 320×180): una «página» es una zona clara y sin color; busca la franja de columnas más ancha (fusionando márgenes blancos separados por un vídeo oscuro incrustado), calcula la región y agrupa tramos de ≥ 2 s (rellena huecos de 1 s). En el clip 119 saca exactamente los dos tuits (15,8–23,5 s y 25,4–39,1 s del clip) con la región x=0,365 ancho 0,635.
+- `clips.screen_ranges` (migración 0010; start/end en segundos del VÍDEO ORIGINAL como el inicio y el fin del clip, y la región en fracciones del cuadro). `vertical.py`: durante cada tramo, la parte de arriba enseña la región ajustada al ancho con una copia difuminada de fondo (diseños `split` y `full`; el filtro usa `overlay … enable='between(t,a,b)'`).
+- Detección automática al detectar clips (job `detect`, si el vídeo original existe) y botón «🔎 Detectar pantallas compartidas» en el editor, con lista editable (inicio, fin, región x/y/ancho/alto con miniatura, «Todo», quitar). Editar los tramos deja obsoleto el render. `POST /api/clips/{id}/screens/detect` no guarda nada.
+- Probado con el vídeo real (1080p) en los dos diseños: el tuit se lee entero durante el tramo y vuelve al recorte después.
+- Límites: solo páginas claras (no modo oscuro ni fondos de color ni vídeo incrustado a pantalla completa); ahí haría falta OCR (idea: worker en la GPU del Windows, mismo patrón que el de ASD).

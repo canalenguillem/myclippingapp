@@ -27,6 +27,7 @@ export type Clip = {
   render_state: "none" | "rendering" | "draft" | "final" | "failed";
   has_draft: boolean; has_final: boolean; render_error: string | null; render_job_id: number | null; upload_job_id: number | null;
   render_job_status: "queued" | "running" | null; render_job_progress: number | null; upload_job_status: "queued" | "running" | null; template_id: number | null; graphics: Graphic[];
+  screen_ranges: ScreenRange[];
   seo_title: string; seo_description: string; seo_tags: string[]; channel_id: number | null; privacy: "private" | "unlisted" | "public";
   auto_publish: "public" | "unlisted" | "private" | null;
   publish_at: string | null; youtube_video_id: string | null; uploaded_at: string | null; upload_error: string | null;
@@ -58,6 +59,8 @@ export const EMPTY_CORTINILLA: TemplateCortinilla = {
 };
 
 /** Gráfico ligado a la transcripción; `at` son segundos DEL CLIP (inicio de la palabra gancho). */
+/** Tramo con una pantalla compartida (tuit, web): start/end en segundos del vídeo original; x, y, w, h en fracciones del cuadro. */
+export type ScreenRange = { start: number; end: number; x: number; y: number; w: number; h: number };
 export type Graphic = {
   type: "keyword" | "emoji" | "image" | "counter" | "strike" | "lower_third" | "puppets"; at: number; text?: string; emoji?: string; target?: string;
   asset_ids?: number[]; look?: "southpark" | "stick";

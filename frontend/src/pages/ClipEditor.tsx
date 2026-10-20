@@ -2,16 +2,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
 import GraphicsPanel, { graphicsProblem } from "../components/GraphicsPanel";
+import ScreensPanel from "../components/ScreensPanel";
 import RenderPanel from "../components/RenderPanel";
 import YouTubePanel from "../components/YouTubePanel";
 import type { Clip, Project, Template, Transcript } from "../types";
 import { EDITABLE_CLIP, fmtTime } from "../types";
 
-type Draft = Pick<Clip, "start" | "end" | "title" | "hook" | "layout" | "focus" | "zoom" | "top_ratio" | "intro_enabled" | "cortinilla_at" | "template_id" | "graphics">;
+type Draft = Pick<Clip, "start" | "end" | "title" | "hook" | "layout" | "focus" | "zoom" | "top_ratio" | "intro_enabled" | "cortinilla_at" | "template_id" | "graphics" | "screen_ranges">;
 
 const draftOf = (c: Clip): Draft => ({
   start: c.start, end: c.end, title: c.title, hook: c.hook, layout: c.layout, focus: c.focus,
-  zoom: c.zoom, top_ratio: c.top_ratio, intro_enabled: c.intro_enabled, cortinilla_at: c.cortinilla_at, template_id: c.template_id, graphics: c.graphics,
+  zoom: c.zoom, top_ratio: c.top_ratio, intro_enabled: c.intro_enabled, cortinilla_at: c.cortinilla_at, template_id: c.template_id, graphics: c.graphics, screen_ranges: c.screen_ranges,
 });
 
 type CortinillaOptions = { duration: number; intro: number; default: number | null; positions: { at: number; sentence: boolean }[] };
@@ -85,6 +86,7 @@ export default function ClipEditor() {
   const problem = !draft ? "" : draft.end <= draft.start ? "El fin debe ser posterior al inicio"
     : duration < 5 || duration > 180 ? "La duración debe estar entre 5 y 180 s"
     : project?.duration && draft.end > project.duration + 0.05 ? "El fin está fuera del vídeo"
+    : draft.screen_ranges.some((r) => r.end <= r.start || r.x + r.w > 1.001 || r.y + r.h > 1.001) ? "Un tramo de pantalla compartida no es válido"
     : graphicsProblem(draft.graphics, draft.end - draft.start);
 
   const set = (patch: Partial<Draft>) =>
@@ -282,6 +284,9 @@ export default function ClipEditor() {
           {clip.emphasis.length > 0 && <div className="chips">{clip.emphasis.map((e, i) => <span className="chip" key={i} title={fmtTime(e.start)}>{e.text}</span>)}</div>}
         </div>
       </div>
+
+      <ScreensPanel clip={clip} ranges={draft.screen_ranges} onChange={(screen_ranges) => set({ screen_ranges })} start={draft.start} end={draft.end}
+        trimDirty={draft.start !== clip.start || draft.end !== clip.end} editable={editable} currentTime={t} seek={seek} />
 
       <GraphicsPanel clip={clip} list={draft.graphics} onChange={(graphics) => set({ graphics })} start={draft.start} end={draft.end}
         layout={draft.layout} introEnabled={draft.intro_enabled} cortinillaAt={draft.cortinilla_at}

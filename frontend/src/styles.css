@@ -240,3 +240,7 @@ li.qa-warn { color: #ffd27a; } li.qa-error { color: #ff7a6b; } li.qa-ok { color:
 @media (max-width: 860px) { .img-editor-body { grid-template-columns: 1fr; } }
 .clip-autopub { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .clip-autopub select { padding: 6px 8px; }
+
+/* pantallas compartidas */
+.scr-box { position: relative; width: 96px; height: 54px; background: #222; border: 1px solid var(--line); border-radius: 4px; flex: 0 0 auto; }
+.scr-box > div { position: absolute; background: rgba(77,163,255,.55); border: 1px solid #4da3ff; }

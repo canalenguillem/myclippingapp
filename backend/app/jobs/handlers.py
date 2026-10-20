@@ -141,6 +141,32 @@ def ingest(ctx: JobContext, payload: dict) -> None:
         raise
 
 
+def _detect_screens(ctx: JobContext, project) -> None:
+    """Busca pantallas compartidas (tuits, webs) en los clips nuevos. Es un extra: si falla, no estropea la detección."""
+    from sqlalchemy import select
+
+    from app.db.models import Clip
+    from app.pipeline import screens as screens_mod
+    from app.services import source as source_service
+    from app.services import storage
+
+    if not source_service.available(project):
+        return
+    clips = ctx.db.scalars(select(Clip).where(Clip.project_id == project.id, Clip.user_id == project.user_id, Clip.status == "detected")).all()
+    video, found = storage.absolute(project.video_path), 0
+    for clip in clips:
+        if clip.screen_ranges:
+            continue
+        ctx.check_cancelled()
+        try:
+            clip.screen_ranges = screens_mod.detect(video, clip.start, clip.end)
+            found += len(clip.screen_ranges)
+        except Exception as exc:  # noqa: BLE001
+            ctx.log(f"No se pudieron buscar pantallas compartidas en el clip {clip.id}: {exc}")
+    ctx.db.commit()
+    ctx.log(f"Pantallas compartidas (tuits, webs): {found} tramo(s) en {len(clips)} clips")
+
+
 def detect(ctx: JobContext, payload: dict) -> None:
     """Pide al LLM los mejores momentos, ajusta los cortes a silencios y guarda los clips."""
     from app.db.models import Project, ProjectStatus
@@ -183,6 +209,7 @@ def detect(ctx: JobContext, payload: dict) -> None:
         ctx.log(f"{inserted} clips guardados" + (f" ({skipped} descartados por solaparse con clips ya trabajados)" if skipped else ""))
         project.status = ProjectStatus.READY
         ctx.db.commit()
+        _detect_screens(ctx, project)
     except Cancelled:
         fail("Cancelado")
         raise

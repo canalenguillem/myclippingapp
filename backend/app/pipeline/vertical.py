@@ -35,13 +35,41 @@ class VerticalError(RuntimeError):
     pass
 
 
+def _screens_filter(screens: list[dict] | None, width: int, top_h: int, base: str, out: str, first_label: int = 0) -> tuple[list[str], str]:
+    """Tramos de pantalla compartida: durante cada uno, la parte de arriba (`base`) enseña la región entera del cuadro ajustada al
+    ancho, con una copia difuminada de la misma región de fondo, en vez del recorte del hablante. Devuelve (etiquetas de entrada que
+    hay que añadir al `split` de `[0:v]`, fragmento de filter_complex que va de `base` a `out`)."""
+    shots = screens or []
+    if not shots:
+        return [], f"[{base}]null[{out}]"
+    small_w, small_h = max(2, (width // 4) // 2 * 2), max(2, (top_h // 4) // 2 * 2)
+    sigma = max(3, small_w // 36)
+    labels, parts = [], []
+    prev = base
+    for i, r in enumerate(shots):
+        n = first_label + i
+        labels.append(f"[s{n}]")
+        x, y, w, h = (float(r[k]) for k in ("x", "y", "w", "h"))
+        parts.append(
+            f"[s{n}]crop=iw*{w:.4f}:ih*{h:.4f}:iw*{x:.4f}:ih*{y:.4f},setsar=1,split=2[sa{n}][sb{n}];"
+            f"[sa{n}]scale={small_w}:{small_h}:force_original_aspect_ratio=increase,crop={small_w}:{small_h},gblur=sigma={sigma},"
+            f"eq=brightness=-0.25:saturation=0.85,scale={width}:{top_h}:flags=bilinear,setsar=1[sbg{n}];"
+            f"[sb{n}]scale={width}:{top_h}:force_original_aspect_ratio=decrease,setsar=1[sfit{n}];"
+            f"[sbg{n}][sfit{n}]overlay=(W-w)/2:(H-h)/2[sfin{n}]"
+        )
+        nxt = out if i == len(shots) - 1 else f"tp{n}"
+        parts.append(f"[{prev}][sfin{n}]overlay=0:0:enable='between(t,{float(r['start']):.3f},{float(r['end']):.3f})'[{nxt}]")
+        prev = nxt
+    return labels, ";".join(parts)
+
+
 def canvas_for(draft: bool) -> tuple[int, int]:
     return (DRAFT_W, DRAFT_H) if draft else (CANVAS_W, CANVAS_H)
 
 
 def build_filter(top_ratio: float = 0.5, focus: str = "center", zoom: float = 1.0,
                  width: int = CANVAS_W, height: int = CANVAS_H,
-                 track: list[tuple[float, float]] | None = None) -> str:
+                 track: list[tuple[float, float]] | None = None, screens: list[dict] | None = None) -> str:
     """Arriba: recorte enfocado (encuadre + zoom) que rellena el hueco. Abajo: la escena completa, sin recortar y
     con barras negras si hace falta, para no perder a nadie. Termina en 30 fps constantes."""
     crop_x = _crop_x(focus, track)
@@ -50,10 +78,12 @@ def build_filter(top_ratio: float = 0.5, focus: str = "center", zoom: float = 1.
     bottom_h = height - top_h
     zoom = max(1.0, float(zoom))
     scaled_w, scaled_h = int(width * zoom), int(top_h * zoom)
+    labels, shared = _screens_filter(screens, width, top_h, "toppad0", "toppad")
     return (
-        f"[0:v]split=2[top][botsrc];"
+        f"[0:v]split={2 + len(labels)}[top][botsrc]{''.join(labels)};"
         f"[top]scale={scaled_w}:{scaled_h}:force_original_aspect_ratio=increase,"
-        f"crop={width}:{top_h}:{crop_x}:(ih-oh)/2,setsar=1[toppad];"
+        f"crop={width}:{top_h}:{crop_x}:(ih-oh)/2,setsar=1[toppad0];"
+        f"{shared};"
         f"[botsrc]scale={width}:{bottom_h}:force_original_aspect_ratio=decrease,"
         f"pad={width}:{bottom_h}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1[bot];"
         f"[toppad][bot]vstack=inputs=2,fps={FPS}[v]"
@@ -62,7 +92,7 @@ def build_filter(top_ratio: float = 0.5, focus: str = "center", zoom: float = 1.
 
 def build_filter_full(top_ratio: float = 0.66, focus: str = "center", zoom: float = 1.0,
                       width: int = CANVAS_W, height: int = CANVAS_H,
-                      track: list[tuple[float, float]] | None = None) -> str:
+                      track: list[tuple[float, float]] | None = None, screens: list[dict] | None = None) -> str:
     """Pantalla completa: arriba el vídeo nítido (encuadre + zoom) en `top_ratio` del alto; el resto del lienzo es una copia
     del mismo vídeo muy difuminada y oscurecida, un fondo tranquilo para gráficos y subtítulos. El difuminado se hace
     a un cuarto de resolución (barato) y se reescala."""
@@ -73,12 +103,14 @@ def build_filter_full(top_ratio: float = 0.66, focus: str = "center", zoom: floa
     scaled_w, scaled_h = int(width * zoom), int(top_h * zoom)
     small_w, small_h = width // 4, height // 4
     sigma = max(3, small_w // 36)
+    labels, shared = _screens_filter(screens, width, top_h, "fgc0", "fgc")
     return (
-        f"[0:v]split=2[fg][bgsrc];"
+        f"[0:v]split={2 + len(labels)}[fg][bgsrc]{''.join(labels)};"
         f"[bgsrc]scale={small_w}:{small_h}:force_original_aspect_ratio=increase,crop={small_w}:{small_h},"
         f"gblur=sigma={sigma},eq=brightness=-0.22:saturation=0.85,scale={width}:{height}:flags=bilinear,setsar=1[bg];"
         f"[fg]scale={scaled_w}:{scaled_h}:force_original_aspect_ratio=increase,"
-        f"crop={width}:{top_h}:{crop_x}:(ih-oh)/2,setsar=1[fgc];"
+        f"crop={width}:{top_h}:{crop_x}:(ih-oh)/2,setsar=1[fgc0];"
+        f"{shared};"
         f"[bg][fgc]overlay=0:0,fps={FPS}[v]"
     )
 
@@ -97,6 +129,7 @@ def make_vertical_clip(
     zoom: float = 1.0,
     layout: str = "split",
     track: list[tuple[float, float]] | None = None,
+    screens: list[dict] | None = None,
     draft: bool = False,
     ffmpeg: str = "ffmpeg",
     on_progress: Callable[[float], None] | None = None,
@@ -124,7 +157,7 @@ def make_vertical_clip(
     cmd = [
         *progress_args(ffmpeg),
         "-ss", f"{start:.3f}", "-i", str(video), "-t", f"{duration:.3f}",
-        "-filter_complex", (build_filter_full if layout == "full" else build_filter)(top_ratio, focus, zoom, width, height, track),
+        "-filter_complex", (build_filter_full if layout == "full" else build_filter)(top_ratio, focus, zoom, width, height, track, screens),
         "-map", "[v]", "-map", "0:a?",
         "-c:v", "libx264", *quality, "-pix_fmt", "yuv420p",
         "-g", str(FPS), "-keyint_min", str(FPS), "-sc_threshold", "0",  # fotograma clave cada segundo

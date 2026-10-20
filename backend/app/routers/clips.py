@@ -14,9 +14,11 @@ from app.auth.deps import current_user, get_owned
 from app.db.models import Asset, BrandTemplate, Clip, YouTubeChannel, Job, Project, RenderState, User
 from app.db import get_db
 from app.jobs import queue
+from app.pipeline import screens as screens_mod
 from app.pipeline import ffops
 from app.services import clips as clips_service
 from app.services import cortinilla as cortinilla_service
+from app.services import source as source_service
 from app.services import country_maps, map_library, fx_request, graphics_planner, graphics_schedule, seo as seo_service, media_sign, silences as silences_service, storage, transcription
 
 router = APIRouter(tags=["clips"])
@@ -49,6 +51,7 @@ class ClipOut(BaseModel):
     cortinilla_at: float | None
     template_id: int | None
     graphics: list[dict]
+    screen_ranges: list[dict] = []
     seo_title: str
     seo_description: str
     seo_tags: list[str]
@@ -78,7 +81,7 @@ def _out(c: Clip, render_job_id: int | None = None, upload_job_id: int | None = 
         id=c.id, project_id=c.project_id, start=c.start, end=c.end, duration=round(c.end - c.start, 3),
         title=c.title, reason=c.reason, score=c.score, transcript=c.transcript, hook=c.hook,
         emphasis=c.emphasis_json or [], parts=c.parts or [], layout=c.layout, focus=c.focus, zoom=c.zoom,
-        top_ratio=c.top_ratio, intro_enabled=c.intro_enabled, cortinilla_at=c.cortinilla_at, template_id=c.template_id, graphics=c.graphics_json or [],
+        top_ratio=c.top_ratio, intro_enabled=c.intro_enabled, cortinilla_at=c.cortinilla_at, template_id=c.template_id, graphics=c.graphics_json or [], screen_ranges=c.screen_ranges or [],
         seo_title=c.seo_title or "", seo_description=c.seo_description or "", seo_tags=[t for t in (c.seo_tags or "").split(",") if t.strip()],
         channel_id=c.channel_id, privacy=c.privacy, publish_at=c.publish_at, youtube_video_id=c.youtube_video_id, uploaded_at=c.uploaded_at,
         upload_error=c.upload_error, auto_publish=c.auto_publish,
@@ -156,6 +159,28 @@ def _beats(items: list[GraphicIn]) -> list[dict]:
     return sorted(out, key=lambda b: b["at"])
 
 
+class ScreenRangeIn(BaseModel):
+    """Tramo con una pantalla compartida: start/end en segundos del VÍDEO ORIGINAL (como el inicio y el fin del clip) y la región
+    que se enseña, en fracciones del cuadro."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    start: float = Field(ge=0)
+    end: float = Field(gt=0)
+    x: float = Field(ge=0, lt=1)
+    y: float = Field(ge=0, lt=1)
+    w: float = Field(ge=0.05, le=1)
+    h: float = Field(ge=0.05, le=1)
+
+    @model_validator(mode="after")
+    def _check(self):
+        if self.end <= self.start:
+            raise ValueError("el fin del tramo debe ser posterior al inicio")
+        if self.x + self.w > 1.0001 or self.y + self.h > 1.0001:
+            raise ValueError("la región se sale del cuadro")
+        return self
+
+
 class ClipPatch(BaseModel):
     """Solo estos campos son editables; cualquier otro (status, user_id…) se rechaza con 422."""
 
@@ -172,6 +197,7 @@ class ClipPatch(BaseModel):
     intro_enabled: bool | None = None
     template_id: int | None = Field(default=None, ge=1)
     graphics: list[GraphicIn] | None = Field(default=None, max_length=40)
+    screen_ranges: list[ScreenRangeIn] | None = Field(default=None, max_length=10)
     cortinilla_at: float | None = Field(default=None, gt=0)
 
 
@@ -233,6 +259,8 @@ def patch_clip(clip_id: int, body: ClipPatch, user: User = Depends(current_user)
     changes = body.model_dump(exclude_unset=True)
     new_graphics = _beats(body.graphics) if body.graphics is not None else None
     changes.pop("graphics", None)
+    new_screens = sorted((r.model_dump() for r in body.screen_ranges), key=lambda r: r["start"]) if body.screen_ranges is not None else None
+    changes.pop("screen_ranges", None)
     old_start = clip.start
     # `cortinilla_at: null` vuelve a la posición automática; en los demás campos null significa «sin cambio»
     really_changed = {k for k, v in changes.items() if (v is not None or k in NULLABLE) and getattr(clip, k) != v}
@@ -257,6 +285,9 @@ def patch_clip(clip_id: int, body: ClipPatch, user: User = Depends(current_user)
     for field, value in changes.items():
         if value is not None or field in NULLABLE:
             setattr(clip, field, value)
+    if new_screens is not None:
+        really_changed |= {"screen_ranges"} if new_screens != (clip.screen_ranges or []) else set()
+        clip.screen_ranges = new_screens
     if new_graphics is not None:
         really_changed |= {"graphics_json"} if new_graphics != (clip.graphics_json or []) else set()
         clip.graphics_json = new_graphics
@@ -348,6 +379,32 @@ def cancel_render(clip_id: int, user: User = Depends(current_user), db: Session 
     queue.cancel(db, job)
     if was_queued:  # en marcha, el handler restaura el estado al ver la cancelación
         clips_service.restore_after_cancel(db, job)
+
+
+class ScreensDetectIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    start: float | None = Field(default=None, ge=0)
+    end: float | None = Field(default=None, ge=0)
+
+
+@router.post("/api/clips/{clip_id}/screens/detect")
+def detect_screens(clip_id: int, body: ScreensDetectIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Busca en el vídeo original los tramos con una pantalla compartida (tuit, web…) dentro del recorte. No guarda nada: el
+    usuario los revisa y los guarda con el clip. Con `start`/`end` se analiza un recorte aún sin guardar."""
+    clip = get_owned(db, Clip, clip_id, user)
+    project = db.get(Project, clip.project_id)
+    start = clip.start if body.start is None else body.start
+    end = clip.end if body.end is None else body.end
+    if end - start < 1.0:
+        raise HTTPException(422, "Recorte no válido")
+    if not source_service.available(project):
+        raise HTTPException(409, "El vídeo original se borró para liberar espacio: renderiza el clip (se descarga solo) y vuelve a probar")
+    try:
+        found = screens_mod.detect(storage.absolute(project.video_path), start, end)
+    except screens_mod.ScreenError as exc:
+        raise HTTPException(500, str(exc)) from exc
+    return {"ranges": found}
 
 
 @router.get("/api/clips/{clip_id}/render-urls")

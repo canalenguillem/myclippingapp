@@ -105,6 +105,16 @@ def _resolve_images(db, user_id: int, beats: list[dict]) -> tuple[list[dict], li
     return out, missing
 
 
+def _screens_for(clip, duration: float) -> list[dict]:
+    """Los tramos de pantalla compartida del clip, en segundos RELATIVOS al inicio del clip y recortados a su duración."""
+    out = []
+    for r in clip.screen_ranges or []:
+        a, b = max(0.0, float(r["start"]) - clip.start), min(duration, float(r["end"]) - clip.start)
+        if b - a >= 0.5:
+            out.append({**r, "start": round(a, 3), "end": round(b, 3)})
+    return out
+
+
 def _qa(ctx, folder, target, quality: str, expected: float, plan) -> None:
     """Revisión automática y hoja de contactos del render. Nunca tumba el render: si algo falla, solo se anota en el log."""
     try:
@@ -209,7 +219,7 @@ def render(ctx: JobContext, payload: dict) -> None:
         ctx.log(f"Render {'borrador' if draft else 'final'} del clip {clip.id}: {clip.start:.2f}–{clip.end:.2f} s ({duration:.1f} s)")
         words = fx_request.clip_words(transcription.load_words(storage.absolute(project.words_path))["words"], clip.start, clip.end)
         track = _speaker_track(ctx, clip, project, source, folder, words, cancel) if clip.focus == vertical.SPEAKER else None
-        vertical.make_vertical_clip(source, clip.start, clip.end, vertical_path, top_ratio=clip.top_ratio, focus=clip.focus, track=track,
+        vertical.make_vertical_clip(source, clip.start, clip.end, vertical_path, top_ratio=clip.top_ratio, focus=clip.focus, track=track, screens=_screens_for(clip, duration),
                                     zoom=clip.zoom, layout=clip.layout, draft=draft, on_progress=_stage(ctx, 0, 20), cancel_check=cancel)
         ctx.log("Clip vertical listo")
 
