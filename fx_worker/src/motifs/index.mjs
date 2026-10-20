@@ -5,6 +5,7 @@ import { emojiMotif } from "./emoji.mjs";
 import { imageMotif } from "./image.mjs";
 import { keywordMotif } from "./keyword.mjs";
 import { lowerThirdMotif } from "./lowerThird.mjs";
+import { puppetsMotif } from "./puppets.mjs";
 import { strikeMotif } from "./strike.mjs";
 
 export const MOTIFS = {
@@ -14,4 +15,5 @@ export const MOTIFS = {
   counter: counterMotif,
   strike: strikeMotif,
   lower_third: lowerThirdMotif,
+  puppets: puppetsMotif,
 };

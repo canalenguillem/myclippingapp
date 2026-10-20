@@ -116,10 +116,12 @@ export function createApp({ mediaDir, workers = 2, maxRenders = 1, renderer = re
         if (busy()) return send(res, 409, { error: "busy" });
         const images = {};
         for (const g of request.graphics) {
-          if (g.type !== "image" || images[g.image]) continue;
-          const abs = resolveInMedia(mediaDir, g.image);
-          if (!existsSync(abs)) return send(res, 422, { error: "image_not_found", image: g.image });
-          images[g.image] = abs;
+          for (const rel of g.type === "image" ? [g.image] : g.type === "puppets" ? g.images : []) {
+            if (images[rel]) continue;
+            const abs = resolveInMedia(mediaDir, rel);
+            if (!existsSync(abs)) return send(res, 422, { error: "image_not_found", image: rel });
+            images[rel] = abs;
+          }
         }
         const id = randomUUID();
         const record = { id, status: "queued", progress: 0, message: "", error: null, output: request.output, createdAt: now() };

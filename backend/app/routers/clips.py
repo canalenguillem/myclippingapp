@@ -94,7 +94,7 @@ class GraphicIn(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    type: Literal["keyword", "emoji", "image", "counter", "strike", "lower_third"]
+    type: Literal["keyword", "emoji", "image", "counter", "strike", "lower_third", "puppets"]
     at: float = Field(ge=0)
     text: str | None = Field(default=None, max_length=40)
     emoji: str | None = Field(default=None, max_length=16)
@@ -109,6 +109,7 @@ class GraphicIn(BaseModel):
     prefix: str | None = Field(default=None, max_length=8)
     suffix: str | None = Field(default=None, max_length=12)
     label: str | None = Field(default=None, max_length=40)
+    asset_ids: list[int] | None = Field(default=None, min_length=1, max_length=3)    # monigotes: las caras (imágenes de la librería), de la mano
     name: str | None = Field(default=None, max_length=40)                             # rótulo: nombre
     role: str | None = Field(default=None, max_length=60)                            # rótulo: cargo
     lead: float | None = Field(default=None, ge=0, le=1)
@@ -121,6 +122,8 @@ class GraphicIn(BaseModel):
             raise ValueError("la tarjeta necesita texto")
         if self.type == "counter" and (self.to_value is None):
             raise ValueError("el contador necesita la cifra final")
+        if self.type == "puppets" and (not self.asset_ids or any(i < 1 for i in self.asset_ids)):
+            raise ValueError("los monigotes necesitan al menos una cara")
         if self.type == "lower_third" and not (self.name or "").strip():
             raise ValueError("el rótulo necesita un nombre")
         if self.type == "image":

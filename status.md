@@ -241,3 +241,9 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 
 - `RENDER_LANES` (por defecto 1) es el número de renders a la vez en todo el sistema (`queue.claim_next`); `FX_MAX_RENDERS` (compose lo toma de `RENDER_LANES`) es el tope de `fx_worker`. Regla 3 de `CLAUDE.md` reescrita. Con 2 carriles conviene `FX_WORKERS=1` y vigilar la RAM.
 - Pantalla «Usuarios» (solo admin, `/admin`, `routers/admin.py`): por usuario, jobs a la vez (1–8), minutos máximos de vídeo y activo; muestra los jobs en marcha y en cola y los carriles del sistema.
+
+## Motivo `puppets`: monigotes de comic de la mano con las caras
+
+- `fx_worker/src/motifs/puppets.mjs`: 1–3 monigotes de palo (trazo grueso con contorno crema) con la cara de una imagen de la librería como cabeza en círculo, cogidos de la mano; entran andando desde la izquierda (piernas que se balancean) y en la palabra dan un saltito. Se ajusta al hueco bajo la banda (escala 0,5–1,3). Contrato `images` (png, 1–3); `server.mjs` copia las caras como las de `image`.
+- Backend: gráfico `puppets` con `asset_ids` (1–3 imágenes del usuario; el job las resuelve a rutas y descarta el gráfico si falta alguna); cuenta como «grande» en el programador y bloquea el borrado de sus imágenes. Editor: botón «+ Monigotes» y selector de caras por monigote.
+- Verificado con un render real (fotogramas del paseo y del saltito).

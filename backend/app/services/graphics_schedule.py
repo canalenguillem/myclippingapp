@@ -18,14 +18,14 @@ MIN_BIG_GAP = 4.0                                  # entre el inicio de dos grá
 HOOK_SECONDS = 2.2                                 # el gancho ocupa los primeros segundos (igual que fx_request)
 
 # Motivos y su tamaño: nunca dos grandes a la vez. Cada motivo nuevo se da de alta aquí (y en el contrato de fx_worker).
-BIG = {"keyword", "image", "counter", "strike", "lower_third"}
+BIG = {"keyword", "image", "counter", "strike", "lower_third", "puppets"}
 SMALL = {"emoji"}
-DURATION_BY_TYPE = {"keyword": 2.5, "emoji": 2.5, "image": 3.0, "counter": 3.0, "strike": 2.5, "lower_third": 3.0}
-PRIORITY_BY_TYPE = {"keyword": 5, "emoji": 3, "image": 6, "counter": 7, "strike": 6, "lower_third": 4}
-LEAD_BY_TYPE = {"emoji": 0.8, "counter": 0.8}   # la cifra necesita tiempo para rodar hasta la palabra
+DURATION_BY_TYPE = {"keyword": 2.5, "emoji": 2.5, "image": 3.0, "counter": 3.0, "strike": 2.5, "lower_third": 3.0, "puppets": 3.0}
+PRIORITY_BY_TYPE = {"keyword": 5, "emoji": 3, "image": 6, "counter": 7, "strike": 6, "lower_third": 4, "puppets": 6}
+LEAD_BY_TYPE = {"emoji": 0.8, "counter": 0.8, "puppets": 0.8}   # la cifra necesita tiempo para rodar hasta la palabra
 MOVING_ENTRIES = {"punch", "slide_left", "slide_right", "slide_top", "drop"}   # entradas con recorrido: necesitan tiempo para llegar
 MOVING_LEAD = 0.7                       # una escena con saltos necesita tiempo para llegar a la palabra
-REQUIRED_FIELD = {"keyword": "text", "emoji": "emoji", "image": "asset_id", "counter": "to_value", "strike": "text", "lower_third": "name"}
+REQUIRED_FIELD = {"keyword": "text", "emoji": "emoji", "image": "asset_id", "counter": "to_value", "strike": "text", "lower_third": "name", "puppets": "asset_ids"}
 
 
 _EMOJI_CATEGORIES = {"So", "Sk", "Cf", "Mn"}
@@ -70,7 +70,10 @@ def schedule(beats: list[dict] | None, clip_duration: float, *, cortinilla_at: f
             continue
         field = REQUIRED_FIELD.get(kind)
         # la imagen llega como `asset_id` (lo guardado) o ya resuelta como `image` (la ruta que se manda a fx_worker)
-        if field and not (str(beat.get(field, "")).strip() or (kind == "image" and beat.get("image"))):
+        if kind == "puppets" and not (beat.get("asset_ids") or beat.get("images")):
+            drop(beat, "faltan las caras")
+            continue
+        if kind != "puppets" and field and not (str(beat.get(field, "")).strip() or (kind == "image" and beat.get("image"))):
             drop(beat, "falta el texto" if field == "text" else "falta la imagen" if field == "asset_id" else f"falta el campo «{field}»")
             continue
         at = _num(beat.get("at"), -1.0)

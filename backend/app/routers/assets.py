@@ -46,7 +46,7 @@ def used_by(db: Session, user_id: int, asset_id: int) -> tuple[int, int]:
     """(clips con un gráfico de esta imagen, plantillas que la usan como objeto que orbita)."""
     clips = db.scalars(select(Clip).where(Clip.user_id == user_id)).all()
     templates = db.scalars(select(BrandTemplate).where(BrandTemplate.user_id == user_id)).all()
-    return (sum(1 for c in clips if any(g.get("asset_id") == asset_id for g in (c.graphics_json or []) if isinstance(g, dict))),
+    return (sum(1 for c in clips if any(g.get("asset_id") == asset_id or asset_id in (g.get("asset_ids") or []) for g in (c.graphics_json or []) if isinstance(g, dict))),
             sum(1 for t in templates if (t.cortinilla or {}).get("orbit_asset_id") == asset_id))
 
 

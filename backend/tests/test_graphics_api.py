@@ -220,3 +220,32 @@ def test_suggest_adds_the_name_label_of_a_named_speaker(client, tmp_path, monkey
     beats = client.post(f"/api/clips/{c.id}/graphics-plan/suggest", json={"graphics": []}, headers=h).json()["beats"]
     lt = [b for b in beats if b["type"] == "lower_third"]
     assert len(lt) == 1 and lt[0]["name"] == "Ana López" and lt[0]["role"] == "periodista" and lt[0]["at"] >= 2.6
+
+
+def test_puppets_are_saved_scheduled_resolved_to_faces_and_block_deleting_their_assets(client, tmp_path, monkeypatch):
+    from app.jobs.render import _resolve_images
+    h, db, p = _project(client, tmp_path, monkeypatch)
+    c = _clip(db, p, 10.0, 40.0)
+    a, b = _asset(db, p.user_id, "Sánchez"), _asset(db, p.user_id, "Begoña")
+    for x in (a, b):                                                    # con fichero real en el disco
+        f = storage.media_root() / f"u{p.user_id}" / "assets" / f"{x.id}.png"
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_bytes(b"\x89PNG")
+        x.path = storage.rel(f)
+    db.commit()
+    item = {"type": "puppets", "at": 12.0, "asset_ids": [a.id, b.id]}
+    out = client.patch(f"/api/clips/{c.id}", json={"graphics": [item]}, headers=h).json()["graphics"]
+    assert out == [{"type": "puppets", "at": 12.0, "asset_ids": [a.id, b.id]}]
+    plan = client.post(f"/api/clips/{c.id}/graphics-plan", json={"graphics": [item]}, headers=h).json()
+    assert [bt["type"] for bt in plan["beats"]] == ["puppets"] and plan["beats"][0]["lead"] == 0.8
+    for bad in ({"type": "puppets", "at": 5}, {"type": "puppets", "at": 5, "asset_ids": []}, {"type": "puppets", "at": 5, "asset_ids": [1, 2, 3, 4]}, {"type": "puppets", "at": 5, "asset_ids": [0]}):
+        assert client.patch(f"/api/clips/{c.id}", json={"graphics": [bad]}, headers=h).status_code == 422, bad
+    resolved, missing = _resolve_images(db, p.user_id, [{**item, "lead": 0.8, "duration": 3.0}])
+    assert missing == [] and resolved[0]["images"] == [a.path, b.path] and "asset_ids" not in resolved[0]
+    from app.db.models import User
+    stranger = User(email="o@x.com", password_hash="x")
+    db.add(stranger)
+    db.commit()
+    theirs = _asset(db, stranger.id, "ajena")
+    assert _resolve_images(db, p.user_id, [{**item, "asset_ids": [a.id, theirs.id]}])[1]          # la cara de otro usuario no vale
+    assert client.delete(f"/api/assets/{a.id}", headers=h).status_code == 409

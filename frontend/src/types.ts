@@ -58,7 +58,8 @@ export const EMPTY_CORTINILLA: TemplateCortinilla = {
 
 /** Gráfico ligado a la transcripción; `at` son segundos DEL CLIP (inicio de la palabra gancho). */
 export type Graphic = {
-  type: "keyword" | "emoji" | "image" | "counter" | "strike" | "lower_third"; at: number; text?: string; emoji?: string; target?: string;
+  type: "keyword" | "emoji" | "image" | "counter" | "strike" | "lower_third" | "puppets"; at: number; text?: string; emoji?: string; target?: string;
+  asset_ids?: number[];
   from_value?: number; to_value?: number; prefix?: string; suffix?: string; label?: string; name?: string; role?: string;
   asset_id?: number; style?: "original" | "card" | "silhouette" | "red"; effect?: "pop" | "vaporize" | "break" | "explode";
   entry?: "pop" | "punch" | "slide_left" | "slide_right" | "slide_top" | "drop";

@@ -213,3 +213,4 @@ li.qa-warn { color: #ffd27a; } li.qa-error { color: #ff7a6b; } li.qa-ok { color:
 .clip-uploaded { padding: 6px 10px; border-radius: 8px; background: #14301f; color: #9be7b4; font-size: .88rem; }
 .clip-uploaded a { color: #c6f6d5; }
 .clip-card.uploaded { border-color: #15803d; }
+.gfx-beat.puppets { background: #d7c6ff; }

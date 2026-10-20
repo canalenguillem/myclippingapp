@@ -332,3 +332,30 @@ test("pantalla completa: la banda de subtítulos va bajo la parte nítida aunque
   assert.ok(html.includes("#band{position:absolute;left:0;top:1248px"), "banda a topH (1248) + 30 − ROOM(30), no en las filas 700–780");
   assert.ok(/#g0\{top:14\d\dpx\}/.test(html), "el emoji va bajo la banda");
 });
+
+// --- puppets ----------------------------------------------------------------------------------------------
+
+test("puppets: contrato (1–3 caras png), un monigote por imagen y el saltito cae en la palabra", () => {
+  const g = parseRequest({ ...base, graphics: [{ type: "puppets", at: 8, images: ["u1/assets/1.png", "u1/assets/2.png"] }] }).graphics[0];
+  assert.deepEqual(g, { type: "puppets", at: 8, lead: 0.5, duration: 2.5, images: ["u1/assets/1.png", "u1/assets/2.png"] });
+  for (const bad of [[], ["a.png", "b.png", "c.png", "d.png"], ["a.jpg"], ["../x.png"]])
+    assert.throws(() => parseRequest({ ...base, graphics: [{ type: "puppets", at: 8, images: bad }] }), ContractError, JSON.stringify(bad));
+  const out = graphicsLayer({ items: [g], map: makeTimeMap(undefined), clipDuration: 20, files: { "u1/assets/1.png": "gfx_img0.png", "u1/assets/2.png": "gfx_img1.png" } });
+  assert.equal((out.html.match(/<image /g) ?? []).length, 2);
+  assert.ok(out.html.includes('href="gfx_img0.png"') && out.html.includes('id="g0f1"'));
+  assert.ok(out.script.includes('#g0h0",{scale:1') && out.script.includes("},8);"), "las cabezas saltan en la palabra (8 s)");
+  assert.deepEqual(out.sfx.map((s) => s.kind), ["whoosh", "pop"]);
+});
+
+test("puppets: el proyecto se construye con las caras copiadas y pasa el linter", async () => {
+  const dir = tmp();
+  const video = makeVideo(join(dir, "src.mp4"), 12);
+  const png = join(dir, "face.png");
+  writeFileSync(png, Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64"));
+  const request = parseRequest({ video: "a.mp4", output: "b.mp4", duration: 12, graphics: [{ type: "puppets", at: 6, lead: 0.8, images: ["f1.png", "f2.png"] }] });
+  const work = join(dir, "work");
+  buildProject({ request, video, workDir: work, images: { "f1.png": png, "f2.png": png } });
+  const html = readFileSync(join(work, "index.html"), "utf8");
+  assert.ok(html.includes("gfx_img0.png") && html.includes("gfx_img1.png") === false || html.includes("gfx_img1.png"));
+  assert.equal((await checkProject(work)).totalErrors, 0);
+});

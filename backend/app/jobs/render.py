@@ -72,17 +72,28 @@ def _resolve_images(db, user_id: int, beats: list[dict]) -> tuple[list[dict], li
     """Cambia `asset_id` por la ruta de la imagen (solo del usuario y si existe en disco); el resto se descarta con motivo."""
     out: list[dict] = []
     missing: list[dict] = []
+    def path_of(asset_id) -> str | None:
+        asset = db.get(Asset, asset_id or 0)
+        if asset is None or asset.user_id != user_id or not asset.path:
+            return None
+        try:
+            return asset.path if storage.absolute(asset.path).is_file() else None
+        except ValueError:
+            return None
+
     for beat in beats:
-        if not isinstance(beat, dict) or beat.get("type") != "image":
+        kind = beat.get("type") if isinstance(beat, dict) else None
+        if kind == "puppets":
+            paths = [path_of(i) for i in beat.get("asset_ids") or []]
+            if not paths or None in paths:
+                missing.append({"beat": beat, "reason": "una de las caras ya no existe en la librería"})
+                continue
+            out.append({**{k: v for k, v in beat.items() if k != "asset_ids"}, "images": paths})
+            continue
+        if kind != "image":
             out.append(beat)
             continue
-        asset = db.get(Asset, beat.get("asset_id") or 0)
-        path = None
-        if asset is not None and asset.user_id == user_id and asset.path:
-            try:
-                path = asset.path if storage.absolute(asset.path).is_file() else None
-            except ValueError:
-                path = None
+        path = path_of(beat.get("asset_id"))
         if path is None:
             missing.append({"beat": beat, "reason": "la imagen ya no existe en la librería"})
             continue
