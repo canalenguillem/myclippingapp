@@ -49,3 +49,17 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
   }
   return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
 }
+
+/** POST con JSON que devuelve un fichero (p. ej. la vista previa PNG del editor de imágenes). */
+export async function apiBlob(path: string, json: unknown, signal?: AbortSignal): Promise<Blob> {
+  const headers = new Headers({ "Content-Type": "application/json" });
+  const csrf = readCookie("csrf");
+  if (csrf) headers.set("X-CSRF-Token", csrf);
+  const res = await fetch(path, { method: "POST", headers, credentials: "same-origin", body: JSON.stringify(json), signal });
+  if (!res.ok) {
+    let detail = res.statusText;
+    try { const data = await res.json(); detail = formatDetail(data.detail ?? data); } catch { /* no JSON */ }
+    throw new ApiError(res.status, detail);
+  }
+  return res.blob();
+}

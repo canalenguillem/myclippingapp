@@ -247,3 +247,10 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 - `fx_worker/src/motifs/puppets.mjs`: 1–3 monigotes (`look` «southpark» por defecto: recortables de cabeza enorme con traje, abrigo o parka y brazos cortos que caminan balanceándose; o «stick»: de palo, trazo grueso con contorno crema) con la cara de una imagen de la librería como cabeza en círculo, cogidos de la mano; entran andando desde la izquierda (piernas que se balancean) y en la palabra dan un saltito. Se ajusta al hueco bajo la banda (escala 0,5–1,3). Contrato `images` (png, 1–3); `server.mjs` copia las caras como las de `image`.
 - Backend: gráfico `puppets` con `asset_ids` (1–3 imágenes del usuario; el job las resuelve a rutas y descarta el gráfico si falta alguna); cuenta como «grande» en el programador y bloquea el borrado de sus imágenes. Editor: botón «+ Monigotes» y selector de caras por monigote.
 - Verificado con un render real (fotogramas del paseo y del saltito).
+
+## Pestaña «Imágenes»: editor de la librería
+
+- Página `/images` (enlace «Imágenes» en el inicio): rejilla de la librería con subida (botón o arrastrar y soltar, varias a la vez), renombrar en la miniatura (Enter o al salir del campo), borrar y los mapas de países (`components/CountryMaps.tsx`, que sigue también en el panel de gráficos).
+- Editor: quitar fondo con IA, voltear, girar (−180…180°), caja de recorte arrastrable con zoom y forma rectángulo/óvalo/círculo; «Guardar como copia» o «Reemplazar» (409 si la imagen se usa en gráficos o plantillas).
+- Backend: `services/image_edit.py` (segmentación con onnxruntime y el modelo `u2net_human_seg` de rembg, ~170 MB, descargado a `MEDIA_DIR/_models` la primera vez; en lugar de la librería `rembg` completa, mucho más pesada) y `POST /api/assets/{id}/preview` y `/edit`. El resultado de quitar el fondo se cachea junto al asset (`N.nobg.png`) y se borra al reemplazar o borrar. Un candado evita dos usos del modelo a la vez.
+- Probado en navegador contra el entorno local con una foto real: subida, quitar fondo, círculo, arrastre, copia y renombrado.

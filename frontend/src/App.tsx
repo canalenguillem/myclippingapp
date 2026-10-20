@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from "./auth";
 import Admin from "./pages/Admin";
 import Channels from "./pages/Channels";
 import ClipEditor from "./pages/ClipEditor";
+import Images from "./pages/Images";
 import Home from "./pages/Home";
 import Jobs from "./pages/Jobs";
 import ProjectDetail from "./pages/ProjectDetail";
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="/projects" element={<Projects />} />
           <Route path="/projects/:id" element={<ProjectDetail />} />
           <Route path="/channels" element={<Channels />} />
+          <Route path="/images" element={<Images />} />
           <Route path="/templates" element={<Templates />} />
           <Route path="/clips/:id" element={<ClipEditor />} />
         </Route>
