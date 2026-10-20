@@ -254,3 +254,11 @@ Detalle completo en la sección «Conflictos pendientes de decisión» del plan.
 - Editor: quitar fondo con IA, voltear, girar (−180…180°), caja de recorte arrastrable con zoom y forma rectángulo/óvalo/círculo; «Guardar como copia» o «Reemplazar» (409 si la imagen se usa en gráficos o plantillas).
 - Backend: `services/image_edit.py` (segmentación con onnxruntime y el modelo `u2net_human_seg` de rembg, ~170 MB, descargado a `MEDIA_DIR/_models` la primera vez; en lugar de la librería `rembg` completa, mucho más pesada) y `POST /api/assets/{id}/preview` y `/edit`. El resultado de quitar el fondo se cachea junto al asset (`N.nobg.png`) y se borra al reemplazar o borrar. Un candado evita dos usos del modelo a la vez.
 - Probado en navegador contra el entorno local con una foto real: subida, quitar fondo, círculo, arrastre, copia y renombrado.
+
+## Limpieza de disco: lo pesado se regenera
+
+- Criterio del usuario: no se guarda nada que se pueda regenerar descargando el vídeo de nuevo. Se conservan `words.json`, `silences.json` y la BD (clips, gráficos, SEO, speakers); se borran el vídeo original, el audio y las carpetas `clip_*` (borrador, final, miniatura, análisis, hoja de contactos y revisión).
+- `services/cleanup.py`: `usage`, `free_project` (no hace nada con un job activo; deja los clips en `render_state=none`) y `cleanup_old`. El worker la ejecuta cada hora para los proyectos sin ficheros nuevos en `MEDIA_RETENTION_DAYS` (por defecto 14; 0 = nunca).
+- `services/source.py::ensure_source`: al renderizar (o re-transcribir) sin vídeo original, se descarga de nuevo con yt-dlp (el log lo dice); si falla, el render falla con «No se pudo descargar de nuevo el vídeo original». Con el vídeo borrado, `video-url` responde 409 y el reproductor se oculta con un aviso.
+- API: `GET /api/storage` (libre/total del disco y tamaño por proyecto) y `POST /api/projects/{id}/free-space`. Pantalla Proyectos: columna «Disco», botón «Liberar X» y la línea de disco.
+- Pendiente de mirar con datos reales: los vídeos largos tardan en bajar de nuevo (minutos) la primera vez que se renderiza tras una limpieza.

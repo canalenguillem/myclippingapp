@@ -4,6 +4,8 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select, update
+
+from app.config import get_settings
 from sqlalchemy.orm import Session
 
 from app.auth.deps import current_user, get_owned
@@ -11,7 +13,8 @@ from app.db import get_db
 from app.db.models import BrandTemplate, Clip, Job, Project, ProjectStatus, RenderState, User, YouTubeChannel
 from app.jobs import queue
 from app.services import media_sign, storage, transcription
-from app.services import seo as seo_service
+from app.services import cleanup, seo as seo_service
+from app.services import source as source_service
 from app.services.video_download import is_youtube_url
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
@@ -151,6 +154,8 @@ def video_url(project_id: int, user: User = Depends(current_user), db: Session =
     project = get_owned(db, Project, project_id, user)
     if not project.video_path:
         raise HTTPException(409, "El proyecto aún no tiene vídeo")
+    if not source_service.available(project):
+        raise HTTPException(409, "El vídeo original se borró para liberar espacio; se descarga solo al renderizar un clip")
     return media_sign.signed_url(project.video_path)
 
 
@@ -189,3 +194,43 @@ def known_speakers(exclude_project: int | None = None, user: User = Depends(curr
             if not entry["role"] and str(card.get("role", "")).strip():   # el cargo más reciente que no esté vacío
                 entry["role"] = str(card["role"]).strip()
     return sorted(people.values(), key=lambda e: (-e["uses"], e["name"].lower()))
+
+
+class StorageProjectOut(BaseModel):
+    id: int
+    title: str
+    bytes: int
+    heavy_bytes: int
+    last_activity: str | None
+    has_source: bool
+
+
+class StorageOut(BaseModel):
+    free_bytes: int
+    total_bytes: int
+    retention_days: int
+    projects: list[StorageProjectOut]
+
+
+storage_router = APIRouter(prefix="/api/storage", tags=["storage"])
+
+
+@storage_router.get("", response_model=StorageOut)
+def storage_overview(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Disco libre y lo que ocupa cada proyecto del usuario (lo pesado se puede liberar: se regenera descargando de nuevo)."""
+    free, total = cleanup.disk()
+    rows = []
+    for p in db.scalars(select(Project).where(Project.user_id == user.id).order_by(Project.id.desc())).all():
+        u = cleanup.usage(storage.project_dir(p.user_id, p.id))
+        rows.append(StorageProjectOut(id=p.id, title=p.title, bytes=u.total, heavy_bytes=u.heavy, last_activity=cleanup.utc_iso(u.last_activity),
+                                      has_source=source_service.available(p)))
+    return StorageOut(free_bytes=free, total_bytes=total, retention_days=get_settings().media_retention_days, projects=rows)
+
+
+@router.post("/{project_id}/free-space")
+def free_space(project_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Borra el vídeo original, el audio y los renders del proyecto; se regeneran al volver a renderizar."""
+    project = get_owned(db, Project, project_id, user)
+    if queue.active_job(db, user.id, project.id):
+        raise HTTPException(409, "Hay un job en marcha para este proyecto")
+    return {"freed_bytes": cleanup.free_project(db, project)}

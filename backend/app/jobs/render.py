@@ -16,6 +16,8 @@ from app.pipeline import analysis as analysis_mod
 from app.pipeline import ass_fallback, ffops, vertical
 from app.pipeline import focus as focus_mod
 from app.services import asd_client
+from app.services import source as source_service
+from app.services import video_download
 from app.services import qa as qa_service
 from app.services import clips as clips_service
 from app.services import cortinilla as cortinilla_service
@@ -184,9 +186,11 @@ def render(ctx: JobContext, payload: dict) -> None:
             raise RenderError(f"Solo se renderizan los diseños partido (split) y pantalla completa (full); este clip usa «{clip.layout}»")
         if not project.video_path or not project.words_path:
             raise RenderError("El proyecto aún no tiene vídeo y transcripción")
-        source = storage.absolute(project.video_path)
-        if not source.is_file():
-            raise RenderError("No se encuentra el vídeo de origen en el disco")
+        try:
+            source = source_service.ensure_source(project, ctx.log, lambda f: ctx.progress(int(f * 10)))
+            db.commit()
+        except video_download.DownloadError as exc:
+            raise RenderError(f"No se pudo descargar de nuevo el vídeo original: {exc}") from exc
     except RenderError as exc:
         fail(str(exc))
         raise

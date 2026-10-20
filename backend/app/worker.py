@@ -16,6 +16,7 @@ from app.jobs.handlers import HANDLERS, Cancelled, JobContext
 
 POLL_SECONDS = 2
 HEARTBEAT_SECONDS = 10
+CLEANUP_SECONDS = 3600
 
 WORKER_ID = f"{socket.gethostname()}-{os.getpid()}-{uuid.uuid4().hex[:6]}"
 _running: set[int] = set()
@@ -58,6 +59,22 @@ def heartbeat_loop() -> None:
             db.close()
 
 
+def clean_old_media() -> None:
+    """Libera el disco de los proyectos sin actividad (lo pesado se regenera descargando el vídeo de nuevo)."""
+    from app.services import cleanup
+
+    days = get_settings().media_retention_days
+    db = SessionLocal()
+    try:
+        projects, freed = cleanup.cleanup_old(db, days)
+        if projects:
+            print(f"worker: {projects} proyecto(s) sin actividad en {days} días; liberados {freed / 1e9:.1f} GB", flush=True)
+    except Exception:  # noqa: BLE001 - la limpieza nunca debe parar el worker
+        traceback.print_exc()
+    finally:
+        db.close()
+
+
 def main() -> None:
     slots = max(1, get_settings().worker_concurrency)
     print(f"worker {WORKER_ID}: {slots} slots", flush=True)
@@ -67,6 +84,7 @@ def main() -> None:
     threading.Thread(target=heartbeat_loop, daemon=True).start()
 
     last_stale_check = time.monotonic()
+    last_cleanup = 0.0
     with ThreadPoolExecutor(max_workers=slots) as pool:
         while True:
             with _running_lock:
@@ -87,6 +105,9 @@ def main() -> None:
                     traceback.print_exc()
                 finally:
                     db.close()
+            if time.monotonic() - last_cleanup > CLEANUP_SECONDS:
+                last_cleanup = time.monotonic()
+                clean_old_media()
             if claimed is None:
                 time.sleep(POLL_SECONDS)
 

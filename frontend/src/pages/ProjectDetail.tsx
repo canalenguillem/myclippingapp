@@ -212,6 +212,7 @@ export default function ProjectDetail() {
       )}
       {error && <p className="error">{error}</p>}
       {notice && <p className="notice">{notice}</p>}
+      {transcript && videoUrl === "" && <p className="muted">El vídeo original se borró para liberar espacio: se descarga solo al renderizar un clip.</p>}
       {project?.error && <p className="error">{project.error}</p>}
 
       {transcript && !transcript.has_speakers && (

@@ -34,6 +34,7 @@ def ingest(ctx: JobContext, payload: dict) -> None:
     from app.services import speakers as speakers_service
     from app.services import silences as silences_service
     from app.services import seo as seo_service
+    from app.services import source as source_service
     from app.services import storage, transcription, video_download
 
     project = ctx.db.get(Project, int(payload["project_id"]))
@@ -79,7 +80,9 @@ def ingest(ctx: JobContext, payload: dict) -> None:
             if not project.video_path:
                 raise RuntimeError("El proyecto no tiene vídeo descargado: no se puede re-transcribir")
             if not (folder / "audio.mp3").exists():
-                video_download.extract_audio(storage.absolute(project.video_path), folder / "audio.mp3")
+                source = source_service.ensure_source(project, ctx.log)
+                ctx.db.commit()
+                video_download.extract_audio(source, folder / "audio.mp3")
             project.status, project.error = ProjectStatus.TRANSCRIBING, None
             ctx.db.commit()
             if not project.silences_path:  # proyectos importados antes de F4

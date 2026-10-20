@@ -3,3 +3,5 @@
 - Toda descripción de YouTube generada lleva el @ del canal original en la primera línea y el enlace al vídeo original (con el segundo del clip); sin el @ guardado en el proyecto, solo el enlace.
 
 - Las caras de los monigotes se preparan en la pestaña «Imágenes»: quitar fondo y recorte en óvalo o círculo, de frente y con la cara centrada; una foto con el fondo sin quitar se recorta en círculo pero se ve peor.
+
+- Un render de un proyecto limpiado tarda lo que la descarga del vídeo original más el render: el log del job debe decir «descargándolo de nuevo»; si YouTube ya no sirve el vídeo, el render falla con un mensaje claro (no se queda colgado).

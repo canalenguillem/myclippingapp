@@ -236,10 +236,34 @@ def test_unsupported_layout_fails_clearly(client, tmp_path, monkeypatch, source_
     assert e.clip.render_state is RenderState.FAILED and msg in e.clip.render_error and files(e) == []
 
 
-def test_missing_source_video_fails_clearly(client, tmp_path, monkeypatch, source_file):
+def test_missing_source_video_is_downloaded_again_and_the_render_goes_on(client, tmp_path, monkeypatch, source_file):
+    from app.services import video_download
+    e = setup(client, tmp_path, monkeypatch, source_file)
+    gone = storage.absolute(e.project.video_path)
+    gone.unlink()
+    calls = []
+
+    def fake_download(url, out_dir, log, on_progress):
+        calls.append(url)
+        shutil.copy(source_file, out_dir / "source.mp4")
+        return out_dir / "source.mp4"
+
+    monkeypatch.setattr(video_download, "download", fake_download)
+    run_job(e)
+    assert calls == ["https://youtu.be/x"] and e.clip.render_state is RenderState.DRAFT and gone.is_file()
+    assert "descargándolo de nuevo" in log(e)
+
+
+def test_missing_source_that_cannot_be_downloaded_fails_clearly(client, tmp_path, monkeypatch, source_file):
+    from app.services import video_download
     e = setup(client, tmp_path, monkeypatch, source_file)
     storage.absolute(e.project.video_path).unlink()
-    with pytest.raises(render_mod.RenderError, match="No se encuentra"):
+
+    def boom(*a, **k):
+        raise video_download.DownloadError("Video unavailable")
+
+    monkeypatch.setattr(video_download, "download", boom)
+    with pytest.raises(render_mod.RenderError, match="No se pudo descargar de nuevo"):
         run_job(e)
     assert e.clip.render_state is RenderState.FAILED
 

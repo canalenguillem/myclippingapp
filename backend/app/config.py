@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     fx_worker_url: str = ""
     render_lanes: int = 1                   # renders de vídeo a la vez en todo el sistema (carril de render)
     asd_worker_url: str = ""                # worker TalkNet en GPU (vacío = «Sigue al hablante» sin detección de cara)
+    media_retention_days: int = 14          # sin renders ni descargas en estos días, se borra lo pesado del proyecto (0 = nunca)
     media_dir: Path = Path("/media")
 
 
