@@ -13,6 +13,8 @@ type Props = {
   /** Segundo del vídeo original en el que está el reproductor. */
   currentTime: number;
   seek: (sourceSeconds: number) => void;
+  /** Reproduce el tramo [a, b] (segundos del original) y se para al final. */
+  playRange: (a: number, b: number) => void;
 };
 
 const round = (n: number) => Math.round(n * 100) / 100;
@@ -21,7 +23,7 @@ const FULL = { x: 0, y: 0, w: 1, h: 1 };
 
 /** Tramos en los que el vídeo original enseña una pantalla (un tuit, una web): en el render, la parte de arriba la muestra entera
  * (la región elegida ajustada al ancho) en vez del recorte del hablante. */
-export default function ScreensPanel({ clip, ranges, onChange, start, end, trimDirty, editable, currentTime, seek }: Props) {
+export default function ScreensPanel({ clip, ranges, onChange, start, end, trimDirty, editable, currentTime, seek, playRange }: Props) {
   const [detecting, setDetecting] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -59,7 +61,7 @@ export default function ScreensPanel({ clip, ranges, onChange, start, end, trimD
       <ul className="gfx-list">
         {ranges.map((r, i) => (
           <li key={i}>
-            <div className="gfx-phrase" onClick={() => seek(r.start)} title="Ir al inicio del tramo">
+            <div className="gfx-phrase" onClick={() => playRange(r.start, r.end)} title="Reproduce el tramo">
               <span className="gfx-num">{i + 1}</span>
               <span className="gfx-time">{fmtTime(r.start)} – {fmtTime(r.end)} · {round(r.end - r.start)} s</span>
             </div>
@@ -67,7 +69,7 @@ export default function ScreensPanel({ clip, ranges, onChange, start, end, trimD
             <button className="ghost" disabled={!editable} onClick={() => update(i, { start: round(currentTime) })} title="Poner el inicio en el instante actual">Aquí</button>
             <label className="gfx-at">a <input type="number" step={0.1} min={0} value={r.end} disabled={!editable} onChange={(e) => update(i, { end: round(Number(e.target.value)) })} /> s</label>
             <button className="ghost" disabled={!editable} onClick={() => update(i, { end: round(currentTime) })} title="Poner el fin en el instante actual">Aquí</button>
-            <button className="ghost" onClick={() => seek(r.start)}>Ver</button>
+            <button className="ghost" onClick={() => playRange(r.start, r.end)} title="Reproduce el tramo">▶ Ver</button>
             <div className="scr-box" title="Región que se enseña (en azul) dentro del cuadro">
               <div style={{ left: `${r.x * 100}%`, top: `${r.y * 100}%`, width: `${r.w * 100}%`, height: `${r.h * 100}%` }} />
             </div>

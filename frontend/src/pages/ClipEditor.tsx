@@ -95,6 +95,18 @@ export default function ClipEditor() {
     setDraft((d) => d && { ...d, ...patch, ...(("start" in patch || "end" in patch) && !("cortinilla_at" in patch) ? { cortinilla_at: null } : {}) });
   const seek = (s: number) => { if (video.current) video.current.currentTime = Math.max(0, s); };
 
+  // Reproduce un tramo (de `a` a `b`, segundos del original) y se para al llegar al final; trae el reproductor a la vista si está fuera.
+  const rangeEnd = useRef<number | null>(null);
+  const playRange = (a: number, b: number) => {
+    const v = video.current;
+    if (!v) return;
+    v.currentTime = Math.max(0, a);
+    rangeEnd.current = b;
+    void v.play().catch(() => undefined);
+    const r = v.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > window.innerHeight) v.scrollIntoView({ block: "center", behavior: "smooth" });
+  };
+
   const onLoaded = () => {
     if (draft && !seeked.current) { seeked.current = true; seek(draft.start); }
   };
@@ -102,6 +114,7 @@ export default function ClipEditor() {
     const v = video.current;
     if (!v || !draft) return;
     setT(v.currentTime);
+    if (rangeEnd.current !== null && v.currentTime >= rangeEnd.current) { v.pause(); rangeEnd.current = null; return; }
     if (v.currentTime >= draft.end - 0.02) {
       if (loop) v.currentTime = draft.start; else { v.pause(); v.currentTime = draft.end; }
     }
@@ -300,7 +313,7 @@ export default function ClipEditor() {
       </div>
 
       <ScreensPanel clip={clip} ranges={draft.screen_ranges} onChange={(screen_ranges) => set({ screen_ranges })} start={draft.start} end={draft.end}
-        trimDirty={draft.start !== clip.start || draft.end !== clip.end} editable={editable} currentTime={t} seek={seek} />
+        trimDirty={draft.start !== clip.start || draft.end !== clip.end} editable={editable} currentTime={t} seek={seek} playRange={playRange} />
 
       <GraphicsPanel clip={clip} list={draft.graphics} onChange={(graphics) => set({ graphics })} start={draft.start} end={draft.end}
         layout={draft.layout} introEnabled={draft.intro_enabled} cortinillaAt={draft.cortinilla_at}
