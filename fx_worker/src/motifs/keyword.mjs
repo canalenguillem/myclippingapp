@@ -16,12 +16,12 @@ export function keywordSize(text) {
 }
 
 /** @param {{id:string, item:{text:string}, t0:number, at:number, t1:number}} p  tiempos de SALIDA (ya con el mapa de tiempos) */
-export function keywordMotif({ id, item, t0, at, t1, zones }) {
+export function keywordMotif({ id, item, t0, at, t1, zones, accent = "#DA2E09" }) {
   const top = item.zone === "top" ? TOP_ZONE : zones.card;
   const text = item.text.trim().toUpperCase();
   const html = `<div id="${id}" class="gfx kw"><b></b><span style="font-size:${keywordSize(text)}px">${escapeHtml(text)}</span></div>`;
   const css = `.kw{left:${(1080 - CARD_W) / 2}px;width:${CARD_W}px;height:${CARD_H}px;border-radius:26px;background:#F3EEE2;box-shadow:0 12px 14px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;overflow:hidden}
-.kw b{position:absolute;left:0;top:0;bottom:0;width:18px;background:#DA2E09}
+.kw b{position:absolute;left:0;top:0;bottom:0;width:18px;background:${accent}}
 .kw span{font-family:InterX,sans-serif;font-weight:800;color:#1D1A17;white-space:nowrap;padding-left:18px}`;
   const exit = fmt(Math.max(at, t1 - 0.3));
   const script =

@@ -27,7 +27,7 @@ export function rollValues(from, to, steps, decimals) {
   });
 }
 
-export function counterMotif({ id, item, t0, at, t1, zones }) {
+export function counterMotif({ id, item, t0, at, t1, zones, accent = "#DA2E09" }) {
   const decimals = Math.max(decimalsOf(item.from_value), decimalsOf(item.to_value));
   const rollStart = t0 + 0.3;                                      // tras la entrada de la tarjeta
   const rollEnd = Math.max(rollStart + 0.4, at);                   // y se para en la palabra
@@ -40,9 +40,9 @@ export function counterMotif({ id, item, t0, at, t1, zones }) {
   const label = item.label ? `<i>${escapeHtml(item.label.toUpperCase())}</i>` : "";
   const html = `<div id="${id}" class="gfx ct"><b></b><div class="cw">${spans}</div>${label}</div>`;
   const css = `.ct{left:${(1080 - CARD_W) / 2}px;width:${CARD_W}px;height:${CARD_H}px;border-radius:26px;background:#F3EEE2;box-shadow:0 12px 14px rgba(0,0,0,.4);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;overflow:hidden}
-.ct b{position:absolute;left:0;top:0;bottom:0;width:18px;background:#DA2E09}
+.ct b{position:absolute;left:0;top:0;bottom:0;width:18px;background:${accent}}
 .ct .cw{display:grid;padding-left:18px}
-.ct .cn{grid-area:1/1;visibility:hidden;font-family:InterX,sans-serif;font-weight:800;color:#DA2E09;white-space:nowrap;text-align:center;font-variant-numeric:tabular-nums}
+.ct .cn{grid-area:1/1;visibility:hidden;font-family:InterX,sans-serif;font-weight:800;color:${accent};white-space:nowrap;text-align:center;font-variant-numeric:tabular-nums}
 .ct i{font-style:normal;font-family:JetBrainsX,monospace;font-weight:500;font-size:26px;letter-spacing:3px;color:#1D1A17;padding-left:18px;white-space:nowrap}`;
   const exit = fmt(Math.max(rollEnd, t1 - 0.3));
   const parts = [

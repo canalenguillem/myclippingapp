@@ -80,7 +80,7 @@ export function sparksHtml({ id, w, h }) {
   return Array.from({ length: 9 }, (_, i) => `<i id="${id}s${i}" class="sp" style="left:${w / 2 - 4}px;top:${h / 2 - 4}px"></i>`).join("");
 }
 
-export const SPARKS_CSS = `.sp{position:absolute;width:8px;height:8px;border-radius:50%;background:#DA2E09;opacity:0}`;
+export const sparksCss = (accent = "#DA2E09") => `.sp{position:absolute;width:8px;height:8px;border-radius:50%;background:${accent};opacity:0}`;
 
 /** Explotar: cada tesela sale en línea recta desde el centro (con algo de azar), gira, cae con la gravedad y se desvanece. */
 export function explodeScript({ id, cols, rows, w, h, at, seed = 1 }) {

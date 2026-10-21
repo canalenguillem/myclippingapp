@@ -24,13 +24,13 @@ export function graphicZones(layout, bandBottom = 0) {
   return { card: Math.min(Math.max(base.card, bandBottom + 12), 1632 - 230), strip: Math.min(Math.max(base.strip, bandBottom + 12), 1632 - 200) };
 }
 
-export function graphicsLayer({ items, map, clipDuration, zones = graphicZones({ mode: "split" }), files = {} }) {
+export function graphicsLayer({ items, map, clipDuration, zones = graphicZones({ mode: "split" }), files = {}, accent = "#DA2E09" }) {
   const parts = { html: [], css: [], cssItem: [], script: [] };
   const sfx = [];
   items.forEach((item, i) => {
     const [s, e] = graphicWindow(item, clipDuration);
     const id = `g${i}`;
-    const out = MOTIFS[item.type]({ id, item, t0: map.out(s), at: map.out(item.at), t1: map.out(e), zones, files });
+    const out = MOTIFS[item.type]({ id, item, t0: map.out(s), at: map.out(item.at), t1: map.out(e), zones, files, accent });
     parts.html.push(out.html);
     parts.css.push(out.css);
     if (out.cssItem) parts.cssItem.push(out.cssItem);

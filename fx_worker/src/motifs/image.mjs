@@ -2,7 +2,7 @@
 //   style  original | card (tarjeta de papel inclinada −5°, §8 del md) | silhouette (tinta) | red (rojo de marca)
 //   effect pop (entra con rebote y sale con ease_in) | vaporize (se descompone en polvo en la palabra) | break (se parte en dos)
 // Entra 0,3–0,8 s antes de la palabra; la acción fuerte (el golpe, la vaporización, la rotura) cae EN la palabra.
-import { breakHtml, breakScript, explodeScript, RING_CSS, ringHtml, SPARKS_CSS, sparksHtml, TILES_CSS, tilesHtml, vaporizeScript } from "./dissolve.mjs";
+import { breakHtml, breakScript, explodeScript, RING_CSS, ringHtml, sparksCss, sparksHtml, TILES_CSS, tilesHtml, vaporizeScript } from "./dissolve.mjs";
 import { entryScript, shakeScript } from "./entry.mjs";
 
 const fmt = (n) => Number(n.toFixed(3));
@@ -16,9 +16,9 @@ export function imageBox(style) {
 }
 
 /** HTML del contenido (w × h) según el estilo. `src` es el fichero ya copiado al proyecto de render. */
-export function imageInner(style, src, { w, h }) {
+export function imageInner(style, src, { w, h }, accent = "#DA2E09") {
   if (style === "silhouette" || style === "red") {
-    const color = style === "red" ? "#DA2E09" : "#1D1A17";
+    const color = style === "red" ? accent : "#1D1A17";
     return `<div class="imk" style="width:${w}px;height:${h}px;background:${color};-webkit-mask:url(${src}) center/contain no-repeat;mask:url(${src}) center/contain no-repeat"></div>`;
   }
   if (style === "card") {
@@ -29,13 +29,13 @@ export function imageInner(style, src, { w, h }) {
 }
 
 /** @param {{id:string, item:{image:string, style:string, effect:string}, t0:number, at:number, t1:number, zones:{card:number}, files:Record<string,string>}} p */
-export function imageMotif({ id, item, t0, at, t1, zones, files }) {
+export function imageMotif({ id, item, t0, at, t1, zones, files, accent = "#DA2E09" }) {
   const style = item.style ?? "original";
   const effect = item.effect ?? "pop";
   const entry = item.entry ?? "pop";
   const box = imageBox(style);
   const src = files[item.image];
-  const inner = imageInner(style, src, box);
+  const inner = imageInner(style, src, box, accent);
   const top = Math.min(zones.card, 1632 - box.h);
   const left = (1080 - box.w) / 2;
   const tilt = style === "card" ? -5 : 0;
@@ -51,7 +51,7 @@ export function imageMotif({ id, item, t0, at, t1, zones, files }) {
 .imc img{position:absolute;object-fit:contain}
 .imk{display:block}
 ${TILES_CSS}
-${SPARKS_CSS}
+${sparksCss(accent)}
 ${RING_CSS}`;
   const exit = fmt(Math.max(at, t1 - 0.3));
   const seed = Number(id.replace(/\D/g, "")) || 1;

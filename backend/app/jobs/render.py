@@ -267,6 +267,7 @@ def render(ctx: JobContext, payload: dict) -> None:
             video=storage.rel(vertical_path), output=storage.rel(target if not draft else fx_full), quality=quality,
             duration=duration, top_ratio=clip.top_ratio, layout=clip.layout, words=words, speakers=project.speakers, hook=clip.hook,
             preset=preset, band=band, cortinilla=start_params, outro=end_params, graphics=plan.beats, sfx=bool(template.sfx) if template else True,
+            brand_primary=(colors or {}).get("primary") if template else None,
         )
 
         client = make_fx_client()

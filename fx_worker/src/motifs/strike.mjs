@@ -7,7 +7,7 @@ const CARD_W = 500;
 const CARD_H = 230;
 const STROKE = 0.22;
 
-export function strikeMotif({ id, item, t0, at, t1, zones }) {
+export function strikeMotif({ id, item, t0, at, t1, zones, accent = "#DA2E09" }) {
   const text = item.text.trim().toUpperCase();
   const cross = (d, n) => `<path id="${id}s${n}" d="${d}" pathLength="1"/>`;
   const html = `<div id="${id}" class="gfx sk"><b></b><span id="${id}w" style="font-size:${keywordSize(text)}px">${escapeHtml(text)}</span>` +
@@ -16,7 +16,7 @@ export function strikeMotif({ id, item, t0, at, t1, zones }) {
 .sk b{position:absolute;left:0;top:0;bottom:0;width:18px;background:#1D1A17}
 .sk span{font-family:InterX,sans-serif;font-weight:800;color:#1D1A17;white-space:nowrap;padding-left:18px}
 .sk svg{position:absolute;left:0;top:0}
-.sk path{fill:none;stroke:#DA2E09;stroke-width:16;stroke-linecap:round;stroke-dasharray:1;stroke-dashoffset:1}`;
+.sk path{fill:none;stroke:${accent};stroke-width:16;stroke-linecap:round;stroke-dasharray:1;stroke-dashoffset:1}`;
   const exit = fmt(Math.max(at + 2 * STROKE + 0.3, t1 - 0.3));
   const script =
     `tl.fromTo("#${id}",{opacity:0,scale:0.55,y:40},{opacity:1,scale:1,y:0,duration:0.42,ease:"back.out(1.7)"},${fmt(t0)});` +

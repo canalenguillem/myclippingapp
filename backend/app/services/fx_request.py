@@ -86,6 +86,7 @@ def build_fx_request(
     outro: dict | None = None,
     sfx: bool = True,
     graphics: list[dict] | None = None,
+    brand_primary: str | None = None,
 ) -> dict:
     """`video` y `output` son rutas relativas a MEDIA_DIR. Los speakers solo llevan los campos del contrato."""
     request: dict = {
@@ -109,6 +110,8 @@ def build_fx_request(
         "preset": preset,
         "sfx": bool(sfx),
     }
+    if isinstance(brand_primary, str) and _HEX.match(brand_primary):
+        request["brand"] = {"primary": brand_primary.upper()}        # color de la plantilla: karaoke, gancho, tarjetas, contador…
     if graphics:
         request["graphics"] = graphics
     if cortinilla:

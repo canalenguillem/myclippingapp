@@ -37,7 +37,7 @@ const OUTFITS = [
 ];
 const ol = 'stroke="#1D1A17" stroke-width="3" stroke-linejoin="round"';
 
-function southParkFigure({ id, i, n, cx, src }) {
+function southParkFigure({ id, i, n, cx, src, accent = "#DA2E09" }) {
   const o = OUTFITS[i % OUTFITS.length];
   const { head, shoulderY, hipY, footY } = SP;
   const armTo = (side) => {                                   // `side` -1 izquierda, +1 derecha
@@ -54,7 +54,7 @@ function southParkFigure({ id, i, n, cx, src }) {
   const trim =
     o.trim === "suit"
       ? `<polygon points="${cx - 16},${shoulderY} ${cx + 16},${shoulderY} ${cx},${shoulderY + 30}" fill="#F3EEE2" ${ol}/>` +
-        `<polygon points="${cx - 7},${shoulderY + 12} ${cx + 7},${shoulderY + 12} ${cx + 5},${shoulderY + 58} ${cx},${shoulderY + 68} ${cx - 5},${shoulderY + 58}" fill="#C8281A" ${ol}/>`
+        `<polygon points="${cx - 7},${shoulderY + 12} ${cx + 7},${shoulderY + 12} ${cx + 5},${shoulderY + 58} ${cx},${shoulderY + 68} ${cx - 5},${shoulderY + 58}" fill="${accent}" ${ol}/>`
       : o.trim === "coat"
         ? `<polygon points="${cx - 22},${shoulderY} ${cx + 22},${shoulderY} ${cx},${shoulderY + 24}" fill="#7FA6D6" ${ol}/>` +
           `<circle cx="${cx}" cy="${shoulderY + 38}" r="4" fill="#1D1A17"/><circle cx="${cx}" cy="${shoulderY + 56}" r="4" fill="#1D1A17"/>`
@@ -73,7 +73,7 @@ function southParkFigure({ id, i, n, cx, src }) {
   return { html: `<g id="${id}f${i}">${body}<g id="${id}h${i}">${face}</g></g>`, clasp };
 }
 
-export function puppetsMotif({ id, item, t0, at, t1, zones, files }) {
+export function puppetsMotif({ id, item, t0, at, t1, zones, files, accent = "#DA2E09" }) {
   const n = item.images.length;
   const look = item.look ?? "southpark";
   const W = S * n;
@@ -88,7 +88,7 @@ export function puppetsMotif({ id, item, t0, at, t1, zones, files }) {
     const src = escapeHtml(files[image]);
     if (look === "stick") figures.push(stickFigure({ id, i, n, cx, src }));
     else {
-      const f = southParkFigure({ id, i, n, cx, src });
+      const f = southParkFigure({ id, i, n, cx, src, accent });
       figures.push(f.html);
       clasps += f.clasp;
     }

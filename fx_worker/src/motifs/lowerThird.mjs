@@ -6,16 +6,16 @@ const fmt = (n) => Number(n.toFixed(3));
 const W = 760;
 const H = 150;
 
-export function lowerThirdMotif({ id, item, t0, at, t1, zones }) {
+export function lowerThirdMotif({ id, item, t0, at, t1, zones, accent = "#DA2E09" }) {
   const name = item.name.trim();
   const role = (item.role ?? "").trim();
   const nameSize = Math.min(58, Math.floor(640 / (name.length * 0.62)));
   const html = `<div id="${id}" class="gfx lt"><b id="${id}b"></b><div><strong style="font-size:${nameSize}px">${escapeHtml(name)}</strong>${role ? `<em>${escapeHtml(role.toUpperCase())}</em>` : ""}</div></div>`;
   const css = `.lt{left:60px;width:${W}px;height:${H}px;background:#F3EEE2;box-shadow:0 12px 14px rgba(0,0,0,.4);border-radius:14px;display:flex;align-items:center;overflow:hidden}
-.lt b{width:14px;align-self:stretch;background:#DA2E09;transform-origin:50% 0;flex:0 0 14px}
+.lt b{width:14px;align-self:stretch;background:${accent};transform-origin:50% 0;flex:0 0 14px}
 .lt div{display:flex;flex-direction:column;gap:6px;padding:0 26px}
 .lt strong{font-family:InterX,sans-serif;font-weight:800;color:#1D1A17;white-space:nowrap}
-.lt em{font-style:normal;font-family:JetBrainsX,monospace;font-weight:500;font-size:26px;letter-spacing:3px;color:#DA2E09;white-space:nowrap}`;
+.lt em{font-style:normal;font-family:JetBrainsX,monospace;font-weight:500;font-size:26px;letter-spacing:3px;color:${accent};white-space:nowrap}`;
   const exit = fmt(Math.max(at, t1 - 0.3));
   const script =
     `tl.fromTo("#${id}",{opacity:0,x:-120},{opacity:1,x:0,duration:0.4,ease:"back.out(1.5)"},${fmt(t0)});` +

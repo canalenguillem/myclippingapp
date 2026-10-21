@@ -359,3 +359,32 @@ test("puppets: el proyecto se construye con las caras copiadas y pasa el linter"
   assert.ok(html.includes("gfx_img0.png") && html.includes("gfx_img1.png") === false || html.includes("gfx_img1.png"));
   assert.equal((await checkProject(work)).totalErrors, 0);
 });
+
+
+test("color de marca: el contrato lo acepta y todo lo gráfico lo usa en lugar del naranja por defecto", () => {
+  assert.equal(parseRequest({ ...base, brand: { primary: "#1a8f6b" } }).brand.primary, "#1a8f6b");
+  for (const bad of [{ primary: "verde" }, { primary: "#12345" }, { color: "#112233" }])
+    assert.throws(() => parseRequest({ ...base, brand: bad }), ContractError, JSON.stringify(bad));
+  const items = [
+    { type: "keyword", at: 3, lead: 0.5, duration: 2.5, text: "A" },
+    { type: "counter", at: 7, lead: 0.8, duration: 3, from_value: 0, to_value: 9, prefix: "", suffix: "", label: "" },
+    { type: "strike", at: 11, lead: 0.5, duration: 2.5, text: "B" },
+    { type: "lower_third", at: 15, lead: 0.5, duration: 3, name: "Ana", role: "x" },
+  ];
+  const green = graphicsLayer({ items, map: makeTimeMap(undefined), clipDuration: 20, accent: "#1A8F6B" });
+  assert.ok(green.css.includes("#1A8F6B") && !green.css.includes("#DA2E09"), "con color de marca no queda ningún naranja");
+  const def = graphicsLayer({ items, map: makeTimeMap(undefined), clipDuration: 20 });
+  assert.ok(def.css.includes("#DA2E09"), "sin color de marca, el de siempre");
+});
+
+test("color de marca: el karaoke y el gancho del proyecto usan el color de la plantilla", async () => {
+  const dir = tmp();
+  const video = makeVideo(join(dir, "src.mp4"), 6);
+  const request = parseRequest({ video: "a.mp4", output: "b.mp4", duration: 6, brand: { primary: "#1A8F6B" }, hook: { text: "Hola mundo" },
+    words: [{ text: "hola", start: 1, end: 1.4 }, { text: "mundo", start: 1.5, end: 2 }] });
+  const work = join(dir, "work");
+  buildProject({ request, video, workDir: work });
+  const html = readFileSync(join(work, "index.html"), "utf8");
+  assert.ok(html.includes("#1A8F6B") && !html.includes("#DA2E09"), "ni karaoke ni gancho llevan el naranja");
+  assert.equal((await checkProject(work)).totalErrors, 0);
+});

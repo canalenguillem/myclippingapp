@@ -106,6 +106,8 @@ export const renderRequest = z
       .strict()
       .optional(),
     preset: z.enum(["editorial", "hormozi", "minimal"]).default("editorial"),
+    // Color de marca de la plantilla: sustituye al acento del preset (karaoke, gancho, tarjetas, contador, rótulo, tachado, chispas…).
+    brand: z.object({ primary: z.string().regex(/^#[0-9A-Fa-f]{6}$/) }).strict().optional(),
     cortinilla: cortinilla.optional(),
     outro: outro.optional(),
     graphics: z.array(graphic).max(60).default([]),

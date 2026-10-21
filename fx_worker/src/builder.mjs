@@ -51,7 +51,9 @@ export function buildProject({ request, video, workDir, orbit = null, images = {
   copyFileSync(join(monoDir, "jetbrains-mono-latin-500-normal.woff2"), join(workDir, "fonts", "jetbrains-500.woff2"));
 
   const { duration, layout, speakers } = request;
-  const preset = getPreset(request.preset);
+  const basePreset = getPreset(request.preset);
+  const accent = request.brand?.primary?.toUpperCase() ?? basePreset.accent;   // el color de marca de la plantilla manda sobre el del preset
+  const preset = { ...basePreset, accent };
   const C = request.cortinilla;
   const map = makeTimeMap(C);
   const O = request.outro;
@@ -83,7 +85,7 @@ export function buildProject({ request, video, workDir, orbit = null, images = {
     copyFileSync(abs, join(workDir, name));
     gfxFiles[rel] = name;
   });
-  const graphics = graphicsLayer({ items: request.graphics, map, clipDuration: duration, zones: graphicZones(layout, preset.band ? core.y1 + ROOM : 0), files: gfxFiles });
+  const graphics = graphicsLayer({ items: request.graphics, map, clipDuration: duration, zones: graphicZones(layout, preset.band ? core.y1 + ROOM : 0), files: gfxFiles, accent });
   const treatment = treatmentLayer({ intervals: sourceSpans });
   let orbitFile = null;
   if (C && orbit) {

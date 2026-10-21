@@ -543,3 +543,17 @@ def test_a_final_render_of_an_auto_publish_clip_queues_the_publication_but_a_dra
     run_job(e, "final")
     pubs = [j for j in e.db.query(Job).all() if j.type == "publish"]
     assert len(pubs) == 1 and pubs[0].payload["clip_id"] == e.clip.id and "Publicación automática" in log(e)
+
+
+def test_the_template_brand_color_is_sent_so_everything_follows_it(client, tmp_path, monkeypatch, source_file):
+    from app.db.models import BrandTemplate
+    e = setup(client, tmp_path, monkeypatch, source_file)
+    run_job(e)
+    assert "brand" not in e.fx.requests[-1]                                     # sin plantilla: el acento del preset
+    tpl = BrandTemplate(user_id=e.user.id, name="Marca", preset="editorial", colors={"primary": "#1a8f6b"}, cortinilla={})
+    e.db.add(tpl)
+    e.db.commit()
+    e.clip.template_id = tpl.id
+    e.db.commit()
+    run_job(e)
+    assert e.fx.requests[-1]["brand"] == {"primary": "#1A8F6B"}
