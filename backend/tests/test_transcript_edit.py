@@ -198,20 +198,3 @@ def test_can_add_a_new_speaker_label_and_then_assign_words_to_it(client, tmp_pat
     assert client.put(f"/api/projects/{p.id}/speakers", json=cards, headers=h).status_code == 200
     r = client.patch(f"/api/projects/{p.id}/transcript/speakers", json={"revision": 1, "ranges": [{"start_index": 8, "end_index": 9, "speaker": "C"}]}, headers=h)
     assert r.status_code == 200 and words_of(path)["words"][9]["speaker"] == "C"
-
-
-def test_a_range_can_be_set_to_no_speaker_and_then_the_card_can_be_removed(client, tmp_path, monkeypatch):
-    h, db, p, path = _project(client, tmp_path, monkeypatch)
-    before = words_of(path)
-    labels_b = [i for i, w in enumerate(before["words"]) if w.get("speaker") == "B"]
-    assert labels_b                                                           # B tiene palabras: no se puede quitar todavía
-    cards = {"A": p.speakers["A"]}
-    assert client.put(f"/api/projects/{p.id}/speakers", json=cards, headers=h).status_code == 422
-    rng = {"start_index": labels_b[0], "end_index": labels_b[-1], "speaker": None}
-    r = client.patch(f"/api/projects/{p.id}/transcript/speakers", json={"revision": 1, "ranges": [rng]}, headers=h)
-    assert r.status_code == 200
-    after = words_of(path)
-    assert all("speaker" not in after["words"][i] for i in range(labels_b[0], labels_b[-1] + 1))            # sin la clave: «sin speaker»
-    assert [w["start"] for w in after["words"]] == [w["start"] for w in before["words"]]                    # los tiempos no cambian
-    assert client.put(f"/api/projects/{p.id}/speakers", json=cards, headers=h).status_code == 200            # ahora la ficha B se puede quitar
-    assert client.patch(f"/api/projects/{p.id}/transcript/speakers", json={"revision": 2, "ranges": [{**rng, "speaker": "Z"}]}, headers=h).status_code == 422

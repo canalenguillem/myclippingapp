@@ -133,13 +133,6 @@ export default function ProjectDetail() {
     }
   };
 
-  // Cuántas palabras tiene cada speaker (para avisar al quitar una ficha).
-  const wordCounts = useMemo(() => {
-    const out: Record<string, number> = {};
-    for (const w of transcript?.words ?? []) if (w.speaker) out[w.speaker] = (out[w.speaker] ?? 0) + 1;
-    return out;
-  }, [transcript]);
-
   const saveSpeakers = (s: Record<string, Speaker>) =>
     run(async () => { await api(`/api/projects/${id}/speakers`, { method: "PUT", json: s }); await loadProject(); }, "Speakers guardados");
 
@@ -150,37 +143,11 @@ export default function ProjectDetail() {
       void loadClips();
     });
 
-  // `speaker` null = quitar el speaker de esas palabras («sin speaker»).
-  const assign = (startIndex: number, endIndex: number, speaker: string | null) =>
+  const assign = (startIndex: number, endIndex: number, speaker: string) =>
     run(async () => {
       const r = await api<{ revision: number }>(`/api/projects/${id}/transcript/speakers`, { method: "PATCH", json: { revision: transcript!.revision, ranges: [{ start_index: startIndex, end_index: endIndex, speaker }] } });
-      setTranscript((t) => t && {
-        ...t, revision: r.revision,
-        words: t.words.map((w, i) => {
-          if (i < startIndex || i > endIndex) return w;
-          if (speaker === null) { const { speaker: _gone, ...rest } = w; return rest; }
-          return { ...w, speaker };
-        }),
-      });
+      setTranscript((t) => t && { ...t, revision: r.revision, words: t.words.map((w, i) => (i >= startIndex && i <= endIndex ? { ...w, speaker } : w)) });
     });
-
-  // Quita la ficha de un speaker: sus palabras pasan a «sin speaker» y se guardan el resto de fichas tal como están en pantalla.
-  const removeSpeaker = (label: string, next: Record<string, Speaker>) =>
-    run(async () => {
-      const words = transcript?.words ?? [];
-      const ranges: { start_index: number; end_index: number; speaker: null }[] = [];
-      words.forEach((w, i) => {
-        if (w.speaker !== label) return;
-        const last = ranges[ranges.length - 1];
-        if (last && last.end_index === i - 1) last.end_index = i; else ranges.push({ start_index: i, end_index: i, speaker: null });
-      });
-      if (ranges.length) {
-        const r = await api<{ revision: number }>(`/api/projects/${id}/transcript/speakers`, { method: "PATCH", json: { revision: transcript!.revision, ranges } });
-        setTranscript((t) => t && { ...t, revision: r.revision, words: t.words.map((w) => { if (w.speaker !== label) return w; const { speaker: _gone, ...rest } = w; return rest; }) });
-      }
-      await api(`/api/projects/${id}/speakers`, { method: "PUT", json: next });
-      await loadProject();
-    }, `Speaker ${label} quitado`);
 
   const detect = () =>
     run(async () => {
@@ -289,7 +256,7 @@ export default function ProjectDetail() {
       {project && Object.keys(project.speakers).length > 0 && !(transcript && videoUrl) && (
         <section>
           <h2>Speakers</h2>
-          <SpeakerPanel speakers={project.speakers} onSave={saveSpeakers} onRemove={removeSpeaker} wordCounts={wordCounts} projectId={project.id} speakingNow={speakerNow} />
+          <SpeakerPanel speakers={project.speakers} onSave={saveSpeakers} projectId={project.id} speakingNow={speakerNow} />
         </section>
       )}
       {transcript && project && (
@@ -308,7 +275,7 @@ export default function ProjectDetail() {
               {Object.keys(project.speakers).length > 0 && (
                 <div className="watch-speakers">
                   <h3>Speakers</h3>
-                  <SpeakerPanel speakers={project.speakers} onSave={saveSpeakers} onRemove={removeSpeaker} wordCounts={wordCounts} projectId={project.id} speakingNow={speakerNow} />
+                  <SpeakerPanel speakers={project.speakers} onSave={saveSpeakers} projectId={project.id} speakingNow={speakerNow} />
                 </div>
               )}
             </aside>

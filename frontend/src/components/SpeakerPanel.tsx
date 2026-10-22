@@ -3,14 +3,9 @@ import { api } from "../api";
 import type { CaptionStyle, KnownSpeaker, Speaker } from "../types";
 import { speakerColor } from "../types";
 
-type Props = {
-  speakers: Record<string, Speaker>; onSave: (s: Record<string, Speaker>) => Promise<void>; projectId?: number; speakingNow?: string | null;
-  /** Quita la ficha de un speaker (sus palabras pasan a «sin speaker»); recibe las fichas que quedan. */
-  onRemove?: (label: string, next: Record<string, Speaker>) => Promise<void>;
-  wordCounts?: Record<string, number>;
-};
+type Props = { speakers: Record<string, Speaker>; onSave: (s: Record<string, Speaker>) => Promise<void>; projectId?: number; speakingNow?: string | null };
 
-export default function SpeakerPanel({ speakers, onSave, projectId, speakingNow, onRemove, wordCounts = {} }: Props) {
+export default function SpeakerPanel({ speakers, onSave, projectId, speakingNow }: Props) {
   const [known, setKnown] = useState<KnownSpeaker[]>([]);
   useEffect(() => {
     api<KnownSpeaker[]>(`/api/speakers/known${projectId ? `?exclude_project=${projectId}` : ""}`).then(setKnown).catch(() => setKnown([]));
@@ -42,17 +37,7 @@ export default function SpeakerPanel({ speakers, onSave, projectId, speakingNow,
       <datalist id="known-speaker-names">{known.map((k) => <option key={k.name} value={k.name}>{k.role}</option>)}</datalist>
       {labels.map((label) => (
         <div className={`speaker-card${speakingNow === label ? " speaking" : ""}`} key={label} style={{ borderLeftColor: speakerColor(label, labels) }}>
-          <div className="row-inline" style={{ justifyContent: "space-between" }}>
-            <strong>Speaker {label}{speakingNow === label ? " 🔊 habla ahora" : ""}</strong>
-            {onRemove && (
-              <button className="ghost" title="Quita este speaker: sus palabras pasan a «sin speaker»" onClick={async () => {
-                const n = wordCounts[label] ?? 0;
-                if (!window.confirm(n ? `¿Quitar el speaker ${label}${draft[label].name ? ` (${draft[label].name})` : ""}?\n\nSus ${n} palabras pasarán a «sin speaker»; luego puedes asignarlas a quien toque.` : `¿Quitar el speaker ${label}?`)) return;
-                const { [label]: _gone, ...rest } = draft;
-                await onRemove(label, rest);
-              }}>✕ Quitar</button>
-            )}
-          </div>
+          <strong>Speaker {label}{speakingNow === label ? " 🔊 habla ahora" : ""}</strong>
           {known.length > 0 && (
             <select value="" onChange={(e) => { const k = known.find((x) => x.name === e.target.value); if (k) useKnown(label, k); }} title="Rellena nombre, cargo y estilo con alguien de tus otros vídeos">
               <option value="">Elegir de mis otros vídeos…</option>

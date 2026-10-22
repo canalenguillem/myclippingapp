@@ -34,7 +34,7 @@ class SpeakerRange(BaseModel):
     model_config = ConfigDict(extra="forbid")
     start_index: int = Field(ge=0)
     end_index: int = Field(ge=0)
-    speaker: str | None = None      # None = quitar el speaker de esas palabras («sin speaker»)
+    speaker: str
 
 
 class SpeakersPatch(BaseModel):
@@ -117,7 +117,7 @@ def reassign_speakers(project_id: int, body: SpeakersPatch, user: User = Depends
     path = storage.absolute(project.words_path)
     known = set(project.speakers or {})
     for r in body.ranges:
-        if r.speaker is not None and r.speaker not in known:
+        if r.speaker not in known:
             raise HTTPException(422, f"El speaker «{r.speaker}» no existe en este proyecto")
         if r.end_index < r.start_index:
             raise HTTPException(422, "end_index no puede ser menor que start_index")
@@ -128,10 +128,7 @@ def reassign_speakers(project_id: int, body: SpeakersPatch, user: User = Depends
             if r.end_index >= n:
                 raise HTTPException(422, f"Índice de palabra fuera de rango: {r.end_index}")
             for w in data["words"][r.start_index:r.end_index + 1]:
-                if r.speaker is None:
-                    w.pop("speaker", None)
-                else:
-                    w["speaker"] = r.speaker
+                w["speaker"] = r.speaker
         transcription.refresh_segments(data, regroup=True)
 
     revision = _run(path, body.revision, mutate)
