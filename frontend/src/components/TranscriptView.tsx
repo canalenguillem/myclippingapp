@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { Speaker, Word } from "../types";
 import { fmtTime, speakerColor } from "../types";
 
@@ -27,15 +27,11 @@ const turnsOf = (words: Word[]): Turn[] => {
   return turns;
 };
 
-const NO_SPEAKER = "__none__";
-
 type TurnProps = {
   turn: Turn; words: Word[]; labels: string[]; name: string; sel: [number, number] | null; editing: number | null;
   draft: string; setDraft: (v: string) => void; onClickWord: (i: number, shift: boolean) => void;
   active: number | null; onSeek?: (seconds: number) => void;
   onStartEdit: (i: number) => void; onCommit: () => void; onCancel: () => void;
-  /** Nombres de los speakers y acción de reasignar el turno entero (null = sin speaker). */
-  names: Record<string, string>; onAssignTurn: (from: number, to: number, speaker: string | null) => void;
 };
 
 const TurnBlock = memo(function TurnBlock(p: TurnProps) {
@@ -44,12 +40,6 @@ const TurnBlock = memo(function TurnBlock(p: TurnProps) {
   return (
     <div className={`turn${p.active !== null ? " now" : ""}`} style={{ borderLeftColor: color }}>
       <div className="turn-head"><span style={{ color }}>{p.name}</span>{" "}
-        <select className="turn-assign" value="" title="Cambiar el speaker de todo este turno, o quitarlo"
-          onChange={(e) => { const v = e.target.value; if (v) p.onAssignTurn(turn.from, turn.to, v === NO_SPEAKER ? null : v); }}>
-          <option value="">⋯ turno</option>
-          {p.labels.filter((l) => l !== turn.speaker).map((l) => <option key={l} value={l}>→ {p.names[l]}</option>)}
-          {turn.speaker && <option value={NO_SPEAKER}>✕ Sin speaker</option>}
-        </select>{" "}
         {p.onSeek
           ? <button className="ts ts-btn" title="Ir a este punto del vídeo" onClick={() => p.onSeek?.(words[turn.from].start)}>▶ {fmtTime(words[turn.from].start)}</button>
           : <span className="ts">{fmtTime(words[turn.from].start)}</span>}</div>
@@ -77,15 +67,11 @@ const TurnBlock = memo(function TurnBlock(p: TurnProps) {
   );
 });
 
+const NO_SPEAKER = "__none__";
 
 export default function TranscriptView({ words, speakers, busy, onEditWord, onAssign, activeIndex = null, follow = false, onSeek, onListen }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const labels = useMemo(() => Object.keys(speakers).sort(), [speakers]);
-  const names = useMemo(() => Object.fromEntries(labels.map((l) => [l, speakers[l].name || `Speaker ${l}`])), [labels, speakers]);
-  // Referencia estable (los turnos están memorizados: miles de palabras) a la versión más reciente de `onAssign`.
-  const assignRef = useRef(onAssign);
-  assignRef.current = onAssign;
-  const assignTurn = useCallback((from: number, to: number, speaker: string | null) => { void assignRef.current(from, to, speaker); }, []);
   const turns = useMemo(() => turnsOf(words), [words]);
   const [anchor, setAnchor] = useState<number | null>(null);
   const [focus, setFocus] = useState<number | null>(null);
@@ -138,7 +124,7 @@ export default function TranscriptView({ words, speakers, busy, onEditWord, onAs
         )}
       </div>
       {turns.map((t) => (
-        <TurnBlock key={t.from} turn={t} words={words} labels={labels} names={names} onAssignTurn={assignTurn}
+        <TurnBlock key={t.from} turn={t} words={words} labels={labels}
           name={t.speaker ? speakers[t.speaker]?.name || `Speaker ${t.speaker}` : "Sin speaker"}
           sel={sel && sel[1] >= t.from && sel[0] <= t.to ? sel : null}
           editing={editing !== null && editing >= t.from && editing <= t.to ? editing : null}

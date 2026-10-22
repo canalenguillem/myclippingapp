@@ -258,5 +258,3 @@ li.qa-warn { color: #ffd27a; } li.qa-error { color: #ff7a6b; } li.qa-ok { color:
 }
 .watch-side .speakers > button:last-child { position: sticky; bottom: 0; z-index: 2; box-shadow: 0 -8px 12px var(--bg, #0b0b0b); }
 #watch { scroll-margin-top: 8px; }
-.turn-assign { margin-left: 6px; padding: 1px 4px; font-size: .75rem; opacity: .35; max-width: 120px; }
-.turn:hover .turn-assign, .turn-assign:focus { opacity: 1; }
