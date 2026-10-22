@@ -216,6 +216,7 @@ export default function ProjectDetail() {
       {error && <p className="error">{error}</p>}
       {notice && <p className="notice">{notice}</p>}
       {transcript && videoUrl === "" && <p className="muted">El vídeo original se borró para liberar espacio: se descarga solo al renderizar un clip.</p>}
+      {transcript && <p className="muted"><a href="#watch">↓ Ir a la transcripción, el vídeo y los speakers</a></p>}
       {project?.error && (
         <p className="error">{project.error}{project.status === "failed" && <> <button onClick={async () => { try { await api(`/api/projects/${id}/retry`, { method: "POST" }); void loadProject(); } catch (e) { fail(e); } }}>Reintentar</button></>}</p>
       )}
@@ -251,14 +252,15 @@ export default function ProjectDetail() {
         {clips.length === 0 && project?.status !== "detecting" && <p className="muted">Aún no hay clips.</p>}
       </section>
 
-      {project && Object.keys(project.speakers).length > 0 && (
+      {/* Con el vídeo disponible, los speakers van al lado del vídeo y de la transcripción (se asignan sin subir y bajar). */}
+      {project && Object.keys(project.speakers).length > 0 && !(transcript && videoUrl) && (
         <section>
           <h2>Speakers</h2>
           <SpeakerPanel speakers={project.speakers} onSave={saveSpeakers} projectId={project.id} speakingNow={speakerNow} />
         </section>
       )}
       {transcript && project && (
-        <div className={`watch-layout${videoUrl ? " with-video" : ""}`}>
+        <div id="watch" className={`watch-layout${videoUrl ? " with-video" : ""}`}>
           <section className="watch-main">
             <h2>Transcripción</h2>
             <TranscriptView words={transcript.words} speakers={project.speakers} busy={busy} onEditWord={editWord} onAssign={assign}
@@ -270,6 +272,12 @@ export default function ProjectDetail() {
                 speakerName={speakerNow ? project.speakers[speakerNow]?.name || `Speaker ${speakerNow}` : ""} labels={Object.keys(project.speakers).sort()}
                 follow={follow} onFollow={setFollow} onSpeed={(r) => { if (video.current) video.current.playbackRate = r; }}
                 onSeekBy={(d) => { const v = video.current; if (v) { v.currentTime = Math.max(0, v.currentTime + d); setNow(v.currentTime); } }} />
+              {Object.keys(project.speakers).length > 0 && (
+                <div className="watch-speakers">
+                  <h3>Speakers</h3>
+                  <SpeakerPanel speakers={project.speakers} onSave={saveSpeakers} projectId={project.id} speakingNow={speakerNow} />
+                </div>
+              )}
             </aside>
           )}
         </div>

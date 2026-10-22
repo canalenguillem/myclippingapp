@@ -244,3 +244,17 @@ li.qa-warn { color: #ffd27a; } li.qa-error { color: #ff7a6b; } li.qa-ok { color:
 /* pantallas compartidas */
 .scr-box { position: relative; width: 96px; height: 54px; background: #222; border: 1px solid var(--line); border-radius: 4px; flex: 0 0 auto; }
 .scr-box > div { position: absolute; background: rgba(77,163,255,.55); border: 1px solid #4da3ff; }
+
+/* Vídeo, transcripción y speakers juntos: en pantallas anchas el bloque ocupa justo la altura de la ventana y cada columna se desplaza por
+   dentro (sin `position: sticky` con el <video>, que colgaba la pestaña): el vídeo y el formulario de speakers no se pierden al desplazarse. */
+.watch-speakers h3 { margin: 4px 0 8px; font-size: 1rem; }
+.watch-side .speakers { flex-direction: column; flex-wrap: nowrap; }
+.watch-side .speaker-card { width: 100%; }
+@media (min-width: 1001px) {
+  .watch-layout.with-video { height: calc(100vh - 24px); min-height: 560px; align-items: stretch; }
+  .watch-layout.with-video .watch-main { display: flex; flex-direction: column; min-height: 0; margin-top: 0; }
+  .watch-layout.with-video .watch-main .transcript { flex: 1 1 0; max-height: none; min-height: 0; }
+  .watch-layout.with-video .watch-side { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; margin-top: 0; padding-right: 4px; }
+}
+.watch-side .speakers > button:last-child { position: sticky; bottom: 0; z-index: 2; box-shadow: 0 -8px 12px var(--bg, #0b0b0b); }
+#watch { scroll-margin-top: 8px; }
