@@ -63,6 +63,7 @@ def drop_render_files(clip: Clip) -> None:
 
 def invalidate_render(clip: Clip) -> None:
     drop_render_files(clip)
+    clip.auto_publish = None      # cambió algo tras marcarlo: nunca se publica solo un render que el usuario no ha visto; hay que volver a marcarlo
     clip.render_state = RenderState.NONE
     clip.render_error = None
     clip.rendered_at = None

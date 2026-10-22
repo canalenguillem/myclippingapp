@@ -67,3 +67,25 @@ def publish_now(db: Session, clip: Clip, log: Callable[[str], None], *, generate
     db.commit()
     log(f"Subida encolada ({clip.privacy})")
     return job.id
+
+
+def reconcile(db: Session) -> int:
+    """Red de seguridad: clips aprobados con publicación automática y SIN render ni job de render pendiente (p. ej. se marcaron mientras
+    otro job estorbaba) reciben su render final. Devuelve cuántos. Los que tienen un render fallido no se tocan (decide el usuario)."""
+    from sqlalchemy import select
+
+    from app.db.models import Job
+
+    pending = {int((j.payload or {}).get("clip_id", 0)) for j in db.scalars(select(Job).where(Job.type == "render", Job.status.in_(("queued", "running")))).all()}
+    healed = 0
+    for clip in db.scalars(select(Clip).where(Clip.auto_publish.is_not(None), Clip.status == "approved", Clip.render_state == RenderState.NONE)).all():
+        project = db.get(Project, clip.project_id)
+        if clip.id in pending or project is None or not project.video_path or not project.words_path or clip.layout not in ("split", "full"):
+            continue
+        if queue.active_job(db, clip.user_id, project.id, ignore_types=("render", "upload", "publish")):
+            continue
+        queue.enqueue(db, clip.user_id, "render", {"clip_id": clip.id, "project_id": project.id, "quality": "final"})
+        clip.render_state, clip.render_error = RenderState.RENDERING, None
+        healed += 1
+    db.commit()
+    return healed

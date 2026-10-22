@@ -659,7 +659,11 @@ def auto_publish(clip_id: int, body: AutoPublishIn, user: User = Depends(current
     clip.auto_publish, clip.upload_error = body.privacy, None
     if clip.render_state is RenderState.FINAL and clip.rendered_path:
         queue.enqueue(db, user.id, "publish", {"clip_id": clip.id, "project_id": clip.project_id})     # el final ya está: se publica ya
-    elif clip.render_state is not RenderState.RENDERING and not queue.active_job(db, user.id, project.id, ignore_types=("render",)):
+    elif clip.render_state is not RenderState.RENDERING:
+        # Solo estorban los jobs que cambian el proyecto (ingesta, detección): una subida o una publicación de otro clip no.
+        # Antes, con cualquier job activo, el clip se quedaba marcado SIN render y sin avisar.
+        if queue.active_job(db, user.id, project.id, ignore_types=("render", "upload", "publish")):
+            raise HTTPException(409, "Hay una ingesta o una detección en marcha para este proyecto: espera a que termine y vuelve a marcarlo")
         if clip.layout not in ("split", "full") or not project.video_path or not project.words_path:
             raise HTTPException(409, "El clip no se puede renderizar: revisa su diseño y que el proyecto tenga vídeo y transcripción")
         queue.enqueue(db, user.id, "render", {"clip_id": clip.id, "project_id": project.id, "quality": "final"})

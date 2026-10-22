@@ -17,6 +17,7 @@ from app.jobs.handlers import HANDLERS, Cancelled, JobContext
 POLL_SECONDS = 2
 HEARTBEAT_SECONDS = 10
 CLEANUP_SECONDS = 3600
+RECONCILE_SECONDS = 60
 
 WORKER_ID = f"{socket.gethostname()}-{os.getpid()}-{uuid.uuid4().hex[:6]}"
 _running: set[int] = set()
@@ -59,6 +60,21 @@ def heartbeat_loop() -> None:
             db.close()
 
 
+def reconcile_publications() -> None:
+    """Clips marcados «publicar al terminar» que se quedaron sin render: se les pide."""
+    from app.services import publish as publish_service
+
+    db = SessionLocal()
+    try:
+        healed = publish_service.reconcile(db)
+        if healed:
+            print(f"worker: {healed} clip(s) con publicación automática sin render: render final encolado", flush=True)
+    except Exception:  # noqa: BLE001 - nunca debe parar el worker
+        traceback.print_exc()
+    finally:
+        db.close()
+
+
 def clean_old_media() -> None:
     """Libera el disco de los proyectos sin actividad (lo pesado se regenera descargando el vídeo de nuevo)."""
     from app.services import cleanup
@@ -85,6 +101,7 @@ def main() -> None:
 
     last_stale_check = time.monotonic()
     last_cleanup = 0.0
+    last_reconcile = 0.0
     with ThreadPoolExecutor(max_workers=slots) as pool:
         while True:
             with _running_lock:
@@ -105,6 +122,9 @@ def main() -> None:
                     traceback.print_exc()
                 finally:
                     db.close()
+            if time.monotonic() - last_reconcile > RECONCILE_SECONDS:
+                last_reconcile = time.monotonic()
+                reconcile_publications()
             if time.monotonic() - last_cleanup > CLEANUP_SECONDS:
                 last_cleanup = time.monotonic()
                 clean_old_media()

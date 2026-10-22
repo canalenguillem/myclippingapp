@@ -127,3 +127,48 @@ def test_a_degraded_render_with_plan_b_subtitles_is_never_published(client, tmp_
     publish_job(ctx_for(db, user, tmp_path), {"clip_id": clip.id})
     db.refresh(clip)
     assert clip.auto_publish is None and clip.status == "approved" and "plan B de subtítulos" in clip.upload_error and jobs_of(db, "upload") == []
+
+
+def test_marking_a_clip_while_an_upload_is_running_still_queues_its_render_but_an_ingest_blocks(client, tmp_path, monkeypatch):
+    from app.db.models import Project
+    from app.jobs import queue
+    h, db, clip, ch, user, video = world(client, tmp_path, monkeypatch, final=False)
+    p = db.get(Project, clip.project_id)
+    p.video_path, p.words_path = "x/source.mp4", "x/words.json"
+    clip.channel_id = ch.id
+    db.commit()
+    queue.enqueue(db, user.id, "upload", {"clip_id": 999, "project_id": p.id, "source": "final"})            # otra subida del proyecto en marcha
+    r = client.put(f"/api/clips/{clip.id}/auto-publish", json={"privacy": "public"}, headers=h)
+    assert r.status_code == 200 and r.json()["render_state"] == "rendering"
+    assert [j.payload["clip_id"] for j in jobs_of(db, "render")] == [clip.id]                                  # antes se quedaba sin render, sin avisar
+    db.execute(Job.__table__.update().values(status="completed"))
+    db.refresh(clip)                                                       # el endpoint la dejó en «rendering» desde otra sesión
+    clip.render_state = RenderState.NONE
+    db.commit()
+    queue.enqueue(db, user.id, "ingest", {"project_id": p.id})
+    assert client.put(f"/api/clips/{clip.id}/auto-publish", json={"privacy": "public"}, headers=h).status_code == 409   # y ahora el motivo se dice
+
+
+def test_reconcile_gives_a_final_render_to_flagged_clips_left_without_one(client, tmp_path, monkeypatch):
+    from app.db.models import Project
+    from app.jobs import queue
+    h, db, clip, ch, user, video = world(client, tmp_path, monkeypatch, final=False)
+    p = db.get(Project, clip.project_id)
+    p.video_path, p.words_path = "x/source.mp4", "x/words.json"
+    clip.auto_publish = "public"
+    db.commit()
+    assert publish_service.reconcile(db) == 1
+    db.refresh(clip)
+    assert clip.render_state is RenderState.RENDERING and [j.payload["quality"] for j in jobs_of(db, "render")] == ["final"]
+    assert publish_service.reconcile(db) == 0                                                                  # ya tiene su render pendiente: no se duplica
+    clip.render_state = RenderState.NONE
+    clip.auto_publish = None
+    db.commit()
+    assert publish_service.reconcile(db) == 0                                                                  # sin marca, nada
+
+
+def test_editing_a_flagged_clip_turns_the_automatic_publication_off(client, tmp_path, monkeypatch):
+    h, db, clip, ch, user, video = world(client, tmp_path, monkeypatch)
+    clip.auto_publish = "public"
+    db.commit()
+    assert client.patch(f"/api/clips/{clip.id}", json={"hook": "Otro gancho"}, headers=h).json()["auto_publish"] is None
