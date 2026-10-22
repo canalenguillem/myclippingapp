@@ -14,7 +14,9 @@ from app.db.models import Asset, BrandTemplate, Clip, Project, RenderState
 from app.jobs import queue
 from app.pipeline import analysis as analysis_mod
 from app.pipeline import ass_fallback, ffops, vertical
+from app.pipeline import faces as faces_mod
 from app.pipeline import focus as focus_mod
+from app.pipeline import shots as shots_mod
 from app.services import asd_client
 from app.services import source as source_service
 from app.services import video_download
@@ -103,6 +105,45 @@ def _resolve_images(db, user_id: int, beats: list[dict]) -> tuple[list[dict], li
         resolved["image"] = path
         out.append(resolved)
     return out, missing
+
+
+def _free_intervals(a: float, b: float, taken: list[dict]) -> list[tuple[float, float]]:
+    """[a, b] menos los intervalos de `taken` (con start/end)."""
+    out, cur = [], a
+    for r in sorted(taken, key=lambda r: r["start"]):
+        if r["end"] <= cur or r["start"] >= b:
+            continue
+        if r["start"] > cur:
+            out.append((cur, r["start"]))
+        cur = max(cur, r["end"])
+    if cur < b:
+        out.append((cur, b))
+    return [(x, y) for x, y in out if y - x >= 0.5]
+
+
+def _shot_tracking(ctx, clip, source, folder, duration: float, track: list, screens: list[dict]) -> tuple[list, list[dict]]:
+    """Seguimiento por plano (pipeline/shots.py): corrige el recorrido del hablante con la posición real de las caras en cada plano y
+    enseña entero el plano cuando no hay una cara que seguir (plató con pantallas). Si falla (sin modelo de caras…), no pasa nada."""
+    import json as _json
+
+    try:
+        w, h = shots_mod._probe(source)
+        window = shots_mod.window_fraction(w, h, clip.top_ratio)
+        cache = folder / f"shots_{clip.start:.3f}_{clip.end:.3f}_{clip.top_ratio:.2f}.json"
+        base = track
+        if cache.is_file():
+            plan = _json.loads(cache.read_text(encoding="utf-8"))
+        else:
+            ctx.log("Analizando los planos del clip (caras y cortes)…")
+            plan = shots_mod.plan(source, clip.start, clip.end, window=window, asd_at=lambda t: focus_mod.position_at(base, t))
+            cache.write_text(_json.dumps(plan), encoding="utf-8")
+    except (shots_mod.ShotError, faces_mod.FaceError, OSError, ValueError) as exc:
+        ctx.log(f"No se pudo analizar los planos ({exc}); se usa el seguimiento normal")
+        return track, screens
+    ctx.log("Planos: " + ", ".join(f"{s['start']:.1f}–{s['end']:.1f} s {s['kind']}" + (f" x={s['x']:.2f}" if s['kind'] == 'face' else "") for s in plan))
+    wide = [{"start": a, "end": b, "x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0}
+            for s in plan if s["kind"] == "wide" for a, b in _free_intervals(s["start"], s["end"], screens)]
+    return focus_mod.apply_shots(track, plan), sorted([*screens, *wide], key=lambda r: r["start"])
 
 
 def _screens_for(clip, duration: float) -> list[dict]:
@@ -219,7 +260,10 @@ def render(ctx: JobContext, payload: dict) -> None:
         ctx.log(f"Render {'borrador' if draft else 'final'} del clip {clip.id}: {clip.start:.2f}–{clip.end:.2f} s ({duration:.1f} s)")
         words = fx_request.clip_words(transcription.load_words(storage.absolute(project.words_path))["words"], clip.start, clip.end)
         track = _speaker_track(ctx, clip, project, source, folder, words, cancel) if clip.focus == vertical.SPEAKER else None
-        vertical.make_vertical_clip(source, clip.start, clip.end, vertical_path, top_ratio=clip.top_ratio, focus=clip.focus, track=track, screens=_screens_for(clip, duration),
+        screens = _screens_for(clip, duration)
+        if track is not None:
+            track, screens = _shot_tracking(ctx, clip, source, folder, duration, track, screens)
+        vertical.make_vertical_clip(source, clip.start, clip.end, vertical_path, top_ratio=clip.top_ratio, focus=clip.focus, track=track, screens=screens,
                                     zoom=clip.zoom, layout=clip.layout, draft=draft, on_progress=_stage(ctx, 0, 20), cancel_check=cancel)
         ctx.log("Clip vertical listo")
 

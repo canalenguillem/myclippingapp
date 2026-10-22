@@ -6,3 +6,5 @@
 - Cuando el original enseña una pantalla (tuit, web, documento) que el hablante lee o comenta, esa pantalla se ve entera durante todo el tiempo que está en el original (tramo de «pantalla compartida»), no recortada al hablante; se detecta sola y se ajusta a mano si falla.
 
 - Una pantalla compartida solo se detecta si es una página con texto de al menos el 40 % del ancho del cuadro; un fondo blanco liso (rueda de prensa, plató) nunca lo es. Ante la duda, mejor no detectar: el usuario puede añadir el tramo a mano, pero un falso positivo deja al hablante fuera de escena.
+
+- Con «Sigue al hablante», el recorte se decide plano a plano (cada corte puede cambiar la composición): una cara principal → centrado en ella; sin cara grande o con varias que no caben (plató con pantallas) y el hablante no es una de las grandes → plano entero; webcams de una llamada → seguir al que habla pegado a su cara. Nunca dejar fuera de escena a la persona de la que habla el clip: ante la duda, enseñar el plano entero.

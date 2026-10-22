@@ -557,3 +557,35 @@ def test_the_template_brand_color_is_sent_so_everything_follows_it(client, tmp_p
     e.db.commit()
     run_job(e)
     assert e.fx.requests[-1]["brand"] == {"primary": "#1A8F6B"}
+
+
+def test_speaker_focus_uses_the_shot_plan_and_shows_wide_shots_whole(client, tmp_path, monkeypatch, source_file):
+    from app.pipeline import shots as shots_mod
+    e = setup(client, tmp_path, monkeypatch, source_file, focus="speaker")
+    plan = [{"start": 0.0, "end": 2.0, "kind": "face", "x": 0.6}, {"start": 2.0, "end": 4.0, "kind": "wide"}]
+    monkeypatch.setattr(shots_mod, "plan", lambda *a, **k: plan)
+    seen = {}
+    real = render_mod.vertical.make_vertical_clip
+
+    def spy(*a, **k):
+        seen.update(track=k.get("track"), screens=k.get("screens"))
+        return real(*a, **k)
+
+    monkeypatch.setattr(render_mod.vertical, "make_vertical_clip", spy)
+    run_job(e)
+    assert seen["track"][0][:2] == (0.0, 0.6)                                                # el recorte se centra en la cara del primer plano
+    assert seen["screens"] == [{"start": 2.0, "end": 4.0, "x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0}]   # el plano general se enseña entero
+    assert "Planos: 0.0–2.0 s face x=0.60, 2.0–4.0 s wide" in log(e)
+    assert (e.folder / "shots_1.000_5.000_0.50.json").exists()                               # y queda en caché
+
+
+def test_a_failing_shot_analysis_never_breaks_the_render(client, tmp_path, monkeypatch, source_file):
+    from app.pipeline import shots as shots_mod
+    e = setup(client, tmp_path, monkeypatch, source_file, focus="speaker")
+
+    def boom(*a, **k):
+        raise shots_mod.faces_mod.FaceError("sin modelo")
+
+    monkeypatch.setattr(shots_mod, "plan", boom)
+    run_job(e)
+    assert e.clip.render_state is RenderState.DRAFT and "No se pudo analizar los planos (sin modelo)" in log(e)

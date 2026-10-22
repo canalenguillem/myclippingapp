@@ -70,25 +70,61 @@ def _track_from_runs(runs: list[list], min_hold: float) -> list[tuple[float, flo
     return track[:MAX_STEPS]
 
 
-def x_fraction_expr(track: list[tuple[float, float]], ease: float = EASE) -> str:
-    """Expresión de ffmpeg (variable `t`) con la posición 0..1: x0 + Σ (x_i − x_{i−1})·smoothstep((t − t_i)/ease)."""
+CUT_EASE = 0.04   # en un corte de plano el recorte salta (el plano ya cambia de golpe): sin deslizarse de una posición a otra
+
+
+def _ease_of(point: tuple, default: float) -> float:
+    return float(point[2]) if len(point) > 2 else default
+
+
+def x_fraction_expr(track: list[tuple], ease: float = EASE) -> str:
+    """Expresión de ffmpeg (variable `t`) con la posición 0..1: x0 + Σ (x_i − x_{i−1})·smoothstep((t − t_i)/ease_i).
+    Cada punto es (t, x) o (t, x, ease)."""
     expr = f"{track[0][1]:.4f}"
-    for (_, prev), (t_i, x_i) in zip(track, track[1:]):
+    for prev_pt, pt in zip(track, track[1:]):
+        t_i, x_i, prev = pt[0], pt[1], prev_pt[1]
         delta = x_i - prev
-        u = f"clip((t-{t_i:.3f})/{ease:.3f},0,1)"
+        u = f"clip((t-{t_i:.3f})/{_ease_of(pt, ease):.3f},0,1)"
         expr += f"{delta:+.4f}*({u}*{u}*(3-2*{u}))"
     return expr
 
 
-def x_expr(track: list[tuple[float, float]], ease: float = EASE) -> str:
+def x_expr(track: list[tuple], ease: float = EASE) -> str:
     """Valor del `x` de `crop`: (iw-ow)·posición."""
     return f"(iw-ow)*({x_fraction_expr(track, ease)})"
 
 
-def position_at(track: list[tuple[float, float]], t: float, ease: float = EASE) -> float:
-    """Misma curva en Python (para tests y la vista previa)."""
+def position_at(track: list[tuple], t: float, ease: float = EASE) -> float:
+    """Misma curva en Python (para tests, la vista previa y el análisis por planos)."""
     pos = track[0][1]
-    for (_, prev), (t_i, x_i) in zip(track, track[1:]):
-        u = min(1.0, max(0.0, (t - t_i) / ease))
-        pos += (x_i - prev) * (u * u * (3 - 2 * u))
+    for prev_pt, pt in zip(track, track[1:]):
+        u = min(1.0, max(0.0, (t - pt[0]) / _ease_of(pt, ease)))
+        pos += (pt[1] - prev_pt[1]) * (u * u * (3 - 2 * u))
     return pos
+
+
+def apply_shots(track: list[tuple], shots: list[dict], *, max_steps: int = MAX_STEPS) -> list[tuple]:
+    """Seguimiento por plano sobre el recorrido base: en un plano «face» el recorte se queda en la cara; en un plano «snap» cada
+    posición del hablante se pega a la cara grande más cercana; «wide» y «keep» conservan el recorrido base. En cada corte de plano
+    el recorte salta (CUT_EASE) en vez de deslizarse."""
+    out: list[tuple] = []
+    for shot in shots:
+        a, b = float(shot["start"]), float(shot["end"])
+        base_here = position_at(track, a + 0.01)
+        kind = shot.get("kind")
+        if kind == "face":
+            out.append((a, float(shot["x"]), CUT_EASE))
+            continue
+        centers = shot.get("centers") or []
+        snap = (lambda x: min(centers, key=lambda c: abs(c - x))) if kind == "snap" and centers else (lambda x: x)
+        out.append((a, snap(base_here), CUT_EASE))
+        for pt in track:
+            if a + 0.05 < pt[0] < b - 0.05:
+                out.append((pt[0], snap(pt[1]), _ease_of(pt, EASE)))
+    out = [(0.0, out[0][1], CUT_EASE)] + out if out and out[0][0] > 0 else out
+    merged: list[tuple] = []
+    for p in out:                                      # sin pasos repetidos
+        if merged and abs(p[1] - merged[-1][1]) < 1e-4:
+            continue
+        merged.append(p)
+    return merged[:max_steps] or list(track)
