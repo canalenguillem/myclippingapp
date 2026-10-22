@@ -16,7 +16,8 @@ W, H = 320, 180
 BRIGHT = 185             # luminosidad mínima (0–255) de un píxel «de página»
 MAX_SAT = 40             # diferencia máxima entre canales: poco color
 COL_FRACTION = 0.55      # una columna es de página si ese porcentaje de sus píxeles lo es
-MIN_WIDTH = 0.28         # la franja de página ocupa al menos esta parte del ancho del cuadro
+MIN_WIDTH = 0.40         # la franja de página ocupa al menos esta parte del ancho del cuadro (un fondo blanco estrecho no es una pantalla)
+MIN_INK = 0.02           # …y su mediana de «tinta» (píxeles oscuros sin color: texto) no baja de esta fracción: una pared blanca no tiene texto
 MIN_HEIGHT = 0.45        # …y esta parte del alto
 MIN_RUN = 0.03           # una franja de página de menos ancho que esto es ruido
 MERGE_GAP = 0.30         # franjas separadas por menos de esto (del ancho) forman una sola pantalla
@@ -112,9 +113,25 @@ def segments_from_boxes(boxes: list[tuple[float, float, float, float] | None]) -
     return out
 
 
+def ink_fraction(frame: np.ndarray, box: tuple[float, float, float, float]) -> float:
+    """Fracción de píxeles «de texto» (oscuros y sin color) dentro de la región: una página con texto la tiene alta; un fondo liso, ~0."""
+    x, y, w, h = box
+    sub = frame[int(y * H):max(int(y * H) + 1, int((y + h) * H)), int(x * W):max(int(x * W) + 1, int((x + w) * W))].astype(np.int16)
+    lum = sub.mean(axis=2)
+    sat = sub.max(axis=2) - sub.min(axis=2)
+    return float(((lum < 120) & (sat < 60)).mean())
+
+
 def detect(video: Path, start: float, end: float, *, ffmpeg: str = "ffmpeg") -> list[dict]:
     """Tramos con una pantalla compartida entre `start` y `end` (segundos del vídeo original). Cada uno: {start, end, x, y, w, h}
     con start/end absolutos en segundos y la caja en fracciones del cuadro."""
     frames = read_frames(video, start, end, ffmpeg)
     boxes = [page_box(f) for f in frames]
-    return [{**s, "start": round(start + s["start"], 2), "end": round(min(end, start + s["end"]), 2)} for s in segments_from_boxes(boxes)]
+    out = []
+    for seg in segments_from_boxes(boxes):
+        a, b = int(seg["start"] * FPS), min(len(frames), int(seg["end"] * FPS))
+        box = (seg["x"], seg["y"], seg["w"], seg["h"])
+        if not b > a or float(np.median([ink_fraction(frames[k], box) for k in range(a, b)])) < MIN_INK:
+            continue                                   # sin texto: un fondo blanco, no una pantalla
+        out.append({**seg, "start": round(start + seg["start"], 2), "end": round(min(end, start + seg["end"]), 2)})
+    return out

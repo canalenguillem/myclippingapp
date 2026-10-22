@@ -24,6 +24,7 @@ def test_page_box_finds_a_white_page_and_ignores_a_plain_webcam():
     x, y, w, h = screens.page_box(frame((0.36, 1.0)))
     assert (round(x, 2), round(w, 2)) == (0.36, 0.64) and y == 0 and h == 1.0
     assert screens.page_box(frame((0.9, 1.0))) is None                          # una franja estrecha no es una pantalla
+    assert screens.page_box(frame((0.69, 1.0))) is None                         # ni una de menos del 40 % del ancho (un fondo blanco de rueda de prensa)
 
 
 def test_two_white_margins_around_a_dark_embedded_video_are_one_screen():
@@ -45,7 +46,7 @@ def test_segments_need_two_seconds_fill_short_gaps_and_use_the_median_box():
 def make_video(path, seconds=8):
     """Vídeo de prueba 640×360: 3 s de webcam, 3 s con una página blanca a la derecha (x ≥ 0,36), 2 s de webcam."""
     cmd = ["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", f"color=c=0x5a4632:s=640x360:r=10:d={seconds}",
-           "-vf", "drawbox=x=230:y=0:w=410:h=360:color=white:t=fill:enable='between(t,3,6)',drawbox=x=250:y=60:w=300:h=12:color=black:t=fill:enable='between(t,3,6)'",
+           "-vf", "drawbox=x=230:y=0:w=410:h=360:color=white:t=fill:enable='between(t,3,6)',drawbox=x=250:y=60:w=300:h=24:color=black:t=fill:enable='between(t,3,6)'",
            "-pix_fmt", "yuv420p", str(path)]
     subprocess.run(cmd, check=True)
     return path
@@ -93,3 +94,13 @@ def test_clip_patch_validates_and_sorts_screen_ranges_and_detect_endpoint_needs_
     p.video_path = storage.rel(video)
     db.commit()
     assert client.post(f"/api/clips/{c.id}/screens/detect", json={"start": 0, "end": 8}, headers=h).json()["ranges"][0]["start"] > 2.0
+
+
+def test_a_plain_white_backdrop_without_text_is_not_a_screen(tmp_path):
+    """Falso positivo real (clip 207): el fondo blanco de una rueda de prensa tiene la forma de una página pero no tiene texto."""
+    cmd = ["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "color=c=0x5a4632:s=640x360:r=10:d=8", "-vf",
+           "drawbox=x=160:y=0:w=480:h=360:color=white:t=fill:enable='between(t,2,7)'", "-pix_fmt", "yuv420p", str(tmp_path / "w.mp4")]
+    subprocess.run(cmd, check=True)
+    assert screens.detect(tmp_path / "w.mp4", 0, 8) == []
+    assert screens.ink_fraction(frame((0.36, 1.0)), (0.36, 0.0, 0.64, 1.0)) > screens.MIN_INK
+    assert screens.ink_fraction(np.full((screens.H, screens.W, 3), 250, dtype=np.uint8), (0.36, 0.0, 0.64, 1.0)) == 0

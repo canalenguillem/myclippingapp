@@ -4,3 +4,5 @@
 - Mesa de debate o varios hablantes lejos entre sí: encuadre «Sigue al hablante» y fijar la posición de cada speaker; un plano centrado fijo corta a quien habla. Las interjecciones de menos de 1 s no mueven el plano.
 
 - Cuando el original enseña una pantalla (tuit, web, documento) que el hablante lee o comenta, esa pantalla se ve entera durante todo el tiempo que está en el original (tramo de «pantalla compartida»), no recortada al hablante; se detecta sola y se ajusta a mano si falla.
+
+- Una pantalla compartida solo se detecta si es una página con texto de al menos el 40 % del ancho del cuadro; un fondo blanco liso (rueda de prensa, plató) nunca lo es. Ante la duda, mejor no detectar: el usuario puede añadir el tramo a mano, pero un falso positivo deja al hablante fuera de escena.
