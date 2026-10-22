@@ -7,3 +7,5 @@
 - Un render de un proyecto limpiado tarda lo que la descarga del vídeo original más el render: el log del job debe decir «descargándolo de nuevo»; si YouTube ya no sirve el vídeo, el render falla con un mensaje claro (no se queda colgado).
 
 - La publicación automática en YouTube solo sale si la revisión automática del render final no encuentra fallos (duración, audio, pantalla negra, gráficos solapados); con fallos se queda sin publicar y con el motivo a la vista. Público es una elección explícita del usuario clip a clip, nunca un valor por defecto de la app.
+
+- Un render que cae al plan B de subtítulos (sin banda ni cortinillas) no es un render válido: no se publica solo y el clip muestra el aviso hasta que se vuelva a renderizar.

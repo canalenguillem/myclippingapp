@@ -75,6 +75,7 @@ services:
       MEDIA_DIR: /media
       FX_MAX_RENDERS: "${RENDER_LANES:-1}"            # renders a la vez que acepta (debe coincidir con RENDER_LANES del backend)
       FX_WORKERS: "${FX_WORKERS:-2}"               # workers de captura por render: 2 = 98 s y 2,6 GB, 4 apenas mejora y duplica la memoria
+      PRODUCER_PAGE_NAVIGATION_TIMEOUT_MS: "${FX_NAV_TIMEOUT_MS:-180000}"   # espera de carga de Chrome (60 s por defecto: se agota si la máquina va cargada y el render cae al plan B)
       HYPERFRAMES_TELEMETRY: "0"
     volumes:
       - ${MEDIA_HOST_DIR:-./media}:/media

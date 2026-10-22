@@ -25,6 +25,7 @@ function activity(clip: Clip): { text: string; kind: "busy" | "queued" | "done" 
   else if (clip.render_state === "draft") out.push({ text: "🎞 Borrador listo", kind: "done" });
   else if (clip.render_state === "failed") out.push({ text: "✖ El render falló", kind: "error" });
   if (clip.auto_publish && clip.status === "approved" && !clip.upload_job_status) out.push({ text: `📤 Se publicará (${PRIVACY_LABEL[clip.auto_publish]}) al terminar`, kind: "queued" });
+  if ((clip.render_error ?? "").includes("subtítulos simples") && clip.render_job_status === null) out.push({ text: "⚠ Render con subtítulos simples: vuelve a renderizar", kind: "error" });
   if (clip.upload_error && !clip.upload_job_status && clip.status !== "uploaded") out.push({ text: "✖ La subida falló", kind: "error" });
   return out;
 }

@@ -323,3 +323,9 @@ Recomendación: empezar por 2, 3 y 4 (pequeños y cambian el aspecto de golpe).
 - `focus.apply_shots` corrige el recorrido del hablante por plano, con salto casi instantáneo en los cortes. Se aplica solo con `focus="speaker"`, en el render (resultado en caché `clip_N/shots_*.json`); si falla (sin modelo, sin red), el render sigue con el seguimiento normal. El log dice «Planos: 0.0–5.5 s wide, 5.5–18.8 s face x=0.50…».
 - Verificado con vídeo real: 207 → plató (0–5,5 s y 31,1–41,6 s) entero y podio centrado en x≈0,49; 136 → vídeo de Olmos en x=0,59 y después seguimiento pegado a las dos webcams (x=0,23 y 0,80).
 - Limitaciones: una cara que el detector no vea (perfil, mascarilla, de espaldas) hace que el plano se muestre entero (falla del lado seguro); la primera vez que se renderiza hay que poder descargar el modelo desde GitHub; los planos cuyo hablante real es una cara pequeña se enseñan enteros. Pendiente: que el worker de ASD devuelva posición por tramo.
+
+## Renders en paralelo: el plan B de subtítulos (clip 209)
+
+- Con `RENDER_LANES=2` los renders 320 y 321 corrieron a la vez y tardaron ~12 min cada uno (solos: 3–5 min): el paralelismo no ganó tiempo (Chrome renderiza por software y se reparten la CPU). En el 321 (clip 209) Chrome dejó de responder en el fotograma 604/1305 y, tras el reintento, `page.goto` agotó los 60 s de navegación: la app cayó al plan B de subtítulos ASS (sin banda crema, estilos, gancho ni cortinillas) y el clip se quedó con ese render aprobado.
+- Medidas: la publicación automática NUNCA publica un render con el plan B («subtítulos simples» en `render_error`): apaga la publicación y deja el motivo; la tarjeta del clip avisa «⚠ Render con subtítulos simples: vuelve a renderizar»; `fx_worker` espera 180 s la carga de Chrome (`FX_NAV_TIMEOUT_MS`, antes 60 s).
+- Recomendación: `RENDER_LANES=1` mientras no se demuestre que dos renders a la vez ganan tiempo (medir con dos clips largos).

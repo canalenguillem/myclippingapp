@@ -117,3 +117,13 @@ def test_auto_publish_without_a_final_render_queues_it_and_unapproving_clears_th
     clip.render_state = RenderState.NONE
     db.commit()
     assert client.post(f"/api/clips/{clip.id}/unapprove", headers=h).json()["auto_publish"] is None
+
+
+def test_a_degraded_render_with_plan_b_subtitles_is_never_published(client, tmp_path, monkeypatch):
+    h, db, clip, ch, user, video = world(client, tmp_path, monkeypatch)
+    clip.auto_publish = "public"
+    clip.render_error = "Aviso: CaptureStageError: Navigation timeout; se usaron subtítulos simples, sin cortinillas"
+    db.commit()
+    publish_job(ctx_for(db, user, tmp_path), {"clip_id": clip.id})
+    db.refresh(clip)
+    assert clip.auto_publish is None and clip.status == "approved" and "plan B de subtítulos" in clip.upload_error and jobs_of(db, "upload") == []

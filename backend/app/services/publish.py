@@ -23,12 +23,13 @@ class PublishBlocked(RuntimeError):
 
 
 def _qa_errors(clip: Clip, project: Project) -> list[str]:
+    degraded = ["El render salió con el plan B de subtítulos (sin banda, estilos ni cortinillas): vuelve a renderizarlo"] if "subtítulos simples" in (clip.render_error or "") else []
     report = storage.project_dir(project.user_id, project.id) / f"clip_{clip.id}" / "qa_final.json"
     try:
         data = json.loads(report.read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return []                      # sin informe (la revisión no pudo ejecutarse): no bloquea
-    return [c["message"] for c in data.get("checks", []) if c.get("level") == "error"]
+        return degraded                # sin informe (la revisión no pudo ejecutarse): no bloquea por eso
+    return degraded + [c["message"] for c in data.get("checks", []) if c.get("level") == "error"]
 
 
 def publish_now(db: Session, clip: Clip, log: Callable[[str], None], *, generate: Callable[..., seo_service.Seo] = seo_service.generate) -> int:
