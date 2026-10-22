@@ -7,7 +7,7 @@ type Props = {
   speakers: Record<string, Speaker>;
   busy: boolean;
   onEditWord: (index: number, text: string) => Promise<void>;
-  onAssign: (startIndex: number, endIndex: number, speaker: string) => Promise<void>;
+  onAssign: (startIndex: number, endIndex: number, speaker: string | null) => Promise<void>;
   /** Palabra que suena ahora en el reproductor (karaoke), si hay vídeo. */
   activeIndex?: number | null;
   follow?: boolean;
@@ -67,6 +67,8 @@ const TurnBlock = memo(function TurnBlock(p: TurnProps) {
   );
 });
 
+const NO_SPEAKER = "__none__";
+
 export default function TranscriptView({ words, speakers, busy, onEditWord, onAssign, activeIndex = null, follow = false, onSeek, onListen }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const labels = useMemo(() => Object.keys(speakers).sort(), [speakers]);
@@ -111,9 +113,10 @@ export default function TranscriptView({ words, speakers, busy, onEditWord, onAs
             <select value={target} onChange={(e) => setTarget(e.target.value)}>
               <option value="">Asignar a…</option>
               {labels.map((l) => <option key={l} value={l}>{speakers[l].name || `Speaker ${l}`}</option>)}
+              <option value={NO_SPEAKER}>✕ Sin speaker (quitar)</option>
             </select>
             {onListen && <button className="ghost" onClick={() => onListen(words[sel[0]].start, words[sel[1]].end)} title="Reproduce solo esas palabras en el vídeo">▶ Escuchar</button>}
-            <button disabled={!target || busy} onClick={async () => { await onAssign(sel[0], sel[1], target); setAnchor(null); setFocus(null); setTarget(""); }}>Asignar</button>
+            <button disabled={!target || busy} onClick={async () => { await onAssign(sel[0], sel[1], target === NO_SPEAKER ? null : target); setAnchor(null); setFocus(null); setTarget(""); }}>Asignar</button>
             <button className="ghost" onClick={() => { setAnchor(null); setFocus(null); }}>Limpiar</button>
           </div>
         ) : (
