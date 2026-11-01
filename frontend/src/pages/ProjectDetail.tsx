@@ -106,7 +106,7 @@ export default function ProjectDetail() {
   }, [loadProject]);
 
   // Mientras algún clip se renderiza o se sube (o espera en cola), la lista se refresca sola.
-  const anyActive = clips.some((c) => c.render_job_id !== null || c.upload_job_id !== null || c.prepare_job_id !== null || c.render_state === "rendering");
+  const anyActive = clips.some((c) => c.render_job_id !== null || c.upload_job_id !== null || c.prepare_job_id !== null || c.publish_job_status !== null || c.render_state === "rendering");
   useEffect(() => {
     if (!anyActive) return;
     const t = setInterval(loadClips, 3000);

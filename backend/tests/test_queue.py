@@ -89,3 +89,19 @@ def test_an_upload_does_not_wait_for_the_users_render_but_only_one_upload_runs_p
     assert queue.claim_next(db, "w1").id == up2.id
     queue.finish(db, render.id)
     assert queue.claim_next(db, "w1").id == other.id
+
+
+def test_publish_and_prepare_do_not_wait_behind_the_users_render(client):
+    """Publicar (SEO + encolar la subida) y preparar son ligeros: antes esperaban al render de su usuario y los clips «se publicarán al terminar» no salían."""
+    db = client.session_factory()
+    a = mkuser(db, "a@x.com", 1)
+    render = queue.enqueue(db, a.id, "render")
+    publish, publish2, prepare, other = (queue.enqueue(db, a.id, t) for t in ("publish", "publish", "prepare", "demo"))
+    assert queue.claim_next(db, "w").id == render.id                      # el render ocupa el único hueco pesado del usuario
+    assert queue.claim_next(db, "w").id == publish.id                     # publicar pasa por delante
+    assert queue.claim_next(db, "w").id == prepare.id                     # preparar también (otro tipo, su propio carril)
+    assert queue.claim_next(db, "w") is None                              # una segunda publicación espera a la primera; el demo, al render
+    queue.finish(db, publish.id)
+    assert queue.claim_next(db, "w").id == publish2.id
+    queue.finish(db, render.id)
+    assert queue.claim_next(db, "w").id == other.id

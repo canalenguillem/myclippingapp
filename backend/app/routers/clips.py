@@ -73,10 +73,11 @@ class ClipOut(BaseModel):
     render_job_progress: float | None = None
     upload_job_status: str | None = None
     prepare_job_id: int | None = None          # «Preparar y publicar» en marcha o en cola
+    publish_job_status: str | None = None      # queued | running: generando el SEO y encolando la subida
     created_at: datetime | None
 
 
-def _out(c: Clip, render_job_id: int | None = None, upload_job_id: int | None = None, jobs: dict | None = None, prepare_job_id: int | None = None) -> ClipOut:
+def _out(c: Clip, render_job_id: int | None = None, upload_job_id: int | None = None, jobs: dict | None = None, prepare_job_id: int | None = None, publish_job_id: int | None = None) -> ClipOut:
     jobs = jobs or {}
     return ClipOut(
         id=c.id, project_id=c.project_id, start=c.start, end=c.end, duration=round(c.end - c.start, 3),
@@ -92,6 +93,7 @@ def _out(c: Clip, render_job_id: int | None = None, upload_job_id: int | None = 
         render_job_progress=(jobs.get(("render", render_job_id)) or (None, None))[1] if render_job_id else None,
         upload_job_status=(jobs.get(("upload", upload_job_id)) or (None, None))[0] if upload_job_id else None,
         prepare_job_id=prepare_job_id,
+        publish_job_status=(jobs.get(("publish", publish_job_id)) or (None, None))[0] if publish_job_id else None,
     )
 
 
@@ -228,9 +230,10 @@ def list_clips(project_id: int, user: User = Depends(current_user), db: Session 
     project = get_owned(db, Project, project_id, user)
     clips = db.scalars(select(Clip).where(Clip.project_id == project.id, Clip.user_id == user.id).order_by(Clip.start)).all()
     jobs, uploads = _render_jobs(db, user.id), _render_jobs(db, user.id, "upload")
-    states = {(j.type, j.id): (j.status, j.progress) for j in db.scalars(select(Job).where(Job.id.in_([*jobs.values(), *uploads.values()]))).all()} if (jobs or uploads) else {}
-    prepares = _render_jobs(db, user.id, "prepare")
-    return [_out(c, jobs.get(c.id), uploads.get(c.id), states, prepares.get(c.id)) for c in clips]
+    prepares, publishes = _render_jobs(db, user.id, "prepare"), _render_jobs(db, user.id, "publish")
+    ids = [*jobs.values(), *uploads.values(), *publishes.values()]
+    states = {(j.type, j.id): (j.status, j.progress) for j in db.scalars(select(Job).where(Job.id.in_(ids))).all()} if ids else {}
+    return [_out(c, jobs.get(c.id), uploads.get(c.id), states, prepares.get(c.id), publishes.get(c.id)) for c in clips]
 
 
 @router.post("/api/projects/{project_id}/detect", response_model=JobRef, status_code=202)

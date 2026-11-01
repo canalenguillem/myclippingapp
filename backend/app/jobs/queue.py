@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import case, func, or_, select, update
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.config import get_settings
 from app.db.models import Job, User  # noqa: F401
@@ -13,7 +13,8 @@ from app.db.models import Job, User  # noqa: F401
 STALE_AFTER = timedelta(minutes=2)
 MAX_ATTEMPTS = 3
 TERMINAL = {"completed", "failed", "cancelled"}
-UPLOAD_TYPE = "upload"  # solo red: no espera a los jobs de CPU de su usuario (ni ellos a él), pero solo una subida a la vez por usuario
+UPLOAD_TYPE = "upload"
+LIGHT_TYPES = ("upload", "publish", "prepare")  # red o una llamada al modelo: no esperan a los jobs de CPU de su usuario (ni ellos a ellos); uno a la vez por usuario y tipo
 RENDER_TYPE = "render"  # carril global: como mucho `RENDER_LANES` (por defecto 1) jobs de este tipo en marcha en todo el sistema
 
 
@@ -59,15 +60,18 @@ def _claim_lock(db: Session):
 
 
 def claim_next(db: Session, worker_id: str) -> Job | None:
+    cand = aliased(Job)                    # el job candidato a reclamar
+    # Jobs pesados (CPU: ingesta, detección, render…): como mucho `max_concurrent_jobs` por usuario.
     running = (
         select(func.count()).select_from(Job)
-        .where(Job.user_id == User.id, Job.status == "running", Job.type != UPLOAD_TYPE)
+        .where(Job.user_id == User.id, Job.status == "running", Job.type.not_in(LIGHT_TYPES))
         .correlate(User).scalar_subquery()
     )
-    running_uploads = (
+    # Jobs ligeros (red o una llamada al modelo): no esperan a los pesados ni cuentan en su límite; uno a la vez por usuario y tipo.
+    same_type_running = (
         select(func.count()).select_from(Job)
-        .where(Job.user_id == User.id, Job.status == "running", Job.type == UPLOAD_TYPE)
-        .correlate(User).scalar_subquery()
+        .where(Job.user_id == cand.user_id, Job.type == cand.type, Job.status == "running")
+        .correlate(cand).scalar_subquery()
     )
     # Carril de render: un `render` en cola no se reclama mientras haya otro en marcha (de cualquier usuario).
     # No bloquea a los demás tipos de job: un detect de otro usuario sigue pudiendo pasar por delante.
@@ -77,11 +81,11 @@ def claim_next(db: Session, worker_id: str) -> Job | None:
         if ok is False:
             return None
         job = db.scalars(
-            select(Job).join(User, User.id == Job.user_id)
-            .where(Job.status == "queued", User.is_active.is_(True),
-                   case((Job.type == UPLOAD_TYPE, running_uploads < 1), else_=running < User.max_concurrent_jobs),
-                   or_(Job.type != RENDER_TYPE, render_running < lanes))
-            .order_by(Job.created_at, Job.id).limit(1).with_for_update(skip_locked=True)
+            select(cand).join(User, User.id == cand.user_id)
+            .where(cand.status == "queued", User.is_active.is_(True),
+                   case((cand.type.in_(LIGHT_TYPES), same_type_running < 1), else_=running < User.max_concurrent_jobs),
+                   or_(cand.type != RENDER_TYPE, render_running < lanes))
+            .order_by(cand.created_at, cand.id).limit(1).with_for_update(skip_locked=True)
         ).first()
         if job is None:
             db.rollback()

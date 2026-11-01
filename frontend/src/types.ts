@@ -26,7 +26,7 @@ export type Clip = {
   /** Estado del render, aparte del editorial: none | rendering | draft | final | failed. */
   render_state: "none" | "rendering" | "draft" | "final" | "failed";
   has_draft: boolean; has_final: boolean; render_error: string | null; render_job_id: number | null; upload_job_id: number | null;
-  render_job_status: "queued" | "running" | null; render_job_progress: number | null; upload_job_status: "queued" | "running" | null; prepare_job_id: number | null; template_id: number | null; graphics: Graphic[];
+  render_job_status: "queued" | "running" | null; render_job_progress: number | null; upload_job_status: "queued" | "running" | null; prepare_job_id: number | null; publish_job_status: "queued" | "running" | null; template_id: number | null; graphics: Graphic[];
   screen_ranges: ScreenRange[];
   seo_title: string; seo_description: string; seo_tags: string[]; channel_id: number | null; privacy: "private" | "unlisted" | "public";
   auto_publish: "public" | "unlisted" | "private" | null;

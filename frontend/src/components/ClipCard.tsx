@@ -20,6 +20,7 @@ const PRIVACY_LABEL: Record<Clip["privacy"], string> = { private: "privado", unl
 /** Qué está pasando con el render y la subida de este clip: en cola, en marcha, listo o con error. */
 function activity(clip: Clip): { text: string; kind: "busy" | "queued" | "done" | "error" }[] {
   const out: { text: string; kind: "busy" | "queued" | "done" | "error" }[] = [];
+  if (clip.publish_job_status) out.push({ text: clip.publish_job_status === "queued" ? "⏳ En cola para publicar (SEO y subida)" : "✍ Generando los textos y encolando la subida…", kind: clip.publish_job_status === "queued" ? "queued" : "busy" });
   if (clip.prepare_job_id) out.push({ text: "⚙ Preparando: cortinilla, pantallas, gráficos…", kind: "busy" });
   if (clip.upload_job_status) out.push({ text: clip.upload_job_status === "queued" ? "⏳ En cola para subir a YouTube" : "⬆ Subiendo a YouTube…", kind: clip.upload_job_status === "queued" ? "queued" : "busy" });
   if (clip.render_job_status === "queued") out.push({ text: "⏳ En cola para renderizar", kind: "queued" });
