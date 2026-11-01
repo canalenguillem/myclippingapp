@@ -163,7 +163,7 @@ def _detect_screens(ctx: JobContext, project) -> None:
             found += len(clip.screen_ranges)
         except Exception as exc:  # noqa: BLE001
             ctx.log(f"No se pudieron buscar pantallas compartidas en el clip {clip.id}: {exc}")
-    ctx.db.commit()
+        ctx.db.commit()          # `check_cancelled` (siguiente vuelta) hace expire_all(): sin guardar, se perdería lo de este clip
     ctx.log(f"Pantallas compartidas (tuits, webs): {found} tramo(s) en {len(clips)} clips")
 
 
@@ -236,6 +236,7 @@ def publish(ctx: JobContext, payload: dict) -> None:
 
 
 from .render import render  # noqa: E402  (al final: render importa este paquete)
+from .prepare import prepare  # noqa: E402
 from .upload import upload  # noqa: E402
 
-HANDLERS: dict[str, Handler] = {"demo": demo, "ingest": ingest, "detect": detect, "render": render, "upload": upload, "publish": publish}
+HANDLERS: dict[str, Handler] = {"demo": demo, "ingest": ingest, "detect": detect, "render": render, "upload": upload, "publish": publish, "prepare": prepare}

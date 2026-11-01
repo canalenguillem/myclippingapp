@@ -106,7 +106,7 @@ export default function ProjectDetail() {
   }, [loadProject]);
 
   // Mientras algún clip se renderiza o se sube (o espera en cola), la lista se refresca sola.
-  const anyActive = clips.some((c) => c.render_job_id !== null || c.upload_job_id !== null || c.render_state === "rendering");
+  const anyActive = clips.some((c) => c.render_job_id !== null || c.upload_job_id !== null || c.prepare_job_id !== null || c.render_state === "rendering");
   useEffect(() => {
     if (!anyActive) return;
     const t = setInterval(loadClips, 3000);
@@ -242,6 +242,10 @@ export default function ProjectDetail() {
         <div className="clip-grid">
           {clips.map((c) => (
             <ClipCard key={c.id} clip={c} onApprove={() => clipAction(c, "approve")} onUnapprove={() => clipAction(c, "unapprove")} onDelete={() => deleteClip(c)} hasChannel={project?.default_channel_id != null || c.channel_id !== null}
+              onPrepare={async (privacy) => {
+                try { await api(`/api/clips/${c.id}/prepare`, { method: "POST", json: { privacy } }); await loadClips(); setNotice(privacy ? "Preparando el clip: se renderizará y se publicará solo al terminar." : "Preparando el clip: cortinilla, pantallas, gráficos, aprobar y render final."); }
+                catch (e) { fail(e); }
+              }}
               onDuplicate={async () => { try { const n = await api<Clip>(`/api/clips/${c.id}/duplicate`, { method: "POST" }); navigate(`/clips/${n.id}`); } catch (e) { fail(e); } }}
               onAutoPublish={async (privacy) => {
                 try { await api(`/api/clips/${c.id}/auto-publish`, { method: "PUT", json: { privacy } }); await loadClips(); setNotice(privacy ? "Se publicará solo al terminar el render: genera el SEO y sube el vídeo." : "Ya no se publicará solo."); }

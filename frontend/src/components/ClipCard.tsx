@@ -9,6 +9,8 @@ type Props = {
   onAutoPublish?: (privacy: Clip["auto_publish"]) => void;
   /** Crea una copia editable (para rehacer un clip ya subido). */
   onDuplicate?: () => void;
+  /** «Preparar y publicar»: todo el proceso con un clic. `null` = solo preparar, sin publicar. */
+  onPrepare?: (privacy: NonNullable<Clip["auto_publish"]> | null) => void;
   hasChannel?: boolean;
 };
 
@@ -18,6 +20,7 @@ const PRIVACY_LABEL: Record<Clip["privacy"], string> = { private: "privado", unl
 /** Qué está pasando con el render y la subida de este clip: en cola, en marcha, listo o con error. */
 function activity(clip: Clip): { text: string; kind: "busy" | "queued" | "done" | "error" }[] {
   const out: { text: string; kind: "busy" | "queued" | "done" | "error" }[] = [];
+  if (clip.prepare_job_id) out.push({ text: "⚙ Preparando: cortinilla, pantallas, gráficos…", kind: "busy" });
   if (clip.upload_job_status) out.push({ text: clip.upload_job_status === "queued" ? "⏳ En cola para subir a YouTube" : "⬆ Subiendo a YouTube…", kind: clip.upload_job_status === "queued" ? "queued" : "busy" });
   if (clip.render_job_status === "queued") out.push({ text: "⏳ En cola para renderizar", kind: "queued" });
   else if (clip.render_job_status === "running" || clip.render_state === "rendering") out.push({ text: `⚙ Renderizando${clip.render_job_progress ? ` ${Math.round(clip.render_job_progress)} %` : "…"}`, kind: "busy" });
@@ -30,8 +33,9 @@ function activity(clip: Clip): { text: string; kind: "busy" | "queued" | "done" 
   return out;
 }
 
-export default function ClipCard({ clip, onApprove, onUnapprove, onDelete, onAutoPublish, onDuplicate, hasChannel = true }: Props) {
+export default function ClipCard({ clip, onApprove, onUnapprove, onDelete, onAutoPublish, onDuplicate, onPrepare, hasChannel = true }: Props) {
   const [privacy, setPrivacy] = useState<NonNullable<Clip["auto_publish"]>>("public");
+  const [mode, setMode] = useState<NonNullable<Clip["auto_publish"]> | "none">("public");
   const uploaded = clip.status === "uploaded";
   const acts = activity(clip);
   return (
@@ -53,10 +57,25 @@ export default function ClipCard({ clip, onApprove, onUnapprove, onDelete, onAut
           {clip.youtube_video_id && <> · <a href={`https://www.youtube.com/watch?v=${clip.youtube_video_id}`} target="_blank" rel="noreferrer">Ver en YouTube</a></>}
         </div>
       )}
+      {(clip.status === "detected" || clip.status === "approved") && !clip.youtube_video_id && !clip.prepare_job_id && !clip.auto_publish
+        && clip.render_state !== "rendering" && !clip.render_job_id && onPrepare && (
+        <div className="clip-autopub">
+          <select value={hasChannel ? mode : "none"} onChange={(e) => setMode(e.target.value as typeof mode)} title="Qué hacer al terminar el render">
+            <option value="public" disabled={!hasChannel}>Y publicar: público</option>
+            <option value="unlisted" disabled={!hasChannel}>Y publicar: no listado</option>
+            <option value="private" disabled={!hasChannel}>Y publicar: privado</option>
+            <option value="none">Solo preparar (no publicar)</option>
+          </select>
+          <button onClick={() => onPrepare(hasChannel && mode !== "none" ? mode : null)}
+            title={"Hace todo: cortinilla de inicio, pantallas compartidas, gráficos con IA, aprobar y render final" + (hasChannel ? "; y publica al terminar" : "") + (hasChannel ? "" : ". Para publicar elige antes el canal de YouTube del proyecto.")}>
+            🚀 {hasChannel && mode !== "none" ? "Preparar y publicar" : "Preparar"}
+          </button>
+        </div>
+      )}
       {clip.status === "approved" && !clip.youtube_video_id && onAutoPublish && (
         <div className="clip-autopub">
           {clip.auto_publish ? (
-            <button className="ghost" onClick={() => onAutoPublish(null)} title="Deja de publicarse solo">✕ No publicar solo</button>
+            <button className="ghost" onClick={() => onAutoPublish(null)} title="El clip se queda aprobado y con su render, pero no se subirá a YouTube hasta que lo publiques tú o lo vuelvas a marcar">✕ Cancelar publicación automática</button>
           ) : (
             <>
               <select value={privacy} onChange={(e) => setPrivacy(e.target.value as typeof privacy)} title="Privacidad con la que se publicará">

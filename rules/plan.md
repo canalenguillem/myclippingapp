@@ -8,3 +8,5 @@
 - Una pantalla compartida solo se detecta si es una página con texto de al menos el 40 % del ancho del cuadro; un fondo blanco liso (rueda de prensa, plató) nunca lo es. Ante la duda, mejor no detectar: el usuario puede añadir el tramo a mano, pero un falso positivo deja al hablante fuera de escena.
 
 - Con «Sigue al hablante», el recorte se decide plano a plano (cada corte puede cambiar la composición): una cara principal → centrado en ella; sin cara grande o con varias que no caben (plató con pantallas) y el hablante no es una de las grandes → plano entero; webcams de una llamada → seguir al que habla pegado a su cara. Nunca dejar fuera de escena a la persona de la que habla el clip: ante la duda, enseñar el plano entero.
+
+- Los handlers de jobs que cambian datos y llaman a `ctx.check_cancelled()` deben guardar (`db.commit()`) antes de llamarla: hace `expire_all()` y descarta lo pendiente.

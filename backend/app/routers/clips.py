@@ -72,10 +72,11 @@ class ClipOut(BaseModel):
     render_job_status: str | None = None      # queued | running (solo con un job de render activo)
     render_job_progress: float | None = None
     upload_job_status: str | None = None
+    prepare_job_id: int | None = None          # «Preparar y publicar» en marcha o en cola
     created_at: datetime | None
 
 
-def _out(c: Clip, render_job_id: int | None = None, upload_job_id: int | None = None, jobs: dict | None = None) -> ClipOut:
+def _out(c: Clip, render_job_id: int | None = None, upload_job_id: int | None = None, jobs: dict | None = None, prepare_job_id: int | None = None) -> ClipOut:
     jobs = jobs or {}
     return ClipOut(
         id=c.id, project_id=c.project_id, start=c.start, end=c.end, duration=round(c.end - c.start, 3),
@@ -90,6 +91,7 @@ def _out(c: Clip, render_job_id: int | None = None, upload_job_id: int | None = 
         render_job_status=(jobs.get(("render", render_job_id)) or (None, None))[0] if render_job_id else None,
         render_job_progress=(jobs.get(("render", render_job_id)) or (None, None))[1] if render_job_id else None,
         upload_job_status=(jobs.get(("upload", upload_job_id)) or (None, None))[0] if upload_job_id else None,
+        prepare_job_id=prepare_job_id,
     )
 
 
@@ -227,7 +229,8 @@ def list_clips(project_id: int, user: User = Depends(current_user), db: Session 
     clips = db.scalars(select(Clip).where(Clip.project_id == project.id, Clip.user_id == user.id).order_by(Clip.start)).all()
     jobs, uploads = _render_jobs(db, user.id), _render_jobs(db, user.id, "upload")
     states = {(j.type, j.id): (j.status, j.progress) for j in db.scalars(select(Job).where(Job.id.in_([*jobs.values(), *uploads.values()]))).all()} if (jobs or uploads) else {}
-    return [_out(c, jobs.get(c.id), uploads.get(c.id), states) for c in clips]
+    prepares = _render_jobs(db, user.id, "prepare")
+    return [_out(c, jobs.get(c.id), uploads.get(c.id), states, prepares.get(c.id)) for c in clips]
 
 
 @router.post("/api/projects/{project_id}/detect", response_model=JobRef, status_code=202)
@@ -670,6 +673,37 @@ def auto_publish(clip_id: int, body: AutoPublishIn, user: User = Depends(current
         clip.render_state, clip.render_error = RenderState.RENDERING, None
     db.commit()
     return _out(clip)
+
+
+class PrepareIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    privacy: Literal["public", "unlisted", "private"] | None = None   # None = solo preparar (sin publicar)
+
+
+@router.post("/api/clips/{clip_id}/prepare", response_model=JobRef, status_code=202)
+def prepare_clip(clip_id: int, body: PrepareIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """UN clic para dejar el clip listo: cortinilla de inicio, pantallas compartidas, gráficos con IA, aprobar y render final; con
+    `privacy`, además se publica solo al acabar el render (SEO + subida). Corre en segundo plano (job `prepare`)."""
+    clip = get_owned(db, Clip, clip_id, user)
+    project = db.get(Project, clip.project_id)
+    if clip.status not in EDITABLE:
+        raise HTTPException(409, f"Un clip en estado «{clip.status}» no se puede preparar")
+    if clip.render_state is RenderState.RENDERING:
+        raise HTTPException(409, "El clip ya se está renderizando")
+    if clip.layout not in ("split", "full") or not project.video_path or not project.words_path:
+        raise HTTPException(409, "El clip no se puede renderizar: revisa su diseño y que el proyecto tenga vídeo y transcripción")
+    if body.privacy is not None:
+        if clip.channel_id is None:
+            raise HTTPException(409, "Elige antes el canal de YouTube del proyecto")
+        if not _channel(db, user, clip.channel_id).token_enc:
+            raise HTTPException(409, "El canal no está conectado a YouTube: conéctalo en Canales")
+    if clip.id in _render_jobs(db, user.id, "prepare"):
+        raise HTTPException(409, "Este clip ya se está preparando")
+    if queue.active_job(db, user.id, project.id, ignore_types=("render", "upload", "publish", "prepare")):
+        raise HTTPException(409, "Hay una ingesta o una detección en marcha para este proyecto: espera a que termine")
+    job = queue.enqueue(db, user.id, "prepare", {"clip_id": clip.id, "project_id": project.id, "privacy": body.privacy})
+    return JobRef(job_id=job.id)
 
 
 @router.post("/api/clips/{clip_id}/upload", response_model=JobRef, status_code=202)
